@@ -1564,6 +1564,7 @@ function formatSeconds(sec) {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+// === NEW: DELTA-BASED LOCAL TIMER ===
 function updateDisplayedTimers() {
   const whiteTimer = document.getElementById("whiteTimer");
   const blackTimer = document.getElementById("blackTimer");
@@ -1584,21 +1585,30 @@ function updateDisplayedTimers() {
 function startLocalTimer() {
   if (timerInterval) clearInterval(timerInterval);
 
+  let lastTick = performance.now();
+
   timerInterval = setInterval(() => {
     if (!gameState || gameState.winner || (gameState.isActive === false)) {
       clearInterval(timerInterval);
       return;
     }
-    if (gameState.turn === "white" && whiteSeconds > 0) {
-      whiteSeconds = Math.max(0, whiteSeconds - 1);
-    } else if (gameState.turn === "black" && blackSeconds > 0) {
-      blackSeconds = Math.max(0, blackSeconds - 1);
+
+    const now = performance.now();
+    const delta = (now - lastTick) / 1000; // Time passed in seconds (float)
+    lastTick = now;
+
+    if (gameState.turn === "white") {
+      whiteSeconds = Math.max(0, whiteSeconds - delta);
+    } else if (gameState.turn === "black") {
+      blackSeconds = Math.max(0, blackSeconds - delta);
     }
+    
     updateDisplayedTimers();
-    if (whiteSeconds === 0 || blackSeconds === 0) {
+    
+    if (whiteSeconds <= 0 || blackSeconds <= 0) {
       clearInterval(timerInterval);
     }
-  }, 1000);
+  }, 100); // Update frequently (100ms) for smoothness
 }
 
 const sounds = {
@@ -1806,8 +1816,9 @@ function startGame(data){
   }
 
   const defaultSeconds = URL_TIME || 300;
-  whiteSeconds = gameState.whiteTimeFormatted ? timeStringToSeconds(gameState.whiteTimeFormatted) : defaultSeconds;
-  blackSeconds = gameState.blackTimeFormatted ? timeStringToSeconds(gameState.blackTimeFormatted) : defaultSeconds;
+  // Use raw values from server if available (for reconnection), else default
+  whiteSeconds = gameState.whiteTime !== undefined ? gameState.whiteTime : defaultSeconds;
+  blackSeconds = gameState.blackTime !== undefined ? gameState.blackTime : defaultSeconds;
 
   updateDisplayedTimers();
 
@@ -1825,6 +1836,8 @@ function startGame(data){
 
 socket.on("game_start", d=>{
   gameState = d.state;
+  whiteSeconds = d.state.whiteTime;
+  blackSeconds = d.state.blackTime;
   updateWaitingOverlay(false);
   startLocalTimer();
   renderBoard(gameState);
@@ -1891,19 +1904,11 @@ socket.on("game_update", d => {
   gameState = d.state;
 
   pendingMoves.clear();
-  const SERVER_SYNC_THRESHOLD = 2;
-  if (gameState.whiteTimeFormatted !== undefined) {
-    const srv = timeStringToSeconds(gameState.whiteTimeFormatted);
-    if (srv > 0 && Math.abs(srv - whiteSeconds) > SERVER_SYNC_THRESHOLD) {
-      whiteSeconds = srv;
-    }
-  }
-  if (gameState.blackTimeFormatted !== undefined) {
-    const srv = timeStringToSeconds(gameState.blackTimeFormatted);
-    if (srv > 0 && Math.abs(srv - blackSeconds) > SERVER_SYNC_THRESHOLD) {
-      blackSeconds = srv;
-    }
-  }
+  
+  // === FIX: SYNC TIME WITH SERVER ===
+  // Always update local time to server time to correct drift
+  if (gameState.whiteTime !== undefined) whiteSeconds = gameState.whiteTime;
+  if (gameState.blackTime !== undefined) blackSeconds = gameState.blackTime;
 
   updateDisplayedTimers();
   
@@ -2217,7 +2222,7 @@ function updateStatus(state){
         state.reason==="checkmate" ? "by Checkmate" :
         state.reason==="resign" ? "by Resignation" :
         state.reason==="timeout" ? "by Timeout" : 
-        state.reason==="abandonment" ? "by Abandonment" : ""; // Add abandonment case
+        state.reason==="abandonment" ? "by Abandonment" : ""; 
       s.textContent=`👑 ${w} Wins ${r}!`;
       s.style.background="linear-gradient(135deg, #11998e 0%, #38ef7d 100%)";
       s.style.color="#fff";
