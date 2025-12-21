@@ -1943,10 +1943,7 @@ socket.on("chat_message", data => {
   appendChat(data, data.sender === playerColor);
   if (data.sender !== playerColor) playSound("notify");
 });
-socket.on("possible_moves", d=>{
-  possibleMoves = d.moves;
-  renderBoard(gameState);
-});
+// socket.on("possible_moves", ...) REMOVED for Speed
 socket.on("invalid_move", data => {
   console.warn("Server rejected move:", data);
   if (data.moveId) revertOptimisticMove(data.moveId);
@@ -2012,7 +2009,12 @@ function renderBoard(state, lastMove=null){
         pDiv.dataset.col=c;
         pDiv.addEventListener("dragstart", e=>{
           selectedSquare = { row:r, col:c };
-          socket.emit("get_possible_moves", { room:currentRoom, from:selectedSquare });
+          
+          // === UPDATED: USE PRE-LOADED MOVES (NO SOCKET CALL) ===
+          const key = `${r},${c}`;
+          possibleMoves = (state.moves && state.moves[key]) ? state.moves[key] : [];
+          renderBoard(state, lastMove);
+          
           e.dataTransfer.setData("fromRow", r);
           e.dataTransfer.setData("fromCol", c);
         });
@@ -2088,13 +2090,23 @@ function handleSquareClick(row, col, state){
     (playerColor==="white" && isWhite) ||
     (playerColor==="black" && !isWhite)
   );
+  
+  // === UPDATED LOGIC: USE PRE-CALCULATED MOVES ===
   if(isMine){
     selectedSquare = { row,col };
-    socket.emit("get_possible_moves",{ room:currentRoom, from:selectedSquare });
+    // Get moves directly from state instead of socket
+    const key = `${row},${col}`;
+    possibleMoves = (state.moves && state.moves[key]) ? state.moves[key] : [];
+    
+    // Re-render to show highlights immediately
+    renderBoard(state);
+    
     const messages = document.getElementById("messages");
     if (messages) messages.textContent="";
     return;
   }
+  // ==============================================
+
   if(!selectedSquare) return;
   const isValid = possibleMoves.some(m=>m.row===row && m.col===col);
   if(!isValid){
