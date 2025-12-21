@@ -1051,6 +1051,7 @@ function applyOptimisticMove(from, to, promotion = null) {
 }
 
 function revertOptimisticMove(moveId) {
+  // Try to find the backup state
   if (pendingMoves.has(moveId)) {
     const moveData = pendingMoves.get(moveId);
     if (moveData.previousState) {
@@ -1060,6 +1061,15 @@ function revertOptimisticMove(moveId) {
       updateTurnIndicator(gameState);
     }
     pendingMoves.delete(moveId);
+  } else {
+    // FALLBACK: If we lost the backup state, force the turn back to us 
+    // because we know the move failed.
+    if (gameState && !gameState.winner) {
+        // We assume it's our turn again because the server rejected our move
+        gameState.turn = playerColor; 
+        renderBoard(gameState);
+        updateTurnIndicator(gameState);
+    }
   }
 }
 
@@ -1263,7 +1273,13 @@ socket.on("player_reconnected", (data) => {
 socket.on("game_update", d => {
   const prev = gameState;
   gameState = d.state;
-  pendingMoves.clear();
+  
+  // FIX: Don't clear pending moves aggressively. Only clear old ones.
+  const now = Date.now();
+  for (const [id, data] of pendingMoves) {
+      if (now - data.timestamp > 10000) pendingMoves.delete(id);
+  }
+
   if (gameState.whiteTime !== undefined) whiteSeconds = gameState.whiteTime;
   if (gameState.blackTime !== undefined) blackSeconds = gameState.blackTime;
   updateDisplayedTimers();
@@ -1302,14 +1318,25 @@ socket.on("chat_message", data => {
 });
 socket.on("possible_moves", d=>{
   possibleMoves = d.moves;
-  // VISUAL UPDATE ONLY - Logic does NOT depend on this anymore
   renderBoard(gameState);
 });
 socket.on("invalid_move", data => {
   console.warn("Server rejected move:", data);
-  if (data.moveId) revertOptimisticMove(data.moveId);
+  if (data.moveId) {
+      revertOptimisticMove(data.moveId);
+  } else {
+      // Fallback if no ID provided
+      if (gameState) {
+          gameState.turn = playerColor;
+          renderBoard(gameState);
+          updateTurnIndicator(gameState);
+      }
+  }
   const messages = document.getElementById("messages");
-  if (messages) messages.textContent = "❌ Invalid move!";
+  if (messages) {
+      messages.textContent = "❌ Invalid move!";
+      setTimeout(() => messages.textContent = "", 2000);
+  }
 });
 
 document.addEventListener("DOMContentLoaded", function() {
@@ -1376,11 +1403,10 @@ function renderBoard(state, lastMove=null){
         sq.appendChild(pDiv);
       }
       
-      // --- UPDATED CLICK HANDLER (OPTIMISTIC) ---
+      // OPTIMISTIC HANDLERS
       sq.addEventListener("click", ()=> handleSquareClick(r,c,state));
       sq.addEventListener("dragover", e=> e.preventDefault());
       
-      // --- UPDATED DROP HANDLER (OPTIMISTIC) ---
       sq.addEventListener("drop", e=>{
         e.preventDefault();
         const fr=parseInt(e.dataTransfer.getData("fromRow"));
@@ -1388,7 +1414,6 @@ function renderBoard(state, lastMove=null){
         const from={row:fr,col:fc};
         const to={row:r,col:c};
         
-        // Prevent capturing own pieces (Local sanity check only)
         const targetPiece = state.board[r][c];
         const isTargetMine = targetPiece !== "." && (
             (playerColor === "white" && targetPiece === targetPiece.toUpperCase()) ||
@@ -1456,7 +1481,6 @@ function handleSquareClick(row, col, state){
   }
   if(!selectedSquare) return;
 
-  // --- OPTIMISTIC MOVE: NO VALIDATION AGAINST 'possibleMoves' ---
   const movingPiece = state.board[selectedSquare.row][selectedSquare.col];
   const isPawn = movingPiece.toLowerCase()==="p";
   const isPromoRank = (playerColor==="white" && row===0) ||
