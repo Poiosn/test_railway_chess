@@ -196,6 +196,23 @@ def board_to_matrix(board):
         grid[7 - chess.square_rank(sq)][chess.square_file(sq)] = piece.symbol()
     return grid
 
+# === NEW HELPER FUNCTION FOR OPTIMIZATION ===
+def get_legal_moves_map(board):
+    """Pre-calculates all legal moves mapped by starting square (row,col)"""
+    moves = {}
+    for move in board.legal_moves:
+        # Convert to frontend matrix coordinates
+        r_from = 7 - chess.square_rank(move.from_square)
+        c_from = chess.square_file(move.from_square)
+        r_to = 7 - chess.square_rank(move.to_square)
+        c_to = chess.square_file(move.to_square)
+        
+        key = f"{r_from},{c_from}"
+        if key not in moves:
+            moves[key] = []
+        moves[key].append({"row": r_to, "col": c_to})
+    return moves
+
 def export_state(room):
     g = games[room]
     return {
@@ -205,11 +222,12 @@ def export_state(room):
         "winner": g["winner"],
         "reason": g.get("reason"),
         "isActive": g.get("isActive", False),
-        # FIX: Send raw seconds for accurate client syncing
         "whiteTime": g["whiteTime"], 
         "blackTime": g["blackTime"],
         "whiteTimeFormatted": format_seconds(g["whiteTime"]),
-        "blackTimeFormatted": format_seconds(g["blackTime"])
+        "blackTimeFormatted": format_seconds(g["blackTime"]),
+        # === SEND MOVES UPFRONT ===
+        "moves": get_legal_moves_map(g["board"])
     }
 
 def update_time(g):
@@ -503,15 +521,6 @@ def bot_play(room):
                              "to": {"row": 7-chess.square_rank(best_move.to_square), "col": chess.square_file(best_move.to_square)}},
                 "moveNotation": san
             }, room=room)
-
-@socketio.on("get_possible_moves")
-def get_moves(data):
-    room = data["room"]
-    if room not in games: return
-    board = games[room]["board"]
-    f = chess.square(data["from"]["col"], 7-data["from"]["row"])
-    moves = [{"row": 7-chess.square_rank(m.to_square), "col": chess.square_file(m.to_square)} for m in board.legal_moves if m.from_square == f]
-    emit("possible_moves", {"moves": moves})
 
 @socketio.on("send_message")
 def msg(data): socketio.emit("chat_message", data, room=data["room"])
