@@ -2007,17 +2007,43 @@ function renderBoard(state, lastMove=null){
         }
         pDiv.dataset.row=r;
         pDiv.dataset.col=c;
+        
+        // === UPDATED DRAG HANDLER FOR DRAG & DROP FIX ===
         pDiv.addEventListener("dragstart", e=>{
           selectedSquare = { row:r, col:c };
           
-          // === UPDATED: USE PRE-LOADED MOVES (NO SOCKET CALL) ===
+          // Get PRE-LOADED MOVES from state
           const key = `${r},${c}`;
           possibleMoves = (state.moves && state.moves[key]) ? state.moves[key] : [];
-          renderBoard(state, lastMove);
+
+          // FIX: Do NOT call renderBoard() here. It destroys the DOM element being dragged.
+          // Instead, manually toggle classes to show highlights.
+          
+          // 1. Clear old highlights
+          document.querySelectorAll('.square').forEach(s => {
+             s.classList.remove('selected', 'possible-move');
+          });
+
+          // 2. Highlight Source
+          const sourceSq = document.querySelector(`.square[data-row="${r}"][data-col="${c}"]`);
+          if(sourceSq) sourceSq.classList.add('selected');
+
+          // 3. Highlight Targets
+          possibleMoves.forEach(m => {
+             const targetSq = document.querySelector(`.square[data-row="${m.row}"][data-col="${m.col}"]`);
+             if(targetSq) targetSq.classList.add('possible-move');
+          });
           
           e.dataTransfer.setData("fromRow", r);
           e.dataTransfer.setData("fromCol", c);
         });
+
+        // Add dragend to clean up highlights if drag is cancelled
+        pDiv.addEventListener("dragend", () => {
+             // Re-render board to clear highlights if no drop occurred
+             renderBoard(gameState, lastMove);
+        });
+
         const img=document.createElement("img");
         const clr = isWhitePiece ? "w" : "b";
         const type = piece.toLowerCase();
