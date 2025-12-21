@@ -367,10 +367,8 @@ let currentRoom = URL_ROOM;
 let playerColor = null;
 let playerName = URL_NAME;
 let gameState = null;
-// --- CRITICAL FIX VARIABLES ---
-let lastValidServerState = null; // Stores the authoritative state from server
-let isOptimisticUpdate = false;  // True when we are showing a move that hasn't been confirmed yet
-// ------------------------------
+let lastValidServerState = null;
+let isOptimisticUpdate = false;
 let selectedSquare = null;
 let possibleMoves = [];
 let pendingPromotion = null;
@@ -382,8 +380,6 @@ let blackSeconds = 0;
 let timerInterval = null;
 let moveSequence = 0;
 let disconnectInterval = null;
-
-// ... (Helper functions remain mostly same, logic changed in Socket events)
 
 function formatSeconds(sec) {
   sec = Math.max(0, Math.floor(sec));
@@ -503,10 +499,10 @@ function startGame(data){
   document.getElementById("loadingMessage").style.display = "none";
   document.getElementById("game").style.display = "block";
   currentRoom = data.room;
-  if(data.color) playerColor = data.color; // Keep color if reconnecting
+  if(data.color) playerColor = data.color;
   
   gameState = data.state;
-  lastValidServerState = JSON.parse(JSON.stringify(data.state)); // Initialize valid state
+  lastValidServerState = JSON.parse(JSON.stringify(data.state));
   isOptimisticUpdate = false;
 
   document.getElementById("roomName").textContent = currentRoom;
@@ -524,41 +520,31 @@ function startGame(data){
 }
 
 socket.on("game_update", d => {
-  // CRITICAL FIX: RECONCILIATION LOGIC
-  
-  // 1. Always update the authoritative state
+  // 1. Authoritative State Update
   lastValidServerState = JSON.parse(JSON.stringify(d.state));
 
-  // 2. If we are waiting for a move (Optimistic), check if this update confirms it
+  // 2. Reconciliation
   if (isOptimisticUpdate) {
       const myOptimisticBoard = JSON.stringify(gameState.board);
       const serverBoard = JSON.stringify(d.state.board);
       
       if (myOptimisticBoard === serverBoard) {
-          // Success! Server matches our prediction.
           isOptimisticUpdate = false;
           gameState = d.state;
       } else {
-          // Mismatch. 
-          // Case A: The server sent a heartbeat with the OLD state (turn hasn't flipped yet).
-          // We MUST ignore this to prevent the piece snapping back.
-          // Case B: The server sent a totally new state (opponent moved?).
-          
+          // If server turn == My Turn, it means my move hasn't processed/was invalid
+          // We ignore this update to keep UI smooth until invalid_move comes
           if (d.state.turn === playerColor) {
-             // Server says it's still my turn, but I thought I moved.
-             // This is likely just a heartbeat delay.
-             // DO NOT OVERWRITE BOARD. Just update time.
              if (d.state.whiteTime) whiteSeconds = d.state.whiteTime;
              if (d.state.blackTime) blackSeconds = d.state.blackTime;
-             return; // EXIT FUNCTION EARLY
+             return; 
           } else {
-             // The turn changed to something else? Accept server truth.
+             // Turn mismatch - likely opponent moved or desync. Accept server.
              isOptimisticUpdate = false;
              gameState = d.state;
           }
       }
   } else {
-      // Normal update (opponent moved, or heartbeat)
       const prev = gameState;
       gameState = d.state;
       if (prev && prev.board && JSON.stringify(prev.board) !== JSON.stringify(gameState.board)) {
@@ -566,7 +552,6 @@ socket.on("game_update", d => {
       }
   }
 
-  // Update Timers & UI
   whiteSeconds = gameState.whiteTime;
   blackSeconds = gameState.blackTime;
   updateDisplayedTimers();
@@ -585,31 +570,16 @@ socket.on("game_update", d => {
 });
 
 socket.on("invalid_move", () => {
-  console.warn("❌ Move rejected by server. Rolling back.");
-  
-  // 1. Hard reset to the last authoritative state from server
-  if (lastValidServerState) {
-      gameState = JSON.parse(JSON.stringify(lastValidServerState));
-  }
-  
-  // 2. Reset flags
+  console.warn("❌ Move rejected. Reverting.");
+  if (lastValidServerState) gameState = JSON.parse(JSON.stringify(lastValidServerState));
   isOptimisticUpdate = false;
-  
-  // 3. Force Render
   renderBoard(gameState);
   updateTurnIndicator(gameState);
-  
-  // 4. Show Error
   const msg = document.getElementById("messages");
-  if(msg) {
-      msg.textContent = "❌ Invalid move!";
-      setTimeout(()=> msg.textContent="", 2000);
-  }
+  if(msg) { msg.textContent = "❌ Invalid move!"; setTimeout(()=> msg.textContent="", 2000); }
 });
 
 socket.on("possible_moves", d => { possibleMoves = d.moves; renderBoard(gameState); });
-
-// ... (Rest of UI functions: renderBoard, updateStatus, etc.)
 
 function renderBoard(state, lastMove=null){
   const board=document.getElementById("chessboard");
@@ -654,7 +624,6 @@ function renderBoard(state, lastMove=null){
         const fr=parseInt(e.dataTransfer.getData("fromRow"));
         const fc=parseInt(e.dataTransfer.getData("fromCol"));
         
-        // Prevent capturing own pieces (Quick Check)
         const target = state.board[r][c];
         const isMine = target !== "." && ((playerColor==="white" && target===target.toUpperCase()) || (playerColor==="black" && target!==target.toUpperCase()));
         if (isMine) return;
@@ -666,24 +635,31 @@ function renderBoard(state, lastMove=null){
     }
   }
   
-  // Coords
   document.getElementById("coordFiles").innerHTML = (flipped?["h","g","f","e","d","c","b","a"]:["a","b","c","d","e","f","g","h"]).map(x=>`<span>${x}</span>`).join("");
   document.getElementById("coordRanks").innerHTML = (flipped?["1","2","3","4","5","6","7","8"]:["8","7","6","5","4","3","2","1"]).map(x=>`<span>${x}</span>`).join("");
 }
 
 function handleSquareClick(row, col, state){
   if(state.winner || !state.isActive) return;
-  if(state.turn !== playerColor && !isOptimisticUpdate) return; // Block clicks if turn isn't ours (unless correcting)
 
   const piece = state.board[row][col];
   const isWhite = piece !== "." && piece === piece.toUpperCase();
   const isMine = piece !== "." && ((playerColor==="white" && isWhite) || (playerColor==="black" && !isWhite));
 
+  // CRITICAL FIX: Always allow selecting OWN pieces, even if game thinks it is opponent turn
+  // This unblocks the user if state desyncs.
   if(isMine){
     selectedSquare = { row,col };
     socket.emit("get_possible_moves",{ room:currentRoom, from:selectedSquare });
-    renderBoard(state); // Re-render to show selection
+    renderBoard(state); 
     return;
+  }
+
+  // Only block move attempts on empty/enemy squares if not my turn
+  if(state.turn !== playerColor && !isOptimisticUpdate) {
+      const m = document.getElementById("messages");
+      if(m) { m.textContent = "⏳ Wait for your turn!"; setTimeout(()=>m.textContent="", 1500); }
+      return;
   }
 
   if(selectedSquare){
@@ -717,19 +693,16 @@ function makeMove(from, to, promotion){
     lastMoveWasMine = true;
     const moveId = ++moveSequence;
 
-    // 1. Optimistic Update
     const nextState = applyOptimisticMove(from, to, promotion);
     gameState = nextState;
-    isOptimisticUpdate = true; // LOCK UPDATES UNTIL CONFIRMED OR REJECTED
+    isOptimisticUpdate = true;
     
-    // 2. Render immediately
     renderBoard(gameState, {from,to});
     updateTurnIndicator(gameState);
     playSound("move");
     selectedSquare = null;
     possibleMoves = [];
 
-    // 3. Send to server
     socket.emit("move", { room: currentRoom, from, to, promotion, moveId });
 }
 
