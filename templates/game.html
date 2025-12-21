@@ -9,17 +9,6 @@
     /* static/style.css content embedded */
     * { margin:0; padding:0; box-sizing:border-box; }
 
-    /* HIDE SCROLLBARS GLOBALLY BUT ALLOW SCROLLING */
-    html, body {
-      scrollbar-width: none; /* Firefox */
-      -ms-overflow-style: none; /* IE 10+ */
-    }
-    ::-webkit-scrollbar {
-      display: none; /* Chrome/Safari/Webkit */
-      width: 0px;
-      background: transparent;
-    }
-
     /* STATIC LIGHT SKY BLUE BACKGROUND */
     body {
       font-family:'Inter','Segoe UI','Helvetica Neue',sans-serif;
@@ -28,7 +17,7 @@
       display:flex;
       justify-content:center;
       align-items:center;
-      padding:20px; /* Default desktop padding */
+      padding:20px;
       position:relative;
       overflow-x:hidden;
     }
@@ -929,28 +918,24 @@
     }
 
     /* ========================================
-       MOBILE RESPONSIVE ENHANCEMENTS (FULL SCREEN)
+       MOBILE RESPONSIVE ENHANCEMENTS
        ======================================== */
     @media (max-width: 900px) {
       body {
-        padding: 0; /* Remove body padding to use full screen */
-        align-items: flex-start; /* Start from top */
+        padding: 10px;
+        align-items: flex-start;
       }
 
       .container {
-        padding: 16px;
-        width: 100%;
-        height: 100vh; /* Use full height */
+        padding: 8px;
         max-height: none;
-        border-radius: 0; /* Remove corners for app-feel */
-        border: none;
-        overflow-y: auto;
+        width: 100%;
+        border-radius: 20px;
       }
 
       h1 {
         font-size: 24px;
         margin-bottom: 6px;
-        margin-top: 10px;
       }
 
       .subtitle {
@@ -958,10 +943,14 @@
         margin-bottom: 10px;
       }
 
+      /* Hide Room Info on Mobile to make space for Chat */
+      .game-info {
+        display: none !important;
+      }
+
       .game-layout {
-        flex-direction: column !important;
+        flex-direction: column-reverse !important;
         gap: 14px !important;
-        padding-bottom: 40px; /* Space for bottom content */
       }
 
       .sidebar {
@@ -973,6 +962,20 @@
       /* === HIDE MOVE HISTORY ON MOBILE === */
       .move-history {
         display: none !important;
+      }
+
+      /* Reduce Chat Height on Mobile */
+      .chat-messages {
+        height: 110px !important;
+      }
+
+      /* Expand Chat Input on Mobile */
+      .chat-input input {
+        max-width: none !important;
+        min-width: 0 !important;
+      }
+      .chat-input > div {
+        width: 100%;
       }
 
       /* === FIX TIMER OVERLAP AND BOARD SPACING === */
@@ -990,9 +993,9 @@
         border: 4px solid rgba(44, 62, 80, 0.8);
       }
       
-      /* Force timers to left side on mobile and CLOSER to board (Updated to -28px) */
+      /* Force timers to left side on mobile and CLOSER to board */
       #blackTimer {
-        top: -28px !important;       /* Reduced distance */
+        top: -32px !important;       /* Reduced distance (was -50px) */
         left: 0 !important;          /* Align to LEFT edge */
         transform: none !important;  
         font-size: 13px !important;
@@ -1000,7 +1003,7 @@
       }
 
       #whiteTimer {
-        bottom: -28px !important;    /* Reduced distance */
+        bottom: -32px !important;    /* Reduced distance (was -50px) */
         left: 0 !important;          
         transform: none !important;  
         font-size: 13px !important;
@@ -1041,10 +1044,21 @@
 
     /* CUSTOM SCROLLBAR */
     ::-webkit-scrollbar {
-      width: 0px; /* Hide scrollbar width */
-      background: transparent;
+      width: 8px;
+      height: 8px;
     }
-    
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05);
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    }
+
     #visitorCounter {
         position: fixed;
         bottom: 20px;
@@ -1113,12 +1127,11 @@
       <div class="game-layout" style="display:flex; gap:40px; align-items:flex-start;">
         <div class="board-section">
           
-          <div id="blackTimer" class="timer black" style="left:0px;">5:00</div>
-          <div id="whiteTimer" class="timer white" style="left:0px;">5:00</div>
-
           <div class="turn-indicator" id="turnIndicator"></div>
 
           <div class="board-wrapper" style="position:relative;" id="boardWrapper">
+            <div id="blackTimer" class="timer black" style="left:0px;">5:00</div>
+            <div id="whiteTimer" class="timer white" style="left:0px;">5:00</div>
             <div class="chessboard" id="chessboard"></div>
             <div class="coordinates coord-file" id="coordFiles"></div>
             <div class="coordinates coord-rank" id="coordRanks"></div>
@@ -1335,20 +1348,35 @@ const sounds = {
   notify: { freq: 500, duration: 0.1 }
 };
 
+let audioCtx = null;
+
+function initAudio() {
+  // Guard against environments where AudioContext is not supported
+  if (typeof window.AudioContext === 'undefined' && typeof window.webkitAudioContext === 'undefined') return;
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  // Browsers require user interaction to start/resume audio.
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+}
+
 function playSound(type) {
   if (!soundEnabled) return;
   try {
-    const audio = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = audio.createOscillator();
-    const gain = audio.createGain();
+    initAudio(); // Ensure the single audio context is active
+    if (!audioCtx) return; // Exit if audio context is not available
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
     osc.connect(gain); 
-    gain.connect(audio.destination);
+    gain.connect(audioCtx.destination);
     osc.frequency.value = sounds[type].freq;
-    gain.gain.setValueAtTime(0.3, audio.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audio.currentTime + sounds[type].duration);
-    osc.start(audio.currentTime);
-    osc.stop(audio.currentTime + sounds[type].duration);
-  } catch (e) {}
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + sounds[type].duration);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + sounds[type].duration);
+  } catch (e) { console.error("Sound playback failed:", e); }
 }
 
 function toggleSound(){
@@ -1645,22 +1673,20 @@ socket.on("game_update", d => {
   updateStatus(gameState);
   updateTurnIndicator(gameState);
 
-  // === UPDATED SOUND LOGIC FOR SERVER UPDATES ===
   if (prev) {
+    let isMyMove = false;
+    if (d.lastMove && lastMoveWasMine) {
+      lastMoveWasMine = false;
+      isMyMove = true;
+    }
+
     if (gameState.winner) playSound("win");
     else if (gameState.check) playSound("check");
-    else if (d.lastMove) {
-      // If I just made the move (lastMoveWasMine is true), I already played the sound locally.
-      // So I clear the flag and DO NOT play sound again.
-      if (lastMoveWasMine) {
-          lastMoveWasMine = false;
-      } else {
-          // It's the opponent's move. Play sound.
-          const tr = d.lastMove.to.row;
-          const tc = d.lastMove.to.col;
-          const wasCapture = prev.board[tr][tc] !== ".";
-          playSound(wasCapture ? "capture" : "move");
-      }
+    else if (d.lastMove && !isMyMove) {
+      const tr = d.lastMove.to.row;
+      const tc = d.lastMove.to.col;
+      const wasCapture = prev.board[tr][tc] !== ".";
+      playSound(wasCapture ? "capture" : "move");
     }
   }
 });
@@ -1697,6 +1723,8 @@ document.addEventListener("DOMContentLoaded", function() {
     });
     chatInputEl.addEventListener("input", handleTypingInput);
   }
+  // Initialize audio context on the first user interaction anywhere on the page
+  document.body.addEventListener('click', initAudio, { once: true });
 });
 
 /* -------------------------
@@ -1884,28 +1912,21 @@ function handleSquareClick(row, col, state){
 }
 
 function makeMove(from, to, promotion=null){
-  lastMoveWasMine = true; // Set flag to true so we don't play sound again when server responds
+  lastMoveWasMine = true;
   const moveId = ++moveSequence;
+  const previousState = JSON.parse(JSON.stringify(gameState));
+  const optimisticState = applyOptimisticMove(from, to, promotion);
+  if (optimisticState) {
+    gameState = optimisticState;
+    renderBoard(gameState, { from, to });
+    updateTurnIndicator(gameState);
+    const wasCapture = previousState.board[to.row][to.col] !== ".";
+    playSound(wasCapture ? "capture" : "move");
+    pendingMoves.set(moveId, {
+      from, to, promotion, previousState, timestamp: Date.now()
+    });
+  }
   socket.emit("move", { room: currentRoom, from, to, promotion, moveId });
-  
-  // Optimistic Update
-  const p = JSON.parse(JSON.stringify(gameState));
-  const pc = p.board[from.row][from.col];
-  p.board[to.row][to.col] = promotion ? (playerColor==="white"?promotion.toUpperCase():promotion) : pc;
-  p.board[from.row][from.col] = ".";
-  p.turn = (p.turn==="white"?"black":"white");
-  
-  // === PLAY SOUND IMMEDIATELY ===
-  const wasCapture = gameState.board[to.row][to.col] !== ".";
-  playSound(wasCapture ? "capture" : "move");
-
-  renderBoard(p, { from, to });
-  updateTurnIndicator(gameState);
-  
-  pendingMoves.set(moveId, {
-    from, to, promotion, previousState: gameState, timestamp: Date.now()
-  });
-
   selectedSquare = null;
   possibleMoves = [];
   pendingPromotion = null;
