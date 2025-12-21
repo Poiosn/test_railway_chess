@@ -2011,22 +2011,27 @@ function renderBoard(state, lastMove=null){
         const fc=parseInt(e.dataTransfer.getData("fromCol"));
         const from={row:fr,col:fc};
         const to={row:r,col:c};
-        const valid = possibleMoves.some(m=>m.row===r && m.col===c);
-        if(!valid){
-          const messages = document.getElementById("messages");
-          if (messages) messages.textContent="❌ Invalid move!";
-          return;
-        }
+
+        // Prevent capturing your own pieces locally (fast check)
+        const targetPiece = state.board[r][c];
+        const isTargetMine = targetPiece !== "." && (
+            (playerColor === "white" && targetPiece === targetPiece.toUpperCase()) ||
+            (playerColor === "black" && targetPiece === targetPiece.toLowerCase())
+        );
+        if (isTargetMine) return; 
+
+        // Proceed with move immediately
         const movingPiece = state.board[fr][fc];
-        const isPawn = movingPiece.toLowerCase()==="p";
-        const isPromoRank = (playerColor==="white" && r===0) ||
+        // ... (rest of the logic regarding promotion vs makeMove) ...
+         const isPawn = movingPiece.toLowerCase()==="p";
+         const isPromoRank = (playerColor==="white" && r===0) ||
                             (playerColor==="black" && r===7);
-        if(isPawn && isPromoRank){
-          pendingPromotion = { from, to };
-          showPromotionModal(playerColor);
-        } else {
-          makeMove(from,to,null);
-        }
+         if(isPawn && isPromoRank){
+             pendingPromotion = { from, to };
+             showPromotionModal(playerColor);
+         } else {
+             makeMove(from,to,null);
+         }
       });
       board.appendChild(sq);
     }
@@ -2052,40 +2057,27 @@ function renderCoordinates(){
 
 function handleSquareClick(row, col, state){
   if(state.winner) return;
-  if (state.isActive === false) {
-    const messages = document.getElementById("messages");
-    if (messages) messages.textContent = "⏳ Waiting for opponent...";
-    return;
-  }
-  if(state.turn !== playerColor){
-    const messages = document.getElementById("messages");
-    if (messages) messages.textContent = "⏳ Wait for your turn!";
-    return;
-  }
-  const piece = state.board[row][col];
-  const isWhite = piece !== "." && piece === piece.toUpperCase();
-  const isMine = piece !== "." && (
-    (playerColor==="white" && isWhite) ||
-    (playerColor==="black" && !isWhite)
-  );
+  
+  // ... (keep the turn checks) ...
+
+  // Selecting your own piece
   if(isMine){
     selectedSquare = { row,col };
     socket.emit("get_possible_moves",{ room:currentRoom, from:selectedSquare });
-    const messages = document.getElementById("messages");
-    if (messages) messages.textContent="";
+    
+    // VISUAL ONLY: You can keep the highlighting, but don't block logic
     return;
   }
+
   if(!selectedSquare) return;
-  const isValid = possibleMoves.some(m=>m.row===row && m.col===col);
-  if(!isValid){
-    const messages = document.getElementById("messages");
-    if (messages) messages.textContent = "❌ Invalid move!";
-    return;
-  }
+
+  // We assume the move is valid. If not, the server will send 'invalid_move' later.
+  
   const movingPiece = state.board[selectedSquare.row][selectedSquare.col];
   const isPawn = movingPiece.toLowerCase()==="p";
   const isPromoRank = (playerColor==="white" && row===0) ||
                       (playerColor==="black" && row===7);
+                      
   if(isPawn && isPromoRank){
     pendingPromotion = { from:selectedSquare, to:{row,col} };
     showPromotionModal(playerColor);
