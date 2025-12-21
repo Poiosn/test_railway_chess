@@ -77,32 +77,6 @@
       letter-spacing: 0.5px;
     }
 
-    /* ENHANCED CONNECTION STATUS */
-    .connection-status {
-      text-align:center;
-      padding:10px 20px;
-      margin-bottom:12px;
-      border-radius:16px;
-      font-weight:700;
-      font-size:13px;
-      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }
-    .connection-status.connected {
-      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-      color: white;
-      animation: pulse 2s ease-in-out infinite;
-    }
-    .connection-status.disconnected {
-      background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
-      color: white;
-    }
-
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.02); }
-    }
-
     /* ENHANCED GAME INFO CARD */
     .game-info {
       text-align:center;
@@ -149,86 +123,6 @@
     }
     .player-badge:hover {
       transform: scale(1.05);
-    }
-
-    .room-controls {
-      display:flex;
-      gap:12px;
-      margin-bottom:12px;
-      justify-content:center;
-      flex-wrap:wrap;
-    }
-    .bot-controls {
-      text-align:center;
-      margin-bottom:16px;
-    }
-
-    /* PREMIUM TIME CONTROL SECTION */
-    .time-control-section {
-      text-align:center;
-      margin-bottom:16px;
-      padding:18px;
-      background: linear-gradient(135deg, rgba(224, 247, 250, 0.8) 0%, rgba(178, 235, 242, 0.8) 100%);
-      backdrop-filter: blur(10px);
-      border-radius:16px;
-      border: 1px solid rgba(255, 255, 255, 0.6);
-      box-shadow: 0 8px 20px rgba(0, 105, 92, 0.1);
-    }
-    .time-control-section h4 {
-      color: #00695c;
-      margin-bottom: 12px;
-      font-size: 15px;
-      font-weight: 800;
-    }
-    .time-options {
-      display:flex;
-      gap:10px;
-      justify-content:center;
-      flex-wrap:wrap;
-    }
-
-    /* PREMIUM TIME BUTTONS */
-    .time-btn {
-      padding: 10px 18px;
-      background: white;
-      border: 2px solid #00897b;
-      border-radius: 12px;
-      cursor: pointer;
-      font-weight: 700;
-      font-size: 14px;
-      color: #00695c;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 4px 10px rgba(0, 137, 123, 0.2);
-      position: relative;
-      overflow: hidden;
-    }
-    .time-btn::before {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 0;
-      height: 0;
-      border-radius: 50%;
-      background: rgba(0, 137, 123, 0.2);
-      transform: translate(-50%, -50%);
-      transition: width 0.6s, height 0.6s;
-    }
-    .time-btn:hover::before {
-      width: 300px;
-      height: 300px;
-    }
-    .time-btn:hover {
-      background: #00897b;
-      color: white;
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(0, 137, 123, 0.3);
-    }
-    .time-btn.selected {
-      background: linear-gradient(135deg, #00695c 0%, #004d40 100%);
-      color: white;
-      border-color: #004d40;
-      box-shadow: 0 6px 20px rgba(0, 105, 92, 0.4);
     }
 
     /* PREMIUM INPUT FIELDS */
@@ -313,7 +207,7 @@
       box-shadow: 0 6px 20px rgba(247, 151, 30, 0.3);
     }
 
-    /* ENHANCED TIMER WITH PROGRESS BAR */
+    /* ENHANCED TIMER */
     .timer {
       padding: 8px 16px;
       border-radius: 12px;
@@ -325,7 +219,7 @@
       backdrop-filter: blur(10px);
       box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
       min-width: 80px;
-      z-index: 50; /* Z-index increased to float above board elements */
+      z-index: 50;
     }
     .timer.white {
       background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
@@ -376,7 +270,7 @@
       perspective: 1000px;
     }
 
-    /* === NEW: WAITING OVERLAY STYLES === */
+    /* WAITING OVERLAY */
     .waiting-overlay {
       position: absolute;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -393,14 +287,14 @@
       animation: fadeIn 0.3s;
     }
     
-    /* === NEW: DISCONNECT OVERLAY STYLES === */
+    /* DISCONNECT OVERLAY */
     .disconnect-overlay {
       position: absolute;
       top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(220, 38, 38, 0.8);
       backdrop-filter: blur(5px);
       z-index: 101;
-      display: none; /* Hidden by default */
+      display: none;
       flex-direction: column;
       align-items: center;
       justify-content: center;
@@ -426,7 +320,6 @@
     }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
-    /* ================================== */
 
     .coordinates {
       position: absolute;
@@ -455,7 +348,7 @@
     .coord-file.flipped { top: -24px; bottom: auto; }
     .coord-rank.flipped { left: auto; right: -28px; }
 
-    /* ENHANCED SQUARES WITH DEPTH */
+    /* ENHANCED SQUARES */
     .square {
       aspect-ratio: 1;
       display: flex;
@@ -477,37 +370,19 @@
       opacity: 0;
       transition: opacity 0.3s ease;
     }
-    /* FIX 3: Disable hover effects on touch devices to prevent shaking */
     @media (hover: hover) {
-        .square:hover::before {
-          opacity: 1;
-        }
-        .square:hover {
-          filter: brightness(1.15);
-          transform: scale(1.02);
-        }
-        .piece:hover {
-          transform: scale(1.12) translateY(-5px);
-          filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.4));
-          animation: pieceFloat 0.6s ease-in-out;
-        }
-        .promotion-pieces img:hover {
-          transform: scale(1.15) translateY(-5px);
-          filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.4));
-        }
+        .square:hover::before { opacity: 1; }
+        .square:hover { filter: brightness(1.15); transform: scale(1.02); }
+        .piece:hover { transform: scale(1.12) translateY(-5px); filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.4)); animation: pieceFloat 0.6s ease-in-out; }
+        .promotion-pieces img:hover { transform: scale(1.15) translateY(-5px); filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.4)); }
     }
-    .square.light {
-      background: linear-gradient(135deg, #f5e6d3 0%, #f0d9b5 100%);
-    }
-    .square.dark {
-      background: linear-gradient(135deg, #c9a882 0%, #b58863 100%);
-    }
+    .square.light { background: linear-gradient(135deg, #f5e6d3 0%, #f0d9b5 100%); }
+    .square.dark { background: linear-gradient(135deg, #c9a882 0%, #b58863 100%); }
     .square.selected {
       background: radial-gradient(circle, #baca44 0%, #a8b834 100%) !important;
       box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.4);
       animation: selectedGlow 1s ease-in-out infinite;
     }
-
     @keyframes selectedGlow {
       0%, 100% { box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.4), 0 0 20px rgba(186, 202, 68, 0.6); }
       50% { box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.4), 0 0 30px rgba(186, 202, 68, 0.8); }
@@ -524,7 +399,6 @@
       animation: moveIndicator 1.5s ease-in-out infinite;
       box-shadow: 0 0 15px rgba(34, 197, 94, 0.5);
     }
-
     @keyframes moveIndicator {
       0%, 100% { transform: scale(1); opacity: 0.7; }
       50% { transform: scale(1.2); opacity: 1; }
@@ -546,19 +420,12 @@
       transform-style: preserve-3d;
       cursor: grab;
     }
-    .piece:active {
-      cursor: grabbing;
-    }
-    .piece.moving {
-      opacity: 0.7;
-      transform: scale(0.95);
-    }
-
+    .piece:active { cursor: grabbing; }
+    .piece.moving { opacity: 0.7; transform: scale(0.95); }
     @keyframes pieceFloat {
       0%, 100% { transform: scale(1.12) translateY(-5px); }
       50% { transform: scale(1.15) translateY(-8px); }
     }
-
     .piece img {
       width: 88%;
       height: 88%;
@@ -626,12 +493,8 @@
       background: rgba(102, 126, 234, 0.15);
       transform: translateX(3px);
     }
-    .move-item.white {
-      border-left: 3px solid #e0e0e0;
-    }
-    .move-item.black {
-      border-left: 3px solid #333;
-    }
+    .move-item.white { border-left: 3px solid #e0e0e0; }
+    .move-item.black { border-left: 3px solid #333; }
 
     /* ENHANCED TURN INDICATOR */
     .turn-indicator {
@@ -661,7 +524,6 @@
       backdrop-filter: blur(10px);
       animation: statusAppear 0.5s ease;
     }
-
     @keyframes statusAppear {
       from { opacity: 0; transform: translateY(-10px); }
       to { opacity: 1; transform: translateY(0); }
@@ -682,37 +544,20 @@
     }
 
     /* ENHANCED MODALS */
-    .promotion-modal,
-    .draw-modal,
-    .name-modal {
+    .promotion-modal, .draw-modal, .name-modal {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
+      top: 0; left: 0; width: 100vw; height: 100vh;
       display: none;
-      align-items: center;
-      justify-content: center;
+      align-items: center; justify-content: center;
       background: rgba(0, 0, 0, 0.7);
       backdrop-filter: blur(8px);
       z-index: 9999;
       animation: modalFadeIn 0.3s ease;
     }
+    @keyframes modalFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .promotion-modal.active, .draw-modal.active, .name-modal.active { display: flex; }
 
-    @keyframes modalFadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-
-    .promotion-modal.active,
-    .draw-modal.active,
-    .name-modal.active {
-      display: flex;
-    }
-
-    .promotion-content,
-    .draw-content,
-    .name-content {
+    .promotion-content, .draw-content, .name-content {
       background: rgba(255, 255, 255, 0.95);
       backdrop-filter: blur(20px);
       padding: 28px;
@@ -723,21 +568,12 @@
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
       animation: modalSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
-
     @keyframes modalSlideIn {
-      from {
-        opacity: 0;
-        transform: translateY(-40px) scale(0.9);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
+      from { opacity: 0; transform: translateY(-40px) scale(0.9); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
     }
 
-    .promotion-content h3,
-    .draw-content h3,
-    .name-content h3 {
+    .promotion-content h3, .draw-content h3, .name-content h3 {
       font-size: 22px;
       font-weight: 900;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -748,19 +584,11 @@
     }
 
     .promotion-pieces img {
-      width: 75px;
-      height: 75px;
-      margin: 10px;
-      cursor: pointer;
-      transition: all 0.3s ease;
+      width: 75px; height: 75px; margin: 10px; cursor: pointer; transition: all 0.3s ease;
       filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.2));
     }
     .promotion-pieces {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 10px;
-      margin-top: 16px;
+      display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 16px;
     }
 
     /* ENHANCED CHAT */
@@ -796,12 +624,10 @@
       font-size: 13px;
       font-weight: 500;
     }
-
     @keyframes chatAppear {
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
-
     .chat-line.you {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
@@ -822,10 +648,7 @@
     }
 
     .chat-input {
-      display: flex;
-      gap: 8px;
-      margin-top: 10px;
-      align-items: center;
+      display: flex; gap: 8px; margin-top: 10px; align-items: center;
     }
     .chat-input input {
       flex: 1;
@@ -841,10 +664,7 @@
       border-color: #667eea;
       box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     }
-    .chat-input button {
-      padding: 12px 16px;
-      border-radius: 12px;
-    }
+    .chat-input button { padding: 12px 16px; border-radius: 12px; }
 
     .emoji-panel {
       position: absolute;
@@ -862,43 +682,25 @@
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
     }
     .emoji-btn {
-      cursor: pointer;
-      padding: 8px;
-      font-size: 20px;
-      border-radius: 8px;
-      transition: all 0.2s ease;
-      background: transparent;
+      cursor: pointer; padding: 8px; font-size: 20px; border-radius: 8px; transition: all 0.2s ease; background: transparent;
     }
     .emoji-btn:hover {
-      background: rgba(102, 126, 234, 0.15);
-      transform: scale(1.2);
+      background: rgba(102, 126, 234, 0.15); transform: scale(1.2);
     }
 
     #messages {
-      text-align: center;
-      color: #dc2626;
-      margin-top: 10px;
-      min-height: 20px;
-      font-weight: 600;
+      text-align: center; color: #dc2626; margin-top: 10px; min-height: 20px; font-weight: 600;
     }
 
     /* PREMIUM SOUND TOGGLE */
     .sound-toggle {
-      position: fixed;
-      top: 20px;
-      left: 20px;
-      width: 44px;
-      height: 44px;
+      position: fixed; top: 20px; left: 20px; width: 44px; height: 44px;
       background: rgba(255, 255, 255, 0.95);
       backdrop-filter: blur(20px);
       border-radius: 50%;
       box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 22px;
-      cursor: pointer;
-      z-index: 100000;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; cursor: pointer; z-index: 100000;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       border: 2px solid rgba(102, 126, 234, 0.3);
     }
@@ -908,8 +710,7 @@
       border-color: #667eea;
     }
     .sound-toggle.muted {
-      opacity: 0.6;
-      background: rgba(220, 38, 38, 0.1);
+      opacity: 0.6; background: rgba(220, 38, 38, 0.1);
     }
 
     .btn-primary {
@@ -917,425 +718,65 @@
       color: white;
     }
 
-    /* LEADERBOARD STYLES (NEW) */
-    .leaderboard-section {
-        margin-top: 25px;
-        padding: 16px;
-        background: rgba(255, 255, 255, 0.6);
-        backdrop-filter: blur(10px);
-        border-radius: 16px;
-        border: 1px solid rgba(255, 255, 255, 0.8);
-        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-    }
-    .leaderboard-section h4 {
-        color: #4a148c;
-        margin-bottom: 12px;
-        font-size: 16px;
-        font-weight: 800;
-        text-align: center;
-    }
-    .leaderboard-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 14px;
-    }
-    .leaderboard-table th {
-        text-align: left;
-        padding: 8px;
-        color: #666;
-        border-bottom: 2px solid rgba(0,0,0,0.1);
-    }
-    .leaderboard-table td {
-        padding: 8px;
-        border-bottom: 1px solid rgba(0,0,0,0.05);
-        color: #333;
-        font-weight: 500;
-    }
-    .leaderboard-table tr:last-child td {
-        border-bottom: none;
-    }
-    .leaderboard-table tr:hover {
-        background: rgba(255,255,255,0.5);
-    }
-
-    /* ========================================
-       MOBILE RESPONSIVE ENHANCEMENTS
-       ======================================== */
+    /* MOBILE RESPONSIVE ENHANCEMENTS */
     @media (max-width: 900px) {
-      body {
-        padding: 10px;
-        align-items: flex-start;
-      }
-
-      .container {
-        padding: 16px;
-        max-height: none;
-        width: 100%;
-        border-radius: 20px;
-      }
-
-      h1 {
-        font-size: 24px;
-        margin-bottom: 6px;
-      }
-
-      .subtitle {
-        font-size: 11px;
-        margin-bottom: 10px;
-      }
-
-      .game-layout {
-        flex-direction: column !important;
-        gap: 14px !important;
-      }
-
-      .sidebar {
-        width: 100% !important;
-        flex-direction: column !important;
-        gap: 12px !important;
-      }
-      
-      /* FIX 2: SWAP MOVE HISTORY FOR CHAT ON MOBILE */
-      .move-history {
-        display: none !important; /* Hide history to show chat */
-      }
-      .chat-box {
-        display: block !important;
-        width: 100%;
-        height: 350px !important; /* Fixed height for usability */
-      }
-
-      .board-section {
-        width: 100%;
-        max-width: 100%;
-      }
-
-      .chessboard {
-        width: 100%;
-        max-width: 100%;
-        border: 4px solid rgba(44, 62, 80, 0.8);
-      }
-
-      /* FIX 1: MOBILE TIMER POSITIONS */
-      #blackTimer {
-        top: -10px !important; /* Moved closer to board edge */
-        left: 50% !important;
-        transform: translateX(-50%);
-        font-size: 13px !important;
-        padding: 6px 12px !important;
-        z-index: 20 !important;
-      }
-
-      #whiteTimer {
-        bottom: -10px !important; /* Moved closer to board edge */
-        left: 50% !important;
-        transform: translateX(-50%);
-        font-size: 13px !important;
-        padding: 6px 12px !important;
-        z-index: 20 !important;
-      }
-
-      .coord-file {
-        bottom: -22px !important;
-        font-size: 10px !important;
-      }
-
-      .coord-rank {
-        left: -24px !important;
-        font-size: 10px !important;
-      }
-
-      .coord-file.flipped {
-        top: -22px !important;
-      }
-
-      .coord-rank.flipped {
-        right: -22px !important;
-      }
-
-      /* Adjust chat messages for mobile */
-      .chat-messages {
-        height: 250px !important;
-        max-height: 250px !important;
-        padding: 6px;
-      }
-
-      .chat-line {
-        font-size: 12px;
-        padding: 8px 10px;
-      }
-
-      .button-group {
-        display: grid !important;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
-        margin-top: 14px;
-      }
-
-      .button-group button {
-        width: 100%;
-        padding: 12px 10px;
-        font-size: 13px;
-      }
-
-      .room-controls {
-        flex-direction: column;
-        gap: 10px;
-      }
-
-      .room-controls input {
-        max-width: 100%;
-        width: 100%;
-        padding: 12px 16px;
-        font-size: 14px;
-      }
-
-      .room-controls button {
-        width: 100%;
-        padding: 12px;
-        font-size: 14px;
-      }
-
-      .time-control-section {
-        padding: 12px;
-        margin-bottom: 12px;
-      }
-
-      .time-control-section h4 {
-        font-size: 13px;
-        margin-bottom: 10px;
-      }
-
-      .time-options {
-        gap: 8px;
-      }
-
-      .time-btn {
-        padding: 8px 12px;
-        font-size: 12px;
-      }
-
-      .bot-controls button {
-        width: 100%;
-        padding: 12px;
-        font-size: 14px;
-      }
-
-      .status {
-        font-size: 14px;
-        padding: 10px;
-      }
-
-      .turn-indicator {
-        font-size: 13px;
-        padding: 6px;
-      }
-
-      .game-info {
-        padding: 12px;
-        margin-bottom: 35px; /* Reduced for mobile layout */
-      }
-
-      .game-info h3 {
-        font-size: 15px;
-      }
-
-      .player-badge {
-        font-size: 12px;
-        padding: 4px 12px;
-      }
-
-      .connection-status {
-        font-size: 12px;
-        padding: 8px 16px;
-      }
-
-      .promotion-content,
-      .draw-content,
-      .name-content {
-        min-width: 90%;
-        max-width: 90%;
-        padding: 20px 16px;
-      }
-
-      .promotion-content h3,
-      .draw-content h3,
-      .name-content h3 {
-        font-size: 18px;
-      }
-
-      .promotion-pieces img {
-        width: 60px;
-        height: 60px;
-        margin: 8px;
-      }
-
-      .emoji-panel {
-        bottom: 48px;
-        width: 200px;
-        padding: 8px;
-      }
-
-      .emoji-btn {
-        font-size: 18px;
-        padding: 6px;
-      }
-
-      .chat-input input {
-        font-size: 13px;
-        padding: 10px;
-      }
-
-      .chat-input button {
-        padding: 10px 14px;
-        font-size: 13px;
-      }
-
-      .sound-toggle {
-        top: 14px;
-        left: 14px;
-        width: 38px;
-        height: 38px;
-        font-size: 18px;
-      }
-
-      #messages {
-        font-size: 12px;
-      }
+      body { padding: 10px; align-items: flex-start; }
+      .container { padding: 16px; max-height: none; width: 100%; border-radius: 20px; }
+      h1 { font-size: 24px; margin-bottom: 6px; }
+      .subtitle { font-size: 11px; margin-bottom: 10px; }
+      .game-layout { flex-direction: column !important; gap: 14px !important; }
+      .sidebar { width: 100% !important; flex-direction: column !important; gap: 12px !important; }
+      .move-history { display: none !important; }
+      .chat-box { display: block !important; width: 100%; height: 350px !important; }
+      .board-section { width: 100%; max-width: 100%; }
+      .chessboard { width: 100%; max-width: 100%; border: 4px solid rgba(44, 62, 80, 0.8); }
+      #blackTimer { top: -10px !important; left: 50% !important; transform: translateX(-50%); font-size: 13px !important; padding: 6px 12px !important; z-index: 20 !important; }
+      #whiteTimer { bottom: -10px !important; left: 50% !important; transform: translateX(-50%); font-size: 13px !important; padding: 6px 12px !important; z-index: 20 !important; }
+      .coord-file { bottom: -22px !important; font-size: 10px !important; }
+      .coord-rank { left: -24px !important; font-size: 10px !important; }
+      .coord-file.flipped { top: -22px !important; }
+      .coord-rank.flipped { right: -22px !important; }
+      .chat-messages { height: 250px !important; max-height: 250px !important; padding: 6px; }
+      .chat-line { font-size: 12px; padding: 8px 10px; }
+      .button-group { display: grid !important; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+      .button-group button { width: 100%; padding: 12px 10px; font-size: 13px; }
+      .status { font-size: 14px; padding: 10px; }
+      .turn-indicator { font-size: 13px; padding: 6px; }
+      .game-info { padding: 12px; margin-bottom: 35px; }
+      .game-info h3 { font-size: 15px; }
+      .player-badge { font-size: 12px; padding: 4px 12px; }
+      .promotion-content, .draw-content, .name-content { min-width: 90%; max-width: 90%; padding: 20px 16px; }
+      .promotion-content h3, .draw-content h3, .name-content h3 { font-size: 18px; }
+      .promotion-pieces img { width: 60px; height: 60px; margin: 8px; }
+      .emoji-panel { bottom: 48px; width: 200px; padding: 8px; }
+      .emoji-btn { font-size: 18px; padding: 6px; }
+      .chat-input input { font-size: 13px; padding: 10px; }
+      .chat-input button { padding: 10px 14px; font-size: 13px; }
+      .sound-toggle { top: 14px; left: 14px; width: 38px; height: 38px; font-size: 18px; }
+      #messages { font-size: 12px; }
     }
-
     @media (max-width: 400px) {
-      body {
-        padding: 6px;
-      }
-
-      .container {
-        padding: 12px;
-        border-radius: 16px;
-      }
-
-      h1 {
-        font-size: 20px;
-      }
-
-      .subtitle {
-        font-size: 10px;
-      }
-
-      .chessboard {
-        border: 3px solid rgba(44, 62, 80, 0.8);
-      }
-
-      .button-group {
-        gap: 8px;
-      }
-
-      .button-group button {
-        padding: 10px 8px;
-        font-size: 12px;
-      }
-
-      .time-btn {
-        padding: 6px 10px;
-        font-size: 11px;
-      }
-
-      .move-history,
-      .chat-messages {
-        max-height: 180px !important;
-      }
-
-      #blackTimer,
-      #whiteTimer {
-        font-size: 12px !important;
-        padding: 5px 10px !important;
-      }
-
-      .promotion-pieces img {
-        width: 55px;
-        height: 55px;
-        margin: 6px;
-      }
+      body { padding: 6px; }
+      .container { padding: 12px; border-radius: 16px; }
+      h1 { font-size: 20px; }
+      .subtitle { font-size: 10px; }
+      .chessboard { border: 3px solid rgba(44, 62, 80, 0.8); }
+      .button-group { gap: 8px; }
+      .button-group button { padding: 10px 8px; font-size: 12px; }
+      .chat-messages { max-height: 180px !important; }
+      #blackTimer, #whiteTimer { font-size: 12px !important; padding: 5px 10px !important; }
+      .promotion-pieces img { width: 55px; height: 55px; margin: 6px; }
     }
-
     @media (max-width: 900px) and (orientation: landscape) {
-      body {
-        align-items: flex-start;
-      }
-
-      .container {
-        max-height: none;
-      }
-
-      .chessboard {
-        width: min(50vh, 90vw);
-      }
-
-      .move-history,
-      .chat-messages {
-        max-height: 35vh !important;
-      }
+      body { align-items: flex-start; }
+      .container { max-height: none; }
+      .chessboard { width: min(50vh, 90vw); }
+      .chat-messages { max-height: 35vh !important; }
     }
-
-    /* CUSTOM SCROLLBAR */
-    ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
-    }
-    ::-webkit-scrollbar-track {
-      background: rgba(0, 0, 0, 0.05);
-      border-radius: 10px;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border-radius: 10px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-    }
-
-    #visitorCounter {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 12px 20px;
-        border-radius: 25px;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-        font-size: 14px;
-        font-weight: 600;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        z-index: 99999;
-        animation: slideInCounter 0.5s ease-out;
-    }
-
-    @keyframes slideInCounter {
-        from {
-            transform: translateX(100px);
-            opacity: 0;
-        }
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-
-    #visitorCounter:hover {
-        transform: scale(1.05);
-        transition: transform 0.3s ease;
-    }
-
-    @media (max-width: 768px) {
-        #visitorCounter {
-            bottom: 10px;
-            right: 10px;
-            padding: 8px 15px;
-            font-size: 12px;
-        }
-    }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.05); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: linear-gradient(135deg, #764ba2 0%, #667eea 100%); }
   </style>
 </head>
 
@@ -1491,45 +932,28 @@ let blackSeconds = 0;
 let timerInterval = null;
 let pendingMoves = new Map();
 let moveSequence = 0;
-let disconnectInterval = null; // New variable for local countdown
+let disconnectInterval = null;
 
-/* -------------------------
-   TIMER POSITIONING FIX
-   ------------------------- */
 function updateTimerPositions(myColor) {
     const whiteTimer = document.getElementById("whiteTimer");
     const blackTimer = document.getElementById("blackTimer");
 
-    // Reset styles first to avoid conflicts
     whiteTimer.style.top = "";
     whiteTimer.style.bottom = "";
     blackTimer.style.top = "";
     blackTimer.style.bottom = "";
 
     if (myColor === 'black') {
-        // I am Black (Bottom). White is Opponent (Top).
         whiteTimer.style.top = "-34px";
         whiteTimer.style.bottom = "auto";
-        
         blackTimer.style.bottom = "-34px";
         blackTimer.style.top = "auto";
     } else {
-        // I am White (Bottom). Black is Opponent (Top). (Default)
         whiteTimer.style.bottom = "-34px";
         whiteTimer.style.top = "auto";
-        
         blackTimer.style.top = "-34px";
         blackTimer.style.bottom = "auto";
     }
-}
-
-/* -------------------------
-   HELPER FUNCTIONS
-   ------------------------- */
-function timeStringToSeconds(str) {
-  if (!str || typeof str !== "string" || !str.includes(":")) return 0;
-  const [m, s] = str.split(":").map(Number);
-  return m * 60 + s;
 }
 
 function formatSeconds(sec) {
@@ -1539,7 +963,6 @@ function formatSeconds(sec) {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-// === NEW: DELTA-BASED LOCAL TIMER ===
 function updateDisplayedTimers() {
   const whiteTimer = document.getElementById("whiteTimer");
   const blackTimer = document.getElementById("blackTimer");
@@ -1559,31 +982,25 @@ function updateDisplayedTimers() {
 
 function startLocalTimer() {
   if (timerInterval) clearInterval(timerInterval);
-
   let lastTick = performance.now();
-
   timerInterval = setInterval(() => {
     if (!gameState || gameState.winner || (gameState.isActive === false)) {
       clearInterval(timerInterval);
       return;
     }
-
     const now = performance.now();
-    const delta = (now - lastTick) / 1000; // Time passed in seconds (float)
+    const delta = (now - lastTick) / 1000; 
     lastTick = now;
-
     if (gameState.turn === "white") {
       whiteSeconds = Math.max(0, whiteSeconds - delta);
     } else if (gameState.turn === "black") {
       blackSeconds = Math.max(0, blackSeconds - delta);
     }
-    
     updateDisplayedTimers();
-    
     if (whiteSeconds <= 0 || blackSeconds <= 0) {
       clearInterval(timerInterval);
     }
-  }, 100); // Update frequently (100ms) for smoothness
+  }, 100);
 }
 
 const sounds = {
@@ -1737,12 +1154,8 @@ function initializeEmojiPanel() {
   });
 }
 
-/* -------------------------
-   SOCKET EVENTS
-   ------------------------- */
+// SOCKET EVENTS
 socket.on("connect",()=>{
-  // Do NOT hide loading message yet. Wait for room_created/room_joined.
-  
   if (URL_MODE === 'create') {
     socket.emit("create_room", { room: URL_ROOM, timeControl: URL_TIME, playerName: URL_NAME, bot: false });
   } else if (URL_MODE === 'join') {
@@ -1752,15 +1165,9 @@ socket.on("connect",()=>{
   }
 });
 
-socket.on("disconnect",()=>{
-  // Optional: Show disconnect UI
-});
-
-// --- SUCCESS HANDLERS (Reveal UI) ---
 socket.on("room_created", startGame);
 socket.on("room_joined", startGame);
 
-// --- ERROR HANDLER (Redirect) ---
 socket.on("error", (data) => {
     alert(data.message);
     window.location.href = "/";
@@ -1769,40 +1176,28 @@ socket.on("error", (data) => {
 function startGame(data){
   document.getElementById("loadingMessage").style.display = "none";
   document.getElementById("game").style.display = "block";
-
   currentRoom = data.room;
   playerColor = data.color;
   gameState = data.state;
-
-  // === FIX: UPDATE TIMER POSITIONS ===
   updateTimerPositions(playerColor);
 
   const roomName = document.getElementById("roomName");
   const playerColorBadge = document.getElementById("playerColorBadge");
-  
   if (roomName) roomName.textContent = currentRoom;
   if (playerColorBadge) {
     const colorLabel = playerColor === "white" ? "♔ WHITE" : "♚ BLACK";
     const displayName = playerName || "Player";
-    playerColorBadge.innerHTML =
-      `<span class="player-badge ${playerColor}">
-         ${colorLabel} — ${displayName}
-       </span>`;
+    playerColorBadge.innerHTML = `<span class="player-badge ${playerColor}">${colorLabel} — ${displayName}</span>`;
   }
 
   const defaultSeconds = URL_TIME || 300;
-  // Use raw values from server if available (for reconnection), else default
   whiteSeconds = gameState.whiteTime !== undefined ? gameState.whiteTime : defaultSeconds;
   blackSeconds = gameState.blackTime !== undefined ? gameState.blackTime : defaultSeconds;
-
   updateDisplayedTimers();
 
   const isWaiting = (gameState.isActive === false);
   updateWaitingOverlay(isWaiting);
-
-  if (!isWaiting) {
-      startLocalTimer();
-  }
+  if (!isWaiting) startLocalTimer();
 
   renderBoard(gameState);
   updateStatus(gameState);
@@ -1841,34 +1236,25 @@ function updateWaitingOverlay(show) {
     }
 }
 
-/* =======================================
-   NEW: DISCONNECT / RECONNECT HANDLERS
-   ======================================= */
 socket.on("player_disconnected", (data) => {
-    // Only show if the disconnected player is NOT me
     if (data.color !== playerColor) {
         const overlay = document.getElementById("disconnectOverlay");
         const timerSpan = document.getElementById("disconnectTimer");
         let timeLeft = data.timeout || 15;
-        
         if (overlay && timerSpan) {
             overlay.classList.add("active");
             timerSpan.textContent = timeLeft;
-            
             if (disconnectInterval) clearInterval(disconnectInterval);
             disconnectInterval = setInterval(() => {
                 timeLeft--;
                 timerSpan.textContent = timeLeft;
-                if (timeLeft <= 0) {
-                    clearInterval(disconnectInterval);
-                }
+                if (timeLeft <= 0) clearInterval(disconnectInterval);
             }, 1000);
         }
     }
 });
 
 socket.on("player_reconnected", (data) => {
-    // Hide overlay if opponent comes back
     const overlay = document.getElementById("disconnectOverlay");
     if (overlay) overlay.classList.remove("active");
     if (disconnectInterval) clearInterval(disconnectInterval);
@@ -1877,28 +1263,19 @@ socket.on("player_reconnected", (data) => {
 socket.on("game_update", d => {
   const prev = gameState;
   gameState = d.state;
-
   pendingMoves.clear();
-  
-  // === FIX: SYNC TIME WITH SERVER ===
-  // Always update local time to server time to correct drift
   if (gameState.whiteTime !== undefined) whiteSeconds = gameState.whiteTime;
   if (gameState.blackTime !== undefined) blackSeconds = gameState.blackTime;
-
   updateDisplayedTimers();
-  
-  // Clear disconnect overlay if game ends
   if (gameState.winner) {
       const overlay = document.getElementById("disconnectOverlay");
       if (overlay) overlay.classList.remove("active");
       if (disconnectInterval) clearInterval(disconnectInterval);
   }
-
   if (d.lastMove) addMoveToHistory(d.lastMove, d.moveNotation);
   renderBoard(gameState, d.lastMove);
   updateStatus(gameState);
   updateTurnIndicator(gameState);
-
   if (prev) {
     if (gameState.winner) playSound("win");
     else if (gameState.check) playSound("check");
@@ -1925,6 +1302,7 @@ socket.on("chat_message", data => {
 });
 socket.on("possible_moves", d=>{
   possibleMoves = d.moves;
+  // VISUAL UPDATE ONLY - Logic does NOT depend on this anymore
   renderBoard(gameState);
 });
 socket.on("invalid_move", data => {
@@ -1934,9 +1312,6 @@ socket.on("invalid_move", data => {
   if (messages) messages.textContent = "❌ Invalid move!";
 });
 
-/* -------------------------
-   INITIALIZATION
-   ------------------------- */
 document.addEventListener("DOMContentLoaded", function() {
   initializeEmojiPanel();
   const chatInputEl = document.getElementById("chatInput");
@@ -1951,9 +1326,6 @@ document.addEventListener("DOMContentLoaded", function() {
   }
 });
 
-/* -------------------------
-   BOARD RENDERING
-   ------------------------- */
 function renderBoard(state, lastMove=null){
   const board=document.getElementById("chessboard");
   if (!board) return;
@@ -2003,35 +1375,37 @@ function renderBoard(state, lastMove=null){
         pDiv.appendChild(img);
         sq.appendChild(pDiv);
       }
+      
+      // --- UPDATED CLICK HANDLER (OPTIMISTIC) ---
       sq.addEventListener("click", ()=> handleSquareClick(r,c,state));
       sq.addEventListener("dragover", e=> e.preventDefault());
+      
+      // --- UPDATED DROP HANDLER (OPTIMISTIC) ---
       sq.addEventListener("drop", e=>{
         e.preventDefault();
         const fr=parseInt(e.dataTransfer.getData("fromRow"));
         const fc=parseInt(e.dataTransfer.getData("fromCol"));
         const from={row:fr,col:fc};
         const to={row:r,col:c};
-
-        // Prevent capturing your own pieces locally (fast check)
+        
+        // Prevent capturing own pieces (Local sanity check only)
         const targetPiece = state.board[r][c];
         const isTargetMine = targetPiece !== "." && (
             (playerColor === "white" && targetPiece === targetPiece.toUpperCase()) ||
             (playerColor === "black" && targetPiece === targetPiece.toLowerCase())
         );
-        if (isTargetMine) return; 
+        if (isTargetMine) return;
 
-        // Proceed with move immediately
         const movingPiece = state.board[fr][fc];
-        // ... (rest of the logic regarding promotion vs makeMove) ...
-         const isPawn = movingPiece.toLowerCase()==="p";
-         const isPromoRank = (playerColor==="white" && r===0) ||
+        const isPawn = movingPiece.toLowerCase()==="p";
+        const isPromoRank = (playerColor==="white" && r===0) ||
                             (playerColor==="black" && r===7);
-         if(isPawn && isPromoRank){
-             pendingPromotion = { from, to };
-             showPromotionModal(playerColor);
-         } else {
-             makeMove(from,to,null);
-         }
+        if(isPawn && isPromoRank){
+          pendingPromotion = { from, to };
+          showPromotionModal(playerColor);
+        } else {
+          makeMove(from,to,null);
+        }
       });
       board.appendChild(sq);
     }
@@ -2057,27 +1431,36 @@ function renderCoordinates(){
 
 function handleSquareClick(row, col, state){
   if(state.winner) return;
-  
-  // ... (keep the turn checks) ...
-
-  // Selecting your own piece
+  if (state.isActive === false) {
+    const messages = document.getElementById("messages");
+    if (messages) messages.textContent = "⏳ Waiting for opponent...";
+    return;
+  }
+  if(state.turn !== playerColor){
+    const messages = document.getElementById("messages");
+    if (messages) messages.textContent = "⏳ Wait for your turn!";
+    return;
+  }
+  const piece = state.board[row][col];
+  const isWhite = piece !== "." && piece === piece.toUpperCase();
+  const isMine = piece !== "." && (
+    (playerColor==="white" && isWhite) ||
+    (playerColor==="black" && !isWhite)
+  );
   if(isMine){
     selectedSquare = { row,col };
     socket.emit("get_possible_moves",{ room:currentRoom, from:selectedSquare });
-    
-    // VISUAL ONLY: You can keep the highlighting, but don't block logic
+    const messages = document.getElementById("messages");
+    if (messages) messages.textContent="";
     return;
   }
-
   if(!selectedSquare) return;
 
-  // We assume the move is valid. If not, the server will send 'invalid_move' later.
-  
+  // --- OPTIMISTIC MOVE: NO VALIDATION AGAINST 'possibleMoves' ---
   const movingPiece = state.board[selectedSquare.row][selectedSquare.col];
   const isPawn = movingPiece.toLowerCase()==="p";
   const isPromoRank = (playerColor==="white" && row===0) ||
                       (playerColor==="black" && row===7);
-                      
   if(isPawn && isPromoRank){
     pendingPromotion = { from:selectedSquare, to:{row,col} };
     showPromotionModal(playerColor);
