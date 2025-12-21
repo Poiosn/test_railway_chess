@@ -48,6 +48,7 @@
       to { opacity: 1; transform: translateY(0); }
     }
 
+    /* PREMIUM TITLE WITH SHINE EFFECT */
     h1 {
       text-align:center;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
@@ -62,205 +63,1319 @@
       animation: titleShine 3s linear infinite;
       text-shadow: 0 0 30px rgba(102, 126, 234, 0.3);
     }
-    @keyframes titleShine { to { background-position: 200% center; } }
 
-    .subtitle { text-align:center; color:#555; margin-bottom:14px; font-size:13px; font-weight:500; letter-spacing: 0.5px; }
+    @keyframes titleShine {
+      to { background-position: 200% center; }
+    }
 
+    .subtitle {
+      text-align:center;
+      color:#555;
+      margin-bottom:14px;
+      font-size:13px;
+      font-weight:500;
+      letter-spacing: 0.5px;
+    }
+
+    /* ENHANCED CONNECTION STATUS */
+    .connection-status {
+      text-align:center;
+      padding:10px 20px;
+      margin-bottom:12px;
+      border-radius:16px;
+      font-weight:700;
+      font-size:13px;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    .connection-status.connected {
+      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+      color: white;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .connection-status.disconnected {
+      background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+      color: white;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+    }
+
+    /* ENHANCED GAME INFO CARD */
     .game-info {
-      text-align:center; margin-bottom: 60px; padding:16px;
-      background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(10px);
-      border-radius:16px; border: 1px solid rgba(255, 255, 255, 0.8);
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1); transition: transform 0.3s ease;
+      text-align:center;
+      margin-bottom: 60px;
+      padding:16px;
+      background: rgba(255, 255, 255, 0.6);
+      backdrop-filter: blur(10px);
+      border-radius:16px;
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+      transition: transform 0.3s ease;
     }
-    .game-info:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15); }
-    .game-info h3 { font-size: 18px; font-weight: 800; color: #333; margin-bottom: 8px; }
+    .game-info:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+    }
 
+    .game-info h3 {
+      font-size: 18px;
+      font-weight: 800;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    /* PREMIUM PLAYER BADGES */
     .player-badge {
-      padding: 6px 16px; border-radius: 20px; font-weight: 800; font-size: 14px; display: inline-block;
-      transition: all 0.3s ease; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-weight: 800;
+      font-size: 14px;
+      display: inline-block;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
     }
-    .player-badge.white { background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%); border: 2px solid #e0e0e0; color: #333; }
-    .player-badge.black { background: linear-gradient(135deg, #434343 0%, #000000 100%); color: #fff; border: 2px solid #666; }
+    .player-badge.white {
+      background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+      border: 2px solid #e0e0e0;
+      color: #333;
+    }
+    .player-badge.black {
+      background: linear-gradient(135deg, #434343 0%, #000000 100%);
+      color: #fff;
+      border: 2px solid #666;
+    }
+    .player-badge:hover {
+      transform: scale(1.05);
+    }
 
+    .room-controls {
+      display:flex;
+      gap:12px;
+      margin-bottom:12px;
+      justify-content:center;
+      flex-wrap:wrap;
+    }
+    .bot-controls {
+      text-align:center;
+      margin-bottom:16px;
+    }
+
+    /* PREMIUM TIME CONTROL SECTION */
+    .time-control-section {
+      text-align:center;
+      margin-bottom:16px;
+      padding:18px;
+      background: linear-gradient(135deg, rgba(224, 247, 250, 0.8) 0%, rgba(178, 235, 242, 0.8) 100%);
+      backdrop-filter: blur(10px);
+      border-radius:16px;
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      box-shadow: 0 8px 20px rgba(0, 105, 92, 0.1);
+    }
+    .time-control-section h4 {
+      color: #00695c;
+      margin-bottom: 12px;
+      font-size: 15px;
+      font-weight: 800;
+    }
+    .time-options {
+      display:flex;
+      gap:10px;
+      justify-content:center;
+      flex-wrap:wrap;
+    }
+
+    /* PREMIUM TIME BUTTONS */
+    .time-btn {
+      padding: 10px 18px;
+      background: white;
+      border: 2px solid #00897b;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 14px;
+      color: #00695c;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 10px rgba(0, 137, 123, 0.2);
+      position: relative;
+      overflow: hidden;
+    }
+    .time-btn::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: rgba(0, 137, 123, 0.2);
+      transform: translate(-50%, -50%);
+      transition: width 0.6s, height 0.6s;
+    }
+    .time-btn:hover::before {
+      width: 300px;
+      height: 300px;
+    }
+    .time-btn:hover {
+      background: #00897b;
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0, 137, 123, 0.3);
+    }
+    .time-btn.selected {
+      background: linear-gradient(135deg, #00695c 0%, #004d40 100%);
+      color: white;
+      border-color: #004d40;
+      box-shadow: 0 6px 20px rgba(0, 105, 92, 0.4);
+    }
+
+    /* PREMIUM INPUT FIELDS */
     input[type="text"] {
-      flex:1; max-width:320px; min-width:200px; padding:14px 20px;
-      border: 2px solid rgba(102, 126, 234, 0.3); border-radius:14px; font-size:15px;
-      transition: all 0.3s ease; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px);
+      flex:1;
+      max-width:320px;
+      min-width:200px;
+      padding:14px 20px;
+      border: 2px solid rgba(102, 126, 234, 0.3);
+      border-radius:14px;
+      font-size:15px;
+      font-family: 'Inter', sans-serif;
+      transition: all 0.3s ease;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(10px);
     }
-    input[type="text"]:focus { outline: none; border-color: #667eea; transform: translateY(-2px); }
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1), 0 8px 20px rgba(102, 126, 234, 0.2);
+      transform: translateY(-2px);
+    }
 
+    /* PREMIUM BUTTONS */
     button {
-      padding: 14px 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white; border: none; border-radius: 14px; cursor: pointer; font-weight: 700;
-      font-size: 15px; transition: all 0.3s; box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
-      position: relative; overflow: hidden;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 15px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+      position: relative;
+      overflow: hidden;
     }
-    button:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4); }
-    button:active { transform: translateY(-1px); }
-    .btn-bot { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
-    .btn-secondary { background: linear-gradient(135deg, #bdc3c7 0%, #2c3e50 100%); }
-    .btn-danger { background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); }
-    .btn-draw { background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%); }
+    button::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+      transform: translate(-50%, -50%);
+      transition: width 0.6s, height 0.6s;
+    }
+    button:hover::after {
+      width: 300px;
+      height: 300px;
+    }
+    button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+    }
+    button:active {
+      transform: translateY(-1px);
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
 
+    .btn-bot {
+      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+      box-shadow: 0 6px 20px rgba(17, 153, 142, 0.3);
+    }
+    .btn-secondary {
+      background: linear-gradient(135deg, #bdc3c7 0%, #2c3e50 100%);
+      box-shadow: 0 6px 20px rgba(44, 62, 80, 0.3);
+    }
+    .btn-danger {
+      background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+      box-shadow: 0 6px 20px rgba(235, 51, 73, 0.3);
+    }
+    .btn-draw {
+      background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
+      box-shadow: 0 6px 20px rgba(247, 151, 30, 0.3);
+    }
+
+    /* ENHANCED TIMER WITH PROGRESS BAR */
     .timer {
-      padding: 8px 16px; border-radius: 12px; text-align: center; font-size: 16px;
-      font-weight: 800; transition: all 0.3s ease; position: absolute;
-      backdrop-filter: blur(10px); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-      min-width: 80px; z-index: 50;
+      padding: 8px 16px;
+      border-radius: 12px;
+      text-align: center;
+      font-size: 16px;
+      font-weight: 800;
+      transition: all 0.3s ease;
+      position: absolute;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      min-width: 80px;
     }
-    .timer.white { background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%); border: 2px solid #e0e0e0; color: #333; }
-    .timer.black { background: linear-gradient(135deg, #434343 0%, #000000 100%); color: #fff; border: 2px solid #666; }
-    .timer.active { transform: scale(1.08); animation: timerPulse 1.5s ease-in-out infinite; }
-    @keyframes timerPulse { 0%, 100% { transform: scale(1.08); } 50% { transform: scale(1.12); } }
+    .timer.white {
+      background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+      border: 2px solid #e0e0e0;
+      color: #333;
+    }
+    .timer.black {
+      background: linear-gradient(135deg, #434343 0%, #000000 100%);
+      color: #fff;
+      border: 2px solid #666;
+    }
+    .timer.active {
+      box-shadow: 0 0 30px rgba(102, 126, 234, 0.8), 0 4px 15px rgba(0, 0, 0, 0.3);
+      transform: scale(1.08);
+      animation: timerPulse 1.5s ease-in-out infinite;
+    }
 
-    .board-section { position: relative; width: 100%; max-width: 700px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; }
-    
+    @keyframes timerPulse {
+      0%, 100% { transform: scale(1.08); }
+      50% { transform: scale(1.12); }
+    }
+
+    .board-section {
+      position: relative;
+      width: 100%;
+      max-width: 700px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* 3D ENHANCED CHESSBOARD */
     .chessboard {
-      display: grid; grid-template-columns: repeat(8, 1fr); width: min(92vw, 700px); aspect-ratio: 1 / 1;
-      border: 6px solid rgba(44, 62, 80, 0.8); border-radius: 12px; overflow: hidden;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4); position: relative; transform-style: preserve-3d;
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      width: min(92vw, 700px);
+      aspect-ratio: 1 / 1;
+      height: auto;
+      border: 6px solid rgba(44, 62, 80, 0.8);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 
+        0 20px 60px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      position: relative;
+      transform-style: preserve-3d;
+      perspective: 1000px;
     }
 
+    /* === NEW: WAITING OVERLAY STYLES === */
     .waiting-overlay {
-      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); z-index: 100;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      border-radius: 12px; color: white; font-weight: bold; animation: fadeIn 0.3s;
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(5px);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      color: white;
+      font-weight: bold;
+      animation: fadeIn 0.3s;
     }
     
+    /* === NEW: DISCONNECT OVERLAY STYLES === */
     .disconnect-overlay {
-      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(220, 38, 38, 0.8); backdrop-filter: blur(5px); z-index: 101;
-      display: none; flex-direction: column; align-items: center; justify-content: center;
-      border-radius: 12px; color: white; font-weight: bold; animation: fadeIn 0.3s; text-align: center; padding: 20px;
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(220, 38, 38, 0.8);
+      backdrop-filter: blur(5px);
+      z-index: 101;
+      display: none; /* Hidden by default */
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      color: white;
+      font-weight: bold;
+      animation: fadeIn 0.3s;
+      text-align: center;
+      padding: 20px;
     }
-    .disconnect-overlay.active { display: flex; }
+    .disconnect-overlay.active {
+      display: flex;
+    }
     
     .waiting-spinner {
-      border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid #fff; border-radius: 50%;
-      width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px;
+      border: 4px solid rgba(255,255,255,0.3);
+      border-top: 4px solid #fff;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin-bottom: 15px;
     }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+    /* ================================== */
 
     .coordinates {
-      position: absolute; font-size: 12px; font-weight: 800; color: #2c3e50; pointer-events: none;
+      position: absolute;
+      font-size: 12px;
+      font-weight: 800;
+      color: #2c3e50;
+      pointer-events: none;
       text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
     }
-    .coord-file { bottom: -28px; left: 0; width: 100%; display: flex; justify-content: space-between; padding: 0 8px; }
-    .coord-rank { top: 0; height: 100%; left: -32px; display: flex; flex-direction: column; justify-content: space-between; }
+    .coord-file {
+      bottom: -28px;
+      left: 0;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      padding: 0 8px;
+    }
+    .coord-rank {
+      top: 0;
+      height: 100%;
+      left: -32px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
     .coord-file.flipped { top: -24px; bottom: auto; }
     .coord-rank.flipped { left: auto; right: -28px; }
 
+    /* ENHANCED SQUARES WITH DEPTH */
     .square {
-      aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
-      cursor: pointer; position: relative; overflow: hidden;
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
     }
-    .square.light { background: linear-gradient(135deg, #f5e6d3 0%, #f0d9b5 100%); }
-    .square.dark { background: linear-gradient(135deg, #c9a882 0%, #b58863 100%); }
+    .square::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.15), transparent);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .square:hover::before {
+      opacity: 1;
+    }
+    .square.light {
+      background: linear-gradient(135deg, #f5e6d3 0%, #f0d9b5 100%);
+    }
+    .square.dark {
+      background: linear-gradient(135deg, #c9a882 0%, #b58863 100%);
+    }
     .square.selected {
       background: radial-gradient(circle, #baca44 0%, #a8b834 100%) !important;
       box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.4);
+      animation: selectedGlow 1s ease-in-out infinite;
     }
-    .square.last-move { background: radial-gradient(circle, #ffd93d 0%, #cdd26a 100%) !important; }
-    
+
+    @keyframes selectedGlow {
+      0%, 100% { box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.4), 0 0 20px rgba(186, 202, 68, 0.6); }
+      50% { box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.4), 0 0 30px rgba(186, 202, 68, 0.8); }
+    }
+
+    /* ANIMATED MOVE INDICATORS */
     .square.possible-move::after {
-      content: ''; position: absolute; width: 35%; height: 35%;
+      content: '';
+      position: absolute;
+      width: 35%;
+      height: 35%;
       background: radial-gradient(circle, rgba(34, 197, 94, 0.6), rgba(34, 197, 94, 0.3));
       border-radius: 50%;
+      animation: moveIndicator 1.5s ease-in-out infinite;
+      box-shadow: 0 0 15px rgba(34, 197, 94, 0.5);
     }
 
+    @keyframes moveIndicator {
+      0%, 100% { transform: scale(1); opacity: 0.7; }
+      50% { transform: scale(1.2); opacity: 1; }
+    }
+
+    .square.last-move {
+      background: radial-gradient(circle, #ffd93d 0%, #cdd26a 100%) !important;
+      box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.2);
+    }
+    .square:hover {
+      filter: brightness(1.15);
+      transform: scale(1.02);
+    }
+
+    /* 3D PIECE EFFECTS */
     .piece {
-      width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      transform-style: preserve-3d;
       cursor: grab;
     }
-    .piece:active { cursor: grabbing; }
-    .piece img { width: 88%; height: 88%; object-fit: contain; pointer-events: none; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3)); }
+    .piece:active {
+      cursor: grabbing;
+    }
+    .piece.moving {
+      opacity: 0.7;
+      transform: scale(0.95);
+    }
+    .piece:hover {
+      transform: scale(1.12) translateY(-5px);
+      filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.4));
+      animation: pieceFloat 0.6s ease-in-out;
+    }
 
+    @keyframes pieceFloat {
+      0%, 100% { transform: scale(1.12) translateY(-5px); }
+      50% { transform: scale(1.15) translateY(-8px); }
+    }
+
+    .piece img {
+      width: 88%;
+      height: 88%;
+      object-fit: contain;
+      pointer-events: none;
+      filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
+      transition: filter 0.3s ease;
+    }
+    .piece:hover img {
+      filter: drop-shadow(0 6px 15px rgba(0, 0, 0, 0.5));
+    }
+
+    /* ENHANCED MOVE HISTORY */
     .move-history {
-      background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(10px); border-radius: 16px;
-      padding: 14px; height: 600px; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.8);
+      background: rgba(255, 255, 255, 0.6);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 14px;
+      height: 600px;
+      overflow-y: auto;
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
     }
     .move-history h4 {
-      color: #2c3e50; margin-bottom: 12px; font-size: 15px; font-weight: 800; position: sticky; top: 0;
-      background: rgba(255, 255, 255, 0.95); padding: 10px 8px; border-radius: 8px; z-index: 10;
+      color: #2c3e50;
+      margin-bottom: 12px;
+      font-size: 15px;
+      font-weight: 800;
+      position: sticky;
+      top: 0;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      padding: 10px 8px;
+      border-bottom: 2px solid rgba(102, 126, 234, 0.3);
+      border-radius: 8px 8px 0 0;
+      z-index: 10;
+      margin-left: -14px;
+      margin-right: -14px;
+      margin-top: -14px;
+      padding-left: 14px;
+      padding-right: 14px;
     }
-    .move-list { display: grid; grid-template-columns: 45px 1fr 1fr; gap: 10px; font-size: 14px; margin-top: 10px; }
-    .move-number { color: #666; font-weight: 800; text-align: right; padding-right: 10px; }
-    .move-item {
-      background: rgba(248, 249, 250, 0.8); padding: 6px 10px; border-radius: 8px;
-      cursor: pointer; text-align: center; overflow: hidden;
-    }
-    .move-item.white { border-left: 3px solid #e0e0e0; }
-    .move-item.black { border-left: 3px solid #333; }
-
-    .turn-indicator {
-      text-align: center; padding: 8px; border-radius: 14px; font-size: 15px; font-weight: 800;
-      margin-bottom: 6px; background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(10px);
-    }
-    .status {
-      min-height: 30px; text-align: center; padding: 12px; margin-top: 14px;
-      border-radius: 14px; font-size: 16px; font-weight: 800; backdrop-filter: blur(10px);
-    }
-    .button-group { display: flex; justify-content: center; gap: 14px; margin-top: 20px; flex-wrap: wrap; }
     
-    .promotion-modal, .draw-modal {
-      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: none;
-      align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); z-index: 9999;
+    /* FIX 2: Static Move History Columns */
+    .move-list {
+      display: grid;
+      /* Fixed width for number column to prevent jitter */
+      grid-template-columns: 45px 1fr 1fr;
+      gap: 10px;
+      font-size: 14px;
+      margin-top: 10px;
     }
-    .promotion-modal.active, .draw-modal.active { display: flex; }
-    .promotion-content, .draw-content {
-      background: rgba(255, 255, 255, 0.95); padding: 28px; border-radius: 20px;
-      text-align: center; min-width: 320px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    .move-number {
+      color: #666;
+      font-weight: 800;
+      text-align: right;
+      padding-right: 10px;
     }
-    .promotion-pieces img { width: 75px; height: 75px; margin: 10px; cursor: pointer; }
+    .move-item {
+      background: rgba(248, 249, 250, 0.8);
+      backdrop-filter: blur(5px);
+      padding: 6px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-weight: 600;
+      /* Added to ensure long moves don't break layout */
+      text-align: center;
+      overflow: hidden; 
+    }
+    .move-item:hover {
+      background: rgba(102, 126, 234, 0.15);
+      transform: translateX(3px);
+    }
+    .move-item.white {
+      border-left: 3px solid #e0e0e0;
+    }
+    .move-item.black {
+      border-left: 3px solid #333;
+    }
 
+    /* ENHANCED TURN INDICATOR */
+    .turn-indicator {
+      text-align: center;
+      padding: 8px;
+      border-radius: 14px;
+      font-size: 15px;
+      font-weight: 800;
+      margin-bottom: 6px;
+      transition: all 0.3s ease;
+      background: rgba(255, 255, 255, 0.6);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    /* PREMIUM STATUS BANNERS */
+    .status {
+      min-height: 30px;
+      text-align: center;
+      padding: 12px;
+      margin-top: 14px;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 800;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+      backdrop-filter: blur(10px);
+      animation: statusAppear 0.5s ease;
+    }
+
+    @keyframes statusAppear {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .button-group {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .button-group button {
+      border-radius: 14px;
+      padding: 14px 28px;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    /* ENHANCED MODALS */
+    .promotion-modal,
+    .draw-modal,
+    .name-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      z-index: 9999;
+      animation: modalFadeIn 0.3s ease;
+    }
+
+    @keyframes modalFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .promotion-modal.active,
+    .draw-modal.active,
+    .name-modal.active {
+      display: flex;
+    }
+
+    .promotion-content,
+    .draw-content,
+    .name-content {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      padding: 28px;
+      border-radius: 20px;
+      text-align: center;
+      min-width: 320px;
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+      animation: modalSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    @keyframes modalSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-40px) scale(0.9);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .promotion-content h3,
+    .draw-content h3,
+    .name-content h3 {
+      font-size: 22px;
+      font-weight: 900;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 10px;
+    }
+
+    .promotion-pieces img {
+      width: 75px;
+      height: 75px;
+      margin: 10px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.2));
+    }
+    .promotion-pieces img:hover {
+      transform: scale(1.15) translateY(-5px);
+      filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.4));
+    }
+    .promotion-pieces {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    /* ENHANCED CHAT */
     .chat-box {
-      background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(10px); border-radius: 16px;
-      padding: 12px; flex: 1;
+      background: rgba(255, 255, 255, 0.6);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
     }
-    .chat-messages { height: 220px; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
-    .chat-line { padding: 10px 12px; border-radius: 12px; max-width: 85%; word-break: break-word; font-size: 13px; font-weight: 500; }
-    .chat-line.you { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; align-self: flex-end; }
-    .chat-line.opponent { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; align-self: flex-start; }
-    .chat-input { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
-    .chat-input input { flex: 1; padding: 12px; border-radius: 12px; border: 2px solid rgba(102, 126, 234, 0.3); }
-    .emoji-panel {
-      position: absolute; bottom: 56px; left: 0; background: rgba(255, 255, 255, 0.95);
-      border-radius: 12px; padding: 10px; display: flex; gap: 6px; flex-wrap: wrap; width: 240px;
+    .chat-box h4 {
+      color: #2c3e50;
+      margin-bottom: 10px;
+      font-size: 15px;
+      font-weight: 800;
     }
-    .emoji-btn { cursor: pointer; padding: 8px; font-size: 20px; border-radius: 8px; background: transparent; }
+    .chat-messages {
+      height: 220px;
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .chat-line {
+      padding: 10px 12px;
+      border-radius: 12px;
+      max-width: 85%;
+      word-break: break-word;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      animation: chatAppear 0.3s ease;
+      font-size: 13px;
+      font-weight: 500;
+    }
 
-    #messages { text-align: center; color: #dc2626; margin-top: 10px; min-height: 20px; font-weight: 600; }
+    @keyframes chatAppear {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .chat-line.you {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      align-self: flex-end;
+    }
+    /* FIX 3: Unified Chat Colors (Same as 'you' but left-aligned) */
+    .chat-line.opponent {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      align-self: flex-start;
+    }
+    
+    .typing-indicator {
+      height: 20px;
+      font-size: 12px;
+      color: #666;
+      margin-top: 8px;
+      font-style: italic;
+    }
+
+    .chat-input {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      align-items: center;
+    }
+    .chat-input input {
+      flex: 1;
+      padding: 12px;
+      border-radius: 12px;
+      border: 2px solid rgba(102, 126, 234, 0.3);
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
+    }
+    .chat-input input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    .chat-input button {
+      padding: 12px 16px;
+      border-radius: 12px;
+    }
+
+    .emoji-panel {
+      position: absolute;
+      bottom: 56px;
+      left: 0;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      border-radius: 12px;
+      padding: 10px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      width: 240px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+    .emoji-btn {
+      cursor: pointer;
+      padding: 8px;
+      font-size: 20px;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+      background: transparent;
+    }
+    .emoji-btn:hover {
+      background: rgba(102, 126, 234, 0.15);
+      transform: scale(1.2);
+    }
+
+    #messages {
+      text-align: center;
+      color: #dc2626;
+      margin-top: 10px;
+      min-height: 20px;
+      font-weight: 600;
+    }
+
+    /* PREMIUM SOUND TOGGLE */
     .sound-toggle {
-      position: fixed; top: 20px; left: 20px; width: 44px; height: 44px;
-      background: rgba(255, 255, 255, 0.95); border-radius: 50%; display: flex; align-items: center;
-      justify-content: center; font-size: 22px; cursor: pointer; z-index: 100000;
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      width: 44px;
+      height: 44px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      border-radius: 50%;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      cursor: pointer;
+      z-index: 100000;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       border: 2px solid rgba(102, 126, 234, 0.3);
     }
+    .sound-toggle:hover {
+      transform: scale(1.15) rotate(10deg);
+      box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+      border-color: #667eea;
+    }
+    .sound-toggle.muted {
+      opacity: 0.6;
+      background: rgba(220, 38, 38, 0.1);
+    }
 
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    /* LEADERBOARD STYLES (NEW) */
+    .leaderboard-section {
+        margin-top: 25px;
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.6);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    }
+    .leaderboard-section h4 {
+        color: #4a148c;
+        margin-bottom: 12px;
+        font-size: 16px;
+        font-weight: 800;
+        text-align: center;
+    }
+    .leaderboard-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
+    .leaderboard-table th {
+        text-align: left;
+        padding: 8px;
+        color: #666;
+        border-bottom: 2px solid rgba(0,0,0,0.1);
+    }
+    .leaderboard-table td {
+        padding: 8px;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+        color: #333;
+        font-weight: 500;
+    }
+    .leaderboard-table tr:last-child td {
+        border-bottom: none;
+    }
+    .leaderboard-table tr:hover {
+        background: rgba(255,255,255,0.5);
+    }
+
+    /* ========================================
+       MOBILE RESPONSIVE ENHANCEMENTS
+       ======================================== */
     @media (max-width: 900px) {
-      .game-layout { flex-direction: column !important; gap: 14px !important; }
-      .sidebar { width: 100% !important; flex-direction: column !important; }
-      .move-history { display: none !important; }
-      .chat-box { width: 100%; height: 350px !important; }
-      #blackTimer { top: -10px !important; left: 50% !important; transform: translateX(-50%); }
-      #whiteTimer { bottom: -10px !important; left: 50% !important; transform: translateX(-50%); }
-      .coord-file { bottom: -22px !important; font-size: 10px !important; }
-      .coord-rank { left: -24px !important; font-size: 10px !important; }
+      body {
+        padding: 10px;
+        align-items: flex-start;
+      }
+
+      .container {
+        padding: 16px;
+        max-height: none;
+        width: 100%;
+        border-radius: 20px;
+      }
+
+      h1 {
+        font-size: 24px;
+        margin-bottom: 6px;
+      }
+
+      .subtitle {
+        font-size: 11px;
+        margin-bottom: 10px;
+      }
+
+      .game-layout {
+        flex-direction: column !important;
+        gap: 14px !important;
+      }
+
+      .sidebar {
+        width: 100% !important;
+        flex-direction: column !important;
+        gap: 12px !important;
+      }
+
+      .board-section {
+        width: 100%;
+        max-width: 100%;
+      }
+
+      .chessboard {
+        width: 100%;
+        max-width: 100%;
+        border: 4px solid rgba(44, 62, 80, 0.8);
+      }
+
+      #blackTimer {
+        top: -28px !important;
+        left: 50% !important;
+        transform: translateX(-50%);
+        font-size: 13px !important;
+        padding: 6px 12px !important;
+      }
+
+      #whiteTimer {
+        bottom: -28px !important;
+        left: 50% !important;
+        transform: translateX(-50%);
+        font-size: 13px !important;
+        padding: 6px 12px !important;
+      }
+
+      .coord-file {
+        bottom: -22px !important;
+        font-size: 10px !important;
+      }
+
+      .coord-rank {
+        left: -24px !important;
+        font-size: 10px !important;
+      }
+
+      .coord-file.flipped {
+        top: -22px !important;
+      }
+
+      .coord-rank.flipped {
+        right: -22px !important;
+      }
+
+      .move-history {
+        height: auto !important;
+        max-height: 240px !important;
+        padding: 10px;
+      }
+
+      .move-history h4 {
+        font-size: 13px;
+        margin-bottom: 10px;
+        padding: 8px 6px;
+        margin-left: -10px;
+        margin-right: -10px;
+        margin-top: -10px;
+        padding-left: 10px;
+        padding-right: 10px;
+      }
+
+      .move-list {
+        font-size: 12px;
+        gap: 6px;
+        margin-top: 8px;
+      }
+
+      .move-item {
+        padding: 4px 8px;
+      }
+
+      .chat-box {
+        padding: 10px;
+      }
+
+      .chat-box h4 {
+        font-size: 13px;
+      }
+
+      .chat-messages {
+        height: 200px !important;
+        max-height: 200px !important;
+        padding: 6px;
+      }
+
+      .chat-line {
+        font-size: 12px;
+        padding: 8px 10px;
+      }
+
+      .button-group {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .button-group button {
+        width: 100%;
+        padding: 12px 10px;
+        font-size: 13px;
+      }
+
+      .room-controls {
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .room-controls input {
+        max-width: 100%;
+        width: 100%;
+        padding: 12px 16px;
+        font-size: 14px;
+      }
+
+      .room-controls button {
+        width: 100%;
+        padding: 12px;
+        font-size: 14px;
+      }
+
+      .time-control-section {
+        padding: 12px;
+        margin-bottom: 12px;
+      }
+
+      .time-control-section h4 {
+        font-size: 13px;
+        margin-bottom: 10px;
+      }
+
+      .time-options {
+        gap: 8px;
+      }
+
+      .time-btn {
+        padding: 8px 12px;
+        font-size: 12px;
+      }
+
+      .bot-controls button {
+        width: 100%;
+        padding: 12px;
+        font-size: 14px;
+      }
+
+      .status {
+        font-size: 14px;
+        padding: 10px;
+      }
+
+      .turn-indicator {
+        font-size: 13px;
+        padding: 6px;
+      }
+
+      .game-info {
+        padding: 12px;
+        margin-bottom: 10px;
+      }
+
+      .game-info h3 {
+        font-size: 15px;
+      }
+
+      .player-badge {
+        font-size: 12px;
+        padding: 4px 12px;
+      }
+
+      .connection-status {
+        font-size: 12px;
+        padding: 8px 16px;
+      }
+
+      .promotion-content,
+      .draw-content,
+      .name-content {
+        min-width: 90%;
+        max-width: 90%;
+        padding: 20px 16px;
+      }
+
+      .promotion-content h3,
+      .draw-content h3,
+      .name-content h3 {
+        font-size: 18px;
+      }
+
+      .promotion-pieces img {
+        width: 60px;
+        height: 60px;
+        margin: 8px;
+      }
+
+      .emoji-panel {
+        bottom: 48px;
+        width: 200px;
+        padding: 8px;
+      }
+
+      .emoji-btn {
+        font-size: 18px;
+        padding: 6px;
+      }
+
+      .chat-input input {
+        font-size: 13px;
+        padding: 10px;
+      }
+
+      .chat-input button {
+        padding: 10px 14px;
+        font-size: 13px;
+      }
+
+      .sound-toggle {
+        top: 14px;
+        left: 14px;
+        width: 38px;
+        height: 38px;
+        font-size: 18px;
+      }
+
+      #messages {
+        font-size: 12px;
+      }
+    }
+
+    @media (max-width: 400px) {
+      body {
+        padding: 6px;
+      }
+
+      .container {
+        padding: 12px;
+        border-radius: 16px;
+      }
+
+      h1 {
+        font-size: 20px;
+      }
+
+      .subtitle {
+        font-size: 10px;
+      }
+
+      .chessboard {
+        border: 3px solid rgba(44, 62, 80, 0.8);
+      }
+
+      .button-group {
+        gap: 8px;
+      }
+
+      .button-group button {
+        padding: 10px 8px;
+        font-size: 12px;
+      }
+
+      .time-btn {
+        padding: 6px 10px;
+        font-size: 11px;
+      }
+
+      .move-history,
+      .chat-messages {
+        max-height: 180px !important;
+      }
+
+      #blackTimer,
+      #whiteTimer {
+        font-size: 12px !important;
+        padding: 5px 10px !important;
+      }
+
+      .promotion-pieces img {
+        width: 55px;
+        height: 55px;
+        margin: 6px;
+      }
+    }
+
+    @media (max-width: 900px) and (orientation: landscape) {
+      body {
+        align-items: flex-start;
+      }
+
+      .container {
+        max-height: none;
+      }
+
+      .chessboard {
+        width: min(50vh, 90vw);
+      }
+
+      .move-history,
+      .chat-messages {
+        max-height: 35vh !important;
+      }
+    }
+
+    /* CUSTOM SCROLLBAR */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05);
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    }
+
+    #visitorCounter {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 12px 20px;
+        border-radius: 25px;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        font-size: 14px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        z-index: 99999;
+        animation: slideInCounter 0.5s ease-out;
+    }
+
+    @keyframes slideInCounter {
+        from {
+            transform: translateX(100px);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    #visitorCounter:hover {
+        transform: scale(1.05);
+        transition: transform 0.3s ease;
+    }
+
+    @media (max-width: 768px) {
+        #visitorCounter {
+            bottom: 10px;
+            right: 10px;
+            padding: 8px 15px;
+            font-size: 12px;
+        }
     }
   </style>
 </head>
 
 <body>
+
 <div id="soundToggle" class="sound-toggle" onclick="toggleSound()" title="Toggle Sound">🔊</div>
 
 <div class="container">
+
     <h1>♔ Chess Master ♚</h1>
     <p class="subtitle">⚡ Premium Edition — Real-time Multiplayer</p>
     
     <div id="loadingMessage" style="text-align:center; padding:40px; font-weight:bold; color:#333;">
-        <div style="font-size:24px; margin-bottom:10px;">🔌</div> Connecting to server...
+        <div style="font-size:24px; margin-bottom:10px;">🔌</div>
+        Connecting to server...
     </div>
 
     <div id="game" style="display:none;">
@@ -271,50 +1386,67 @@
 
       <div class="game-layout" style="display:flex; gap:40px; align-items:flex-start;">
         <div class="board-section">
+          
           <div id="blackTimer" class="timer black" style="left:0px;">5:00</div>
           <div id="whiteTimer" class="timer white" style="left:0px;">5:00</div>
+
           <div class="turn-indicator" id="turnIndicator"></div>
+
           <div class="board-wrapper" style="position:relative;" id="boardWrapper">
             <div class="chessboard" id="chessboard"></div>
             <div class="coordinates coord-file" id="coordFiles"></div>
             <div class="coordinates coord-rank" id="coordRanks"></div>
             <div id="disconnectOverlay" class="disconnect-overlay">
                 <div class="waiting-spinner"></div>
-                <div>⚠️ Opponent Disconnected</div>
-                <div style="font-size:14px; font-weight:normal;">Win in <span id="disconnectTimer">15</span>s...</div>
+                <div style="font-size:18px; margin-bottom:8px;">⚠️ Opponent Disconnected</div>
+                <div style="font-size:14px; font-weight:normal;">Claiming win in <span id="disconnectTimer">15</span>s...</div>
             </div>
           </div>
+
           <div class="status" id="status"></div>
           <div class="messages" id="messages"></div>
         </div>
         
         <div class="sidebar" style="display:flex; gap:20px;">
+
           <div class="move-history" style="flex:1;">
             <h4>📜 Move History</h4>
             <div class="move-list" id="moveList"></div>
           </div>
-          <div class="chat-box" id="chatBox">
+
+          <div class="chat-box" id="chatBox" style="flex:1;">
             <h4>💬 Live Chat</h4>
-            <div class="chat-messages" id="chatMessages"></div>
+            <div class="chat-messages" id="chatMessages" style="height:500px;"></div>
             <div class="typing-indicator" id="typingIndicator"></div>
+
             <div class="chat-input" style="margin-top:10px; position:relative;">
-              <div style="display:flex;align-items:center;gap:8px; width:100%;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                
                 <div id="emojiPickerWrap" style="position:relative;">
-                  <button id="emojiToggle" class="emoji-btn" style="background:transparent;padding:6px;">😊</button>
+                  <button id="emojiToggle" class="emoji-btn" title="Add Emoji" style="background:transparent;padding:6px;">😊</button>
+
                   <div id="emojiPanel" class="emoji-panel" style="display:none;">
                     <div class="emoji-btn" onclick="insertEmoji('😀')">😀</div>
                     <div class="emoji-btn" onclick="insertEmoji('😄')">😄</div>
                     <div class="emoji-btn" onclick="insertEmoji('😂')">😂</div>
+                    <div class="emoji-btn" onclick="insertEmoji('😍')">😍</div>
                     <div class="emoji-btn" onclick="insertEmoji('👍')">👍</div>
                     <div class="emoji-btn" onclick="insertEmoji('🤝')">🤝</div>
+                    <div class="emoji-btn" onclick="insertEmoji('🎉')">🎉</div>
+                    <div class="emoji-btn" onclick="insertEmoji('😅')">😅</div>
+                    <div class="emoji-btn" onclick="insertEmoji('♟️')">♟️</div>
+                    <div class="emoji-btn" onclick="insertEmoji('❤️')">❤️</div>
                     <div class="emoji-btn" onclick="insertEmoji('🔥')">🔥</div>
+                    <div class="emoji-btn" onclick="insertEmoji('⚡')">⚡</div>
                   </div>
                 </div>
+
                 <input id="chatInput" type="text" placeholder="Type your message..." />
                 <button onclick="sendChat()">Send</button>
               </div>
             </div>
           </div>
+
         </div>
       </div>
 
@@ -323,12 +1455,14 @@
         <button onclick="offerDraw()" class="btn-draw">🤝 Offer Draw</button>
         <button onclick="resignGame()" class="btn-danger">🏳️ Resign</button>
       </div>
+
     </div>
 </div>
 
 <div class="promotion-modal" id="promotionModal" aria-hidden="true">
   <div class="promotion-content">
     <h3>👑 Promote Your Pawn</h3>
+    <p style="color:#666;margin-top:8px;">Choose a piece:</p>
     <div class="promotion-pieces" id="promotionPieces"></div>
     <div style="margin-top:16px;">
       <button onclick="cancelPromotion()" class="btn-secondary">Cancel</button>
@@ -355,20 +1489,22 @@ const socket = io({
   reconnectionAttempts: 10
 });
 
+// --- URL PARAMS ---
 const params = new URLSearchParams(window.location.search);
 const URL_ROOM = params.get('room');
 const URL_NAME = params.get('name');
 const URL_MODE = params.get('mode');
 const URL_TIME = params.get('time');
 
-if (!URL_ROOM || !URL_NAME) { alert("Invalid parameters. Redirecting."); window.location.href = "/"; }
+if (!URL_ROOM || !URL_NAME) {
+    alert("Invalid game parameters. Redirecting to home.");
+    window.location.href = "/";
+}
 
 let currentRoom = URL_ROOM;
 let playerColor = null;
 let playerName = URL_NAME;
 let gameState = null;
-let lastValidServerState = null;
-let isOptimisticUpdate = false;
 let selectedSquare = null;
 let possibleMoves = [];
 let pendingPromotion = null;
@@ -378,8 +1514,48 @@ let lastMoveWasMine = false;
 let whiteSeconds = 0;
 let blackSeconds = 0;
 let timerInterval = null;
+let pendingMoves = new Map();
 let moveSequence = 0;
-let disconnectInterval = null;
+let disconnectInterval = null; // New variable for local countdown
+
+/* -------------------------
+   TIMER POSITIONING FIX
+   ------------------------- */
+function updateTimerPositions(myColor) {
+    const whiteTimer = document.getElementById("whiteTimer");
+    const blackTimer = document.getElementById("blackTimer");
+
+    // Reset styles first to avoid conflicts
+    whiteTimer.style.top = "";
+    whiteTimer.style.bottom = "";
+    blackTimer.style.top = "";
+    blackTimer.style.bottom = "";
+
+    if (myColor === 'black') {
+        // I am Black (Bottom). White is Opponent (Top).
+        whiteTimer.style.top = "-34px";
+        whiteTimer.style.bottom = "auto";
+        
+        blackTimer.style.bottom = "-34px";
+        blackTimer.style.top = "auto";
+    } else {
+        // I am White (Bottom). Black is Opponent (Top). (Default)
+        whiteTimer.style.bottom = "-34px";
+        whiteTimer.style.top = "auto";
+        
+        blackTimer.style.top = "-34px";
+        blackTimer.style.bottom = "auto";
+    }
+}
+
+/* -------------------------
+   HELPER FUNCTIONS
+   ------------------------- */
+function timeStringToSeconds(str) {
+  if (!str || typeof str !== "string" || !str.includes(":")) return 0;
+  const [m, s] = str.split(":").map(Number);
+  return m * 60 + s;
+}
 
 function formatSeconds(sec) {
   sec = Math.max(0, Math.floor(sec));
@@ -389,32 +1565,49 @@ function formatSeconds(sec) {
 }
 
 function updateDisplayedTimers() {
-  const wt = document.getElementById("whiteTimer");
-  const bt = document.getElementById("blackTimer");
-  if (wt) wt.textContent = formatSeconds(whiteSeconds);
-  if (bt) bt.textContent = formatSeconds(blackSeconds);
+  const whiteTimer = document.getElementById("whiteTimer");
+  const blackTimer = document.getElementById("blackTimer");
+  
+  if (whiteTimer) whiteTimer.textContent = formatSeconds(whiteSeconds);
+  if (blackTimer) blackTimer.textContent = formatSeconds(blackSeconds);
+  
   if (gameState && !gameState.winner) {
-    if (wt) wt.classList.toggle("active", gameState.turn === "white");
-    if (bt) bt.classList.toggle("active", gameState.turn === "black");
+    const activeColor = gameState.turn;
+    if (whiteTimer) whiteTimer.classList.toggle("active", activeColor === "white");
+    if (blackTimer) blackTimer.classList.toggle("active", activeColor === "black");
   } else {
-    if (wt) wt.classList.remove("active");
-    if (bt) bt.classList.remove("active");
+    if (whiteTimer) whiteTimer.classList.remove("active");
+    if (blackTimer) blackTimer.classList.remove("active");
   }
 }
 
 function startLocalTimer() {
   if (timerInterval) clearInterval(timerInterval);
-  let lastTick = performance.now();
+
   timerInterval = setInterval(() => {
-    if (!gameState || gameState.winner || (gameState.isActive === false)) { clearInterval(timerInterval); return; }
-    const now = performance.now();
-    const delta = (now - lastTick) / 1000; 
-    lastTick = now;
-    if (gameState.turn === "white") whiteSeconds = Math.max(0, whiteSeconds - delta);
-    else if (gameState.turn === "black") blackSeconds = Math.max(0, blackSeconds - delta);
+    if (!gameState || gameState.winner || (gameState.isActive === false)) {
+      clearInterval(timerInterval);
+      return;
+    }
+    if (gameState.turn === "white" && whiteSeconds > 0) {
+      whiteSeconds = Math.max(0, whiteSeconds - 1);
+    } else if (gameState.turn === "black" && blackSeconds > 0) {
+      blackSeconds = Math.max(0, blackSeconds - 1);
+    }
     updateDisplayedTimers();
-  }, 100);
+    if (whiteSeconds === 0 || blackSeconds === 0) {
+      clearInterval(timerInterval);
+    }
+  }, 1000);
 }
+
+const sounds = {
+  move: { freq: 400, duration: 0.1 },
+  capture: { freq: 300, duration: 0.15 },
+  check: { freq: 600, duration: 0.2 },
+  win: { freq: 800, duration: 0.3 },
+  notify: { freq: 500, duration: 0.1 }
+};
 
 function playSound(type) {
   if (!soundEnabled) return;
@@ -422,18 +1615,23 @@ function playSound(type) {
     const audio = new (window.AudioContext || window.webkitAudioContext)();
     const osc = audio.createOscillator();
     const gain = audio.createGain();
-    osc.connect(gain); gain.connect(audio.destination);
-    const sounds = { move: 400, capture: 300, check: 600, win: 800, notify: 500 };
-    osc.frequency.value = sounds[type] || 400;
+    osc.connect(gain); 
+    gain.connect(audio.destination);
+    osc.frequency.value = sounds[type].freq;
     gain.gain.setValueAtTime(0.3, audio.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audio.currentTime + 0.15);
-    osc.start(audio.currentTime); osc.stop(audio.currentTime + 0.15);
+    gain.gain.exponentialRampToValueAtTime(0.01, audio.currentTime + sounds[type].duration);
+    osc.start(audio.currentTime);
+    osc.stop(audio.currentTime + sounds[type].duration);
   } catch (e) {}
 }
 
 function toggleSound(){
   soundEnabled = !soundEnabled;
-  document.getElementById("soundToggle").textContent = soundEnabled ? "🔊" : "🔇";
+  const btn = document.getElementById("soundToggle");
+  if (btn) {
+    btn.textContent = soundEnabled ? "🔊" : "🔇";
+    btn.classList.toggle("muted", !soundEnabled);
+  }
 }
 
 function applyOptimisticMove(from, to, promotion = null) {
@@ -450,311 +1648,633 @@ function applyOptimisticMove(from, to, promotion = null) {
   return optimisticState;
 }
 
-// CHAT
+function revertOptimisticMove(moveId) {
+  if (pendingMoves.has(moveId)) {
+    const moveData = pendingMoves.get(moveId);
+    if (moveData.previousState) {
+      gameState = moveData.previousState;
+      renderBoard(gameState);
+      updateStatus(gameState);
+      updateTurnIndicator(gameState);
+    }
+    pendingMoves.delete(moveId);
+  }
+}
+
+// Chat Functions
 function sendChat(){
   const input = document.getElementById("chatInput");
   const text = input ? input.value.trim() : "";
   if(!text || !currentRoom) return;
-  socket.emit("send_message", { room: currentRoom, sender: playerColor || "spectator", message: text, senderName: playerName });
+  socket.emit("send_message", {
+    room: currentRoom,
+    sender: playerColor || "spectator",
+    message: text,
+    senderName: playerName
+  });
   input.value = "";
+  stopTypingNow();
+  hideEmojiPanel();
 }
-socket.on("chat_message", data => {
+
+function appendChat(data, isLocal){
   const box = document.getElementById("chatMessages");
+  if (!box) return;
   const div = document.createElement("div");
-  div.className = "chat-line " + (data.sender === playerColor ? "you" : "opponent");
-  div.innerText = `${data.senderName || data.sender}: ${data.message}`;
+  div.className = "chat-line " + (isLocal ? "you" : "opponent");
+  let displayName = data.senderName;
+  if (!displayName) {
+    if (data.sender === "white") displayName = "♔ White";
+    else if (data.sender === "black") displayName = "♚ Black";
+    else displayName = "User";
+  }
+  const prefix = data.sender === "white" ? "♔" : 
+                 data.sender === "black" ? "♚" : "💬";
+  div.innerText = `${prefix} ${displayName}: ${data.message}`;
   box.appendChild(div);
   box.scrollTop = box.scrollHeight;
-  if(data.sender !== playerColor) playSound("notify");
-});
-function insertEmoji(e) {
-  const i = document.getElementById("chatInput");
-  i.value += e; i.focus();
 }
-document.getElementById("emojiToggle").onclick = (e) => {
-    e.stopPropagation();
-    const p = document.getElementById("emojiPanel");
-    p.style.display = p.style.display==="none"?"flex":"none";
-};
-document.onclick = (e) => {
-    if(!document.getElementById("emojiPickerWrap").contains(e.target)) document.getElementById("emojiPanel").style.display="none";
-};
 
-// --- CORE SOCKET LOGIC ---
+let typingTimeout = null;
+let isTyping = false;
 
+function handleTypingInput(){
+  if(!currentRoom || !playerColor) return;
+  if(!isTyping){
+    isTyping = true;
+    socket.emit("typing", { room: currentRoom, sender: playerColor, senderName: playerName });
+  }
+  if(typingTimeout) clearTimeout(typingTimeout);
+  typingTimeout = setTimeout(() => { stopTypingNow(); }, 1400);
+}
+
+function stopTypingNow(){
+  if(!isTyping) return;
+  isTyping = false;
+  if (currentRoom && playerColor) {
+    socket.emit("stop_typing", { room: currentRoom, sender: playerColor, senderName: playerName });
+  }
+}
+
+function insertEmoji(emoji) {
+  const input = document.getElementById("chatInput");
+  if (!input) return;
+  const start = input.selectionStart;
+  const end = input.selectionEnd;
+  const text = input.value;
+  input.value = text.slice(0, start) + emoji + text.slice(end);
+  input.selectionStart = input.selectionEnd = start + emoji.length;
+  input.focus();
+  handleTypingInput();
+}
+
+function hideEmojiPanel(){
+  const panel = document.getElementById("emojiPanel");
+  if(panel) panel.style.display = "none";
+}
+
+function initializeEmojiPanel() {
+  const emojiToggle = document.getElementById("emojiToggle");
+  const emojiPanel = document.getElementById("emojiPanel");
+  const emojiWrap = document.getElementById("emojiPickerWrap");
+  if (emojiToggle && emojiPanel) {
+    emojiToggle.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const visible = window.getComputedStyle(emojiPanel).display !== "none";
+      emojiPanel.style.display = visible ? "none" : "flex";
+    });
+    emojiPanel.addEventListener("click", (e) => { e.stopPropagation(); });
+  }
+  document.addEventListener("click", (e) => {
+    if (emojiWrap && !emojiWrap.contains(e.target)) {
+      hideEmojiPanel();
+    }
+  });
+}
+
+/* -------------------------
+   SOCKET EVENTS
+   ------------------------- */
 socket.on("connect",()=>{
-  if (URL_MODE === 'create') socket.emit("create_room", { room: URL_ROOM, timeControl: URL_TIME, playerName: URL_NAME, bot: false });
-  else if (URL_MODE === 'join') socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME });
-  else if (URL_MODE === 'bot') socket.emit("create_room", { room: URL_ROOM, timeControl: URL_TIME, playerName: URL_NAME, bot: true });
+  // Do NOT hide loading message yet. Wait for room_created/room_joined.
+  
+  if (URL_MODE === 'create') {
+    socket.emit("create_room", { room: URL_ROOM, timeControl: URL_TIME, playerName: URL_NAME, bot: false });
+  } else if (URL_MODE === 'join') {
+    socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME });
+  } else if (URL_MODE === 'bot') {
+    socket.emit("create_room", { room: URL_ROOM, timeControl: URL_TIME, playerName: URL_NAME, bot: true });
+  }
 });
 
+socket.on("disconnect",()=>{
+  // Optional: Show disconnect UI
+});
+
+// --- SUCCESS HANDLERS (Reveal UI) ---
 socket.on("room_created", startGame);
 socket.on("room_joined", startGame);
-socket.on("game_start", d => {
-    startGame({room: currentRoom, color: playerColor, state: d.state});
-    playSound("notify");
+
+// --- ERROR HANDLER (Redirect) ---
+socket.on("error", (data) => {
+    alert(data.message);
+    window.location.href = "/";
 });
 
 function startGame(data){
   document.getElementById("loadingMessage").style.display = "none";
   document.getElementById("game").style.display = "block";
-  currentRoom = data.room;
-  if(data.color) playerColor = data.color;
-  
-  gameState = data.state;
-  lastValidServerState = JSON.parse(JSON.stringify(data.state));
-  isOptimisticUpdate = false;
 
-  document.getElementById("roomName").textContent = currentRoom;
-  document.getElementById("playerColorBadge").innerHTML = `<span class="player-badge ${playerColor}">${playerColor.toUpperCase()} — ${playerName}</span>`;
+  currentRoom = data.room;
+  playerColor = data.color;
+  gameState = data.state;
+
+  // === FIX: UPDATE TIMER POSITIONS ===
+  updateTimerPositions(playerColor);
+
+  const roomName = document.getElementById("roomName");
+  const playerColorBadge = document.getElementById("playerColorBadge");
   
-  whiteSeconds = gameState.whiteTime;
-  blackSeconds = gameState.blackTime;
+  if (roomName) roomName.textContent = currentRoom;
+  if (playerColorBadge) {
+    const colorLabel = playerColor === "white" ? "♔ WHITE" : "♚ BLACK";
+    const displayName = playerName || "Player";
+    playerColorBadge.innerHTML =
+      `<span class="player-badge ${playerColor}">
+         ${colorLabel} — ${displayName}
+       </span>`;
+  }
+
+  const defaultSeconds = URL_TIME || 300;
+  whiteSeconds = gameState.whiteTimeFormatted ? timeStringToSeconds(gameState.whiteTimeFormatted) : defaultSeconds;
+  blackSeconds = gameState.blackTimeFormatted ? timeStringToSeconds(gameState.blackTimeFormatted) : defaultSeconds;
+
   updateDisplayedTimers();
-  updateWaitingOverlay(gameState.isActive === false);
-  if(gameState.isActive) startLocalTimer();
-  
+
+  const isWaiting = (gameState.isActive === false);
+  updateWaitingOverlay(isWaiting);
+
+  if (!isWaiting) {
+      startLocalTimer();
+  }
+
   renderBoard(gameState);
   updateStatus(gameState);
   updateTurnIndicator(gameState);
 }
 
-socket.on("game_update", d => {
-  // 1. Authoritative State Update
-  lastValidServerState = JSON.parse(JSON.stringify(d.state));
+socket.on("game_start", d=>{
+  gameState = d.state;
+  updateWaitingOverlay(false);
+  startLocalTimer();
+  renderBoard(gameState);
+  updateStatus(gameState);
+  updateTurnIndicator(gameState);
+  playSound("notify");
+});
 
-  // 2. Reconciliation
-  if (isOptimisticUpdate) {
-      const myOptimisticBoard = JSON.stringify(gameState.board);
-      const serverBoard = JSON.stringify(d.state.board);
-      
-      if (myOptimisticBoard === serverBoard) {
-          isOptimisticUpdate = false;
-          gameState = d.state;
-      } else {
-          // If server turn == My Turn, it means my move hasn't processed/was invalid
-          // We ignore this update to keep UI smooth until invalid_move comes
-          if (d.state.turn === playerColor) {
-             if (d.state.whiteTime) whiteSeconds = d.state.whiteTime;
-             if (d.state.blackTime) blackSeconds = d.state.blackTime;
-             return; 
-          } else {
-             // Turn mismatch - likely opponent moved or desync. Accept server.
-             isOptimisticUpdate = false;
-             gameState = d.state;
-          }
-      }
-  } else {
-      const prev = gameState;
-      gameState = d.state;
-      if (prev && prev.board && JSON.stringify(prev.board) !== JSON.stringify(gameState.board)) {
-         playSound("move");
-      }
+function updateWaitingOverlay(show) {
+    const wrapper = document.getElementById("boardWrapper");
+    let overlay = document.getElementById("waitingOverlay");
+    if (show) {
+        if (!overlay) {
+            overlay = document.createElement("div");
+            overlay.id = "waitingOverlay";
+            overlay.className = "waiting-overlay";
+            overlay.innerHTML = `
+                <div class="waiting-spinner"></div>
+                <div>Waiting for opponent to join...</div>
+                <div style="font-size:0.8em; margin-top:5px; color:#ddd;">Share Room Name: ${currentRoom}</div>
+            `;
+            wrapper.appendChild(overlay);
+        }
+    } else {
+        if (overlay) overlay.remove();
+    }
+}
+
+/* =======================================
+   NEW: DISCONNECT / RECONNECT HANDLERS
+   ======================================= */
+socket.on("player_disconnected", (data) => {
+    // Only show if the disconnected player is NOT me
+    if (data.color !== playerColor) {
+        const overlay = document.getElementById("disconnectOverlay");
+        const timerSpan = document.getElementById("disconnectTimer");
+        let timeLeft = data.timeout || 15;
+        
+        if (overlay && timerSpan) {
+            overlay.classList.add("active");
+            timerSpan.textContent = timeLeft;
+            
+            if (disconnectInterval) clearInterval(disconnectInterval);
+            disconnectInterval = setInterval(() => {
+                timeLeft--;
+                timerSpan.textContent = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(disconnectInterval);
+                }
+            }, 1000);
+        }
+    }
+});
+
+socket.on("player_reconnected", (data) => {
+    // Hide overlay if opponent comes back
+    const overlay = document.getElementById("disconnectOverlay");
+    if (overlay) overlay.classList.remove("active");
+    if (disconnectInterval) clearInterval(disconnectInterval);
+});
+
+socket.on("game_update", d => {
+  const prev = gameState;
+  gameState = d.state;
+
+  pendingMoves.clear();
+  const SERVER_SYNC_THRESHOLD = 2;
+  if (gameState.whiteTimeFormatted !== undefined) {
+    const srv = timeStringToSeconds(gameState.whiteTimeFormatted);
+    if (srv > 0 && Math.abs(srv - whiteSeconds) > SERVER_SYNC_THRESHOLD) {
+      whiteSeconds = srv;
+    }
+  }
+  if (gameState.blackTimeFormatted !== undefined) {
+    const srv = timeStringToSeconds(gameState.blackTimeFormatted);
+    if (srv > 0 && Math.abs(srv - blackSeconds) > SERVER_SYNC_THRESHOLD) {
+      blackSeconds = srv;
+    }
   }
 
-  whiteSeconds = gameState.whiteTime;
-  blackSeconds = gameState.blackTime;
   updateDisplayedTimers();
   
+  // Clear disconnect overlay if game ends
+  if (gameState.winner) {
+      const overlay = document.getElementById("disconnectOverlay");
+      if (overlay) overlay.classList.remove("active");
+      if (disconnectInterval) clearInterval(disconnectInterval);
+  }
+
   if (d.lastMove) addMoveToHistory(d.lastMove, d.moveNotation);
   renderBoard(gameState, d.lastMove);
   updateStatus(gameState);
   updateTurnIndicator(gameState);
-  
-  if (gameState.winner) {
-     document.getElementById("disconnectOverlay").classList.remove("active");
-     playSound("win");
-  } else if (gameState.check) {
-     playSound("check");
+
+  if (prev) {
+    if (gameState.winner) playSound("win");
+    else if (gameState.check) playSound("check");
+    else if (d.lastMove) {
+      if (lastMoveWasMine) lastMoveWasMine = false;
+      else {
+        const tr = d.lastMove.to.row;
+        const tc = d.lastMove.to.col;
+        const wasCapture = prev.board[tr][tc] !== ".";
+        playSound(wasCapture ? "capture" : "move");
+      }
+    }
   }
 });
 
-socket.on("invalid_move", () => {
-  console.warn("❌ Move rejected. Reverting.");
-  if (lastValidServerState) gameState = JSON.parse(JSON.stringify(lastValidServerState));
-  isOptimisticUpdate = false;
+socket.on("user_stop_typing", data=>{
+  if(data.sender===playerColor) return;
+  const dest = document.getElementById("typingIndicator");
+  if (dest) dest.innerText = "";
+});
+socket.on("chat_message", data => {
+  appendChat(data, data.sender === playerColor);
+  if (data.sender !== playerColor) playSound("notify");
+});
+socket.on("possible_moves", d=>{
+  possibleMoves = d.moves;
   renderBoard(gameState);
-  updateTurnIndicator(gameState);
-  const msg = document.getElementById("messages");
-  if(msg) { msg.textContent = "❌ Invalid move!"; setTimeout(()=> msg.textContent="", 2000); }
+});
+socket.on("invalid_move", data => {
+  console.warn("Server rejected move:", data);
+  if (data.moveId) revertOptimisticMove(data.moveId);
+  const messages = document.getElementById("messages");
+  if (messages) messages.textContent = "❌ Invalid move!";
 });
 
-socket.on("possible_moves", d => { possibleMoves = d.moves; renderBoard(gameState); });
+/* -------------------------
+   INITIALIZATION
+   ------------------------- */
+document.addEventListener("DOMContentLoaded", function() {
+  initializeEmojiPanel();
+  const chatInputEl = document.getElementById("chatInput");
+  if (chatInputEl) {
+    chatInputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        sendChat();
+      }
+    });
+    chatInputEl.addEventListener("input", handleTypingInput);
+  }
+});
 
+/* -------------------------
+   BOARD RENDERING
+   ------------------------- */
 function renderBoard(state, lastMove=null){
   const board=document.getElementById("chessboard");
+  if (!board) return;
   board.innerHTML="";
   const flipped = (playerColor === "black");
   const rows = flipped ? [...Array(8).keys()].reverse() : [...Array(8).keys()];
   const cols = flipped ? [...Array(8).keys()].reverse() : [...Array(8).keys()];
-  
   for (let r of rows){
     for (let c of cols){
       const sq=document.createElement("div");
       sq.className=`square ${(r+c)%2===0?"light":"dark"}`;
-      sq.dataset.row=r; sq.dataset.col=c;
-      
-      if(lastMove && ((lastMove.from.row===r && lastMove.from.col===c)||(lastMove.to.row===r && lastMove.to.col===c))) sq.classList.add("last-move");
-      if(selectedSquare && selectedSquare.row===r && selectedSquare.col===c) sq.classList.add("selected");
-      if(possibleMoves.some(m=>m.row===r && m.col===c)) sq.classList.add("possible-move");
-
+      sq.dataset.row=r;
+      sq.dataset.col=c;
+      if(lastMove){
+        const fm=lastMove.from, to=lastMove.to;
+        if((fm.row===r && fm.col===c)||(to.row===r && to.col===c)){
+          sq.classList.add("last-move");
+        }
+      }
+      if(selectedSquare && selectedSquare.row===r && selectedSquare.col===c){
+        sq.classList.add("selected");
+      }
+      if(possibleMoves.some(m=>m.row===r && m.col===c)){
+        sq.classList.add("possible-move");
+      }
       const piece = state.board[r][c];
       if(piece !== "."){
         const pDiv=document.createElement("div");
         pDiv.className="piece";
-        const isWhite = piece === piece.toUpperCase();
-        if((isWhite?"white":"black") === state.turn && (isWhite?"white":"black") === playerColor) pDiv.draggable=true;
-        
+        const isWhitePiece = piece === piece.toUpperCase();
+        const color = isWhitePiece ? "white" : "black";
+        if(color === state.turn && color === playerColor){
+          pDiv.draggable=true;
+        }
+        pDiv.dataset.row=r;
+        pDiv.dataset.col=c;
         pDiv.addEventListener("dragstart", e=>{
           selectedSquare = { row:r, col:c };
           socket.emit("get_possible_moves", { room:currentRoom, from:selectedSquare });
-          e.dataTransfer.setData("fromRow", r); e.dataTransfer.setData("fromCol", c);
+          e.dataTransfer.setData("fromRow", r);
+          e.dataTransfer.setData("fromCol", c);
         });
-        
         const img=document.createElement("img");
-        img.src=`https://images.chesscomfiles.com/chess-themes/pieces/neo/150/${isWhite?"w":"b"}${piece.toLowerCase()}.png`;
+        const clr = isWhitePiece ? "w" : "b";
+        const type = piece.toLowerCase();
+        img.src=`https://images.chesscomfiles.com/chess-themes/pieces/neo/150/${clr}${type}.png`;
         pDiv.appendChild(img);
         sq.appendChild(pDiv);
       }
-      
-      sq.onclick = () => handleSquareClick(r,c,state);
-      sq.ondragover = e => e.preventDefault();
-      sq.ondrop = e => {
+      sq.addEventListener("click", ()=> handleSquareClick(r,c,state));
+      sq.addEventListener("dragover", e=> e.preventDefault());
+      sq.addEventListener("drop", e=>{
         e.preventDefault();
         const fr=parseInt(e.dataTransfer.getData("fromRow"));
         const fc=parseInt(e.dataTransfer.getData("fromCol"));
-        
-        const target = state.board[r][c];
-        const isMine = target !== "." && ((playerColor==="white" && target===target.toUpperCase()) || (playerColor==="black" && target!==target.toUpperCase()));
-        if (isMine) return;
-
-        attemptMove({row:fr,col:fc}, {row:r,col:c}, state);
-      };
-      
+        const from={row:fr,col:fc};
+        const to={row:r,col:c};
+        const valid = possibleMoves.some(m=>m.row===r && m.col===c);
+        if(!valid){
+          const messages = document.getElementById("messages");
+          if (messages) messages.textContent="❌ Invalid move!";
+          return;
+        }
+        const movingPiece = state.board[fr][fc];
+        const isPawn = movingPiece.toLowerCase()==="p";
+        const isPromoRank = (playerColor==="white" && r===0) ||
+                            (playerColor==="black" && r===7);
+        if(isPawn && isPromoRank){
+          pendingPromotion = { from, to };
+          showPromotionModal(playerColor);
+        } else {
+          makeMove(from,to,null);
+        }
+      });
       board.appendChild(sq);
     }
   }
-  
-  document.getElementById("coordFiles").innerHTML = (flipped?["h","g","f","e","d","c","b","a"]:["a","b","c","d","e","f","g","h"]).map(x=>`<span>${x}</span>`).join("");
-  document.getElementById("coordRanks").innerHTML = (flipped?["1","2","3","4","5","6","7","8"]:["8","7","6","5","4","3","2","1"]).map(x=>`<span>${x}</span>`).join("");
+  renderCoordinates();
+}
+
+function renderCoordinates(){
+  const f=document.getElementById("coordFiles");
+  const r=document.getElementById("coordRanks");
+  if (!f || !r) return;
+  const files = playerColor==="black"
+    ? ["h","g","f","e","d","c","b","a"]
+    : ["a","b","c","d","e","f","g","h"];
+  const ranks = playerColor==="black"
+    ? ["1","2","3","4","5","6","7","8"]
+    : ["8","7","6","5","4","3","2","1"];
+  f.innerHTML = files.map(x=>`<span>${x}</span>`).join("");
+  r.innerHTML = ranks.map(x=>`<span>${x}</span>`).join("");
+  f.className=`coordinates coord-file ${playerColor==="black"?"flipped":""}`;
+  r.className=`coordinates coord-rank ${playerColor==="black"?"flipped":""}`;
 }
 
 function handleSquareClick(row, col, state){
-  if(state.winner || !state.isActive) return;
-
+  if(state.winner) return;
+  if (state.isActive === false) {
+    const messages = document.getElementById("messages");
+    if (messages) messages.textContent = "⏳ Waiting for opponent...";
+    return;
+  }
+  if(state.turn !== playerColor){
+    const messages = document.getElementById("messages");
+    if (messages) messages.textContent = "⏳ Wait for your turn!";
+    return;
+  }
   const piece = state.board[row][col];
   const isWhite = piece !== "." && piece === piece.toUpperCase();
-  const isMine = piece !== "." && ((playerColor==="white" && isWhite) || (playerColor==="black" && !isWhite));
-
-  // CRITICAL FIX: Always allow selecting OWN pieces, even if game thinks it is opponent turn
-  // This unblocks the user if state desyncs.
+  const isMine = piece !== "." && (
+    (playerColor==="white" && isWhite) ||
+    (playerColor==="black" && !isWhite)
+  );
   if(isMine){
     selectedSquare = { row,col };
     socket.emit("get_possible_moves",{ room:currentRoom, from:selectedSquare });
-    renderBoard(state); 
+    const messages = document.getElementById("messages");
+    if (messages) messages.textContent="";
     return;
   }
-
-  // Only block move attempts on empty/enemy squares if not my turn
-  if(state.turn !== playerColor && !isOptimisticUpdate) {
-      const m = document.getElementById("messages");
-      if(m) { m.textContent = "⏳ Wait for your turn!"; setTimeout(()=>m.textContent="", 1500); }
-      return;
+  if(!selectedSquare) return;
+  const isValid = possibleMoves.some(m=>m.row===row && m.col===col);
+  if(!isValid){
+    const messages = document.getElementById("messages");
+    if (messages) messages.textContent = "❌ Invalid move!";
+    return;
   }
-
-  if(selectedSquare){
-    attemptMove(selectedSquare, {row,col}, state);
+  const movingPiece = state.board[selectedSquare.row][selectedSquare.col];
+  const isPawn = movingPiece.toLowerCase()==="p";
+  const isPromoRank = (playerColor==="white" && row===0) ||
+                      (playerColor==="black" && row===7);
+  if(isPawn && isPromoRank){
+    pendingPromotion = { from:selectedSquare, to:{row,col} };
+    showPromotionModal(playerColor);
+  } else {
+    makeMove(selectedSquare, {row,col}, null);
   }
 }
 
-function attemptMove(from, to, state) {
-    const movingPiece = state.board[from.row][from.col];
-    const isPawn = movingPiece.toLowerCase()==="p";
-    const isPromo = (playerColor==="white" && to.row===0) || (playerColor==="black" && to.row===7);
-    
-    if(isPawn && isPromo){
-        pendingPromotion = { from, to };
-        const modal=document.getElementById("promotionModal");
-        const pcs=document.getElementById("promotionPieces");
-        pcs.innerHTML="";
-        ['q','r','b','n'].forEach(t=>{
-            const img=document.createElement("img");
-            img.src=`https://images.chesscomfiles.com/chess-themes/pieces/neo/150/${playerColor==="white"?"w":"b"}${t}.png`;
-            img.onclick = ()=>{ makeMove(from, to, t); modal.classList.remove("active"); };
-            pcs.appendChild(img);
-        });
-        modal.classList.add("active");
-    } else {
-        makeMove(from, to, null);
-    }
-}
-
-function makeMove(from, to, promotion){
-    lastMoveWasMine = true;
-    const moveId = ++moveSequence;
-
-    const nextState = applyOptimisticMove(from, to, promotion);
-    gameState = nextState;
-    isOptimisticUpdate = true;
-    
-    renderBoard(gameState, {from,to});
+function makeMove(from, to, promotion=null){
+  lastMoveWasMine = true;
+  const moveId = ++moveSequence;
+  const previousState = JSON.parse(JSON.stringify(gameState));
+  const optimisticState = applyOptimisticMove(from, to, promotion);
+  if (optimisticState) {
+    gameState = optimisticState;
+    renderBoard(gameState, { from, to });
     updateTurnIndicator(gameState);
-    playSound("move");
-    selectedSquare = null;
-    possibleMoves = [];
+    const wasCapture = previousState.board[to.row][to.col] !== ".";
+    playSound(wasCapture ? "capture" : "move");
+    pendingMoves.set(moveId, {
+      from, to, promotion, previousState, timestamp: Date.now()
+    });
+  }
+  socket.emit("move", { room: currentRoom, from, to, promotion, moveId });
+  selectedSquare = null;
+  possibleMoves = [];
+  pendingPromotion = null;
+  const messages = document.getElementById("messages");
+  if (messages) messages.textContent = "";
+}
 
-    socket.emit("move", { room: currentRoom, from, to, promotion, moveId });
+function showPromotionModal(color){
+  const modal=document.getElementById("promotionModal");
+  const pcs=document.getElementById("promotionPieces");
+  if (!modal || !pcs) return;
+  pcs.innerHTML="";
+  const opt=['q','r','b','n'];
+  const pre = (color==="white") ? "w" : "b";
+  opt.forEach(t=>{
+    const img=document.createElement("img");
+    img.src=`https://images.chesscomfiles.com/chess-themes/pieces/neo/150/${pre}${t}.png`;
+    img.onclick = ()=>{
+      makeMove(pendingPromotion.from, pendingPromotion.to, t);
+      modal.classList.remove("active");
+    };
+    pcs.appendChild(img);
+  });
+  modal.classList.add("active");
+}
+function cancelPromotion(){
+  pendingPromotion=null;
+  const modal = document.getElementById("promotionModal");
+  if (modal) modal.classList.remove("active");
+}
+function addMoveToHistory(lastMove,notation){
+  moveHistory.push({ from:lastMove.from, to:lastMove.to, notation: notation });
+  renderMoveHistory();
+}
+function renderMoveHistory(){
+  const list=document.getElementById("moveList");
+  if (!list) return;
+  list.innerHTML="";
+  for(let i=0;i<moveHistory.length;i+=2){
+    const num=document.createElement("div");
+    num.className="move-number";
+    num.textContent=(i/2+1)+".";
+    list.appendChild(num);
+    const w=document.createElement("div");
+    w.className="move-item white";
+    w.textContent=moveHistory[i].notation;
+    list.appendChild(w);
+    if(i+1 < moveHistory.length){
+      const b=document.createElement("div");
+      b.className="move-item black";
+      b.textContent=moveHistory[i+1].notation;
+      list.appendChild(b);
+    } else {
+      list.appendChild(document.createElement("div"));
+    }
+  }
+  const parent = list.parentElement;
+  if (parent) parent.scrollTop = parent.scrollHeight;
 }
 
 function updateTurnIndicator(state){
-  const el = document.getElementById("turnIndicator");
-  if(state.winner) { el.textContent="🏁 Game Over"; return; }
-  el.textContent = (state.turn==="white") ? "♔ White to move" : "♚ Black to move";
+  const ind=document.getElementById("turnIndicator");
+  if (!ind) return;
+  if(state.winner){
+    ind.textContent="🏁 Game Over";
+    ind.style.background="linear-gradient(135deg, #11998e 0%, #38ef7d 100%)";
+    ind.style.color="#fff";
+    return;
+  }
+  ind.textContent = (state.turn==="white") ? "♔ White to move" : "♚ Black to move";
+  ind.style.background = "";
+  ind.style.color = "";
 }
-
-function updateWaitingOverlay(show) {
-    const d = document.getElementById("disconnectOverlay");
-    if(show) {
-        if(!document.getElementById("waitingOverlay")){
-             const ov = document.createElement("div"); ov.id="waitingOverlay"; ov.className="waiting-overlay";
-             ov.innerHTML=`<div class="waiting-spinner"></div><div>Waiting for opponent...</div>`;
-             document.getElementById("boardWrapper").appendChild(ov);
-        }
-    } else {
-        const ov = document.getElementById("waitingOverlay");
-        if(ov) ov.remove();
-    }
-}
-
 function updateStatus(state){
-    const s = document.getElementById("status");
-    if(state.winner){
-        s.textContent = state.winner==="draw" ? "🤝 Draw!" : `👑 ${state.winner.toUpperCase()} Wins!`;
-        s.style.background = "#11998e"; s.style.color="white";
-    } else if (state.check) {
-        s.textContent = "⚠️ CHECK!"; s.style.background = "#eb3349"; s.style.color="white";
+  const s=document.getElementById("status");
+  if (!s) return;
+  if(state.winner){
+    if(state.winner==="draw"){
+      s.textContent="🤝 Game Draw!";
+      s.style.background="linear-gradient(135deg, #f7971e 0%, #ffd200 100%)";
+      s.style.color="#fff";
     } else {
-        s.textContent=""; s.style.background="";
+      const w = state.winner==="white" ? "♔ WHITE" : "♚ BLACK";
+      const r =
+        state.reason==="checkmate" ? "by Checkmate" :
+        state.reason==="resign" ? "by Resignation" :
+        state.reason==="timeout" ? "by Timeout" : 
+        state.reason==="abandonment" ? "by Abandonment" : ""; // Add abandonment case
+      s.textContent=`👑 ${w} Wins ${r}!`;
+      s.style.background="linear-gradient(135deg, #11998e 0%, #38ef7d 100%)";
+      s.style.color="#fff";
     }
+    return;
+  }
+  if(state.check){
+    const t = state.turn==="white"?"♔ WHITE":"♚ BLACK";
+    s.textContent=`⚠️ CHECK! ${t}'s turn`;
+    s.style.background="linear-gradient(135deg, #eb3349 0%, #f45c43 100%)";
+    s.style.color="#fff";
+    return;
+  }
+  s.textContent="";
+  s.style.background="";
+  s.style.color="";
 }
 
-function cancelPromotion(){ document.getElementById("promotionModal").classList.remove("active"); pendingPromotion=null; }
-function addMoveToHistory(m,n){ 
-    moveHistory.push({notation:n}); 
-    const list=document.getElementById("moveList"); list.innerHTML="";
-    for(let i=0;i<moveHistory.length;i+=2){
-        list.innerHTML += `<div class="move-number">${(i/2+1)}.</div><div class="move-item white">${moveHistory[i].notation}</div>${moveHistory[i+1]?`<div class="move-item black">${moveHistory[i+1].notation}</div>`:''}`;
-    }
+function goHome(){
+  if(confirm("Return to home? Current game will end.")){
+    socket.emit("leave_room",{room:currentRoom});
+    window.location.href = "/";
+  }
 }
-function goHome(){ if(confirm("Quit game?")) { socket.emit("leave_room",{room:currentRoom}); window.location.href="/"; } }
-function offerDraw(){ socket.emit("offer_draw",{room:currentRoom,color:playerColor}); }
-function resignGame(){ if(confirm("Resign?")) socket.emit("resign",{room:currentRoom,color:playerColor}); }
-function respondToDraw(acc){ socket.emit("respond_draw",{room:currentRoom,accept:acc}); document.getElementById("drawModal").classList.remove("active"); }
-
-socket.on("draw_offered", d=>{ document.getElementById("drawMessage").textContent=`${d.fromColor} offers draw.`; document.getElementById("drawModal").classList.add("active"); });
-socket.on("player_disconnected", ()=>{ document.getElementById("disconnectOverlay").classList.add("active"); });
-socket.on("player_reconnected", ()=>{ document.getElementById("disconnectOverlay").classList.remove("active"); });
-
+function offerDraw(){
+  socket.emit("offer_draw",{room:currentRoom,color:playerColor});
+  const messages = document.getElementById("messages");
+  if (messages) messages.textContent="🤝 Draw offer sent...";
+}
+socket.on("draw_offered", data=>{
+  const drawMessage = document.getElementById("drawMessage");
+  const drawModal = document.getElementById("drawModal");
+  if (drawMessage && drawModal) {
+    drawMessage.textContent = `${data.fromColor.toUpperCase()} offers a draw. Accept?`;
+    drawModal.classList.add("active");
+  }
+});
+socket.on("draw_declined", ()=>{
+  const messages = document.getElementById("messages");
+  if (messages) messages.textContent="❌ Opponent declined your draw.";
+});
+function respondToDraw(acc){
+  const drawModal = document.getElementById("drawModal");
+  if (drawModal) drawModal.classList.remove("active");
+  socket.emit("respond_draw",{room:currentRoom,accept:acc});
+}
+function resetGame(){
+  socket.emit("reset_game",{room:currentRoom});
+  moveHistory=[];
+  renderMoveHistory();
+  pendingMoves.clear();
+}
+function resignGame(){
+  if(confirm("Are you sure you want to resign?")){
+    socket.emit("resign",{room:currentRoom,color:playerColor});
+  }
+}
 </script>
 </body>
 </html>
