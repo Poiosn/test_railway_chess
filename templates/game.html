@@ -9,6 +9,17 @@
     /* static/style.css content embedded */
     * { margin:0; padding:0; box-sizing:border-box; }
 
+    /* HIDE SCROLLBARS GLOBALLY BUT ALLOW SCROLLING */
+    html, body {
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE 10+ */
+    }
+    ::-webkit-scrollbar {
+      display: none; /* Chrome/Safari/Webkit */
+      width: 0px;
+      background: transparent;
+    }
+
     /* STATIC LIGHT SKY BLUE BACKGROUND */
     body {
       font-family:'Inter','Segoe UI','Helvetica Neue',sans-serif;
@@ -17,7 +28,7 @@
       display:flex;
       justify-content:center;
       align-items:center;
-      padding:20px;
+      padding:20px; /* Default desktop padding */
       position:relative;
       overflow-x:hidden;
     }
@@ -918,24 +929,28 @@
     }
 
     /* ========================================
-       MOBILE RESPONSIVE ENHANCEMENTS
+       MOBILE RESPONSIVE ENHANCEMENTS (FULL SCREEN)
        ======================================== */
     @media (max-width: 900px) {
       body {
-        padding: 10px;
-        align-items: flex-start;
+        padding: 0; /* Remove body padding to use full screen */
+        align-items: flex-start; /* Start from top */
       }
 
       .container {
         padding: 16px;
-        max-height: none;
         width: 100%;
-        border-radius: 20px;
+        height: 100vh; /* Use full height */
+        max-height: none;
+        border-radius: 0; /* Remove corners for app-feel */
+        border: none;
+        overflow-y: auto;
       }
 
       h1 {
         font-size: 24px;
         margin-bottom: 6px;
+        margin-top: 10px;
       }
 
       .subtitle {
@@ -946,6 +961,7 @@
       .game-layout {
         flex-direction: column !important;
         gap: 14px !important;
+        padding-bottom: 40px; /* Space for bottom content */
       }
 
       .sidebar {
@@ -1025,21 +1041,10 @@
 
     /* CUSTOM SCROLLBAR */
     ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
+      width: 0px; /* Hide scrollbar width */
+      background: transparent;
     }
-    ::-webkit-scrollbar-track {
-      background: rgba(0, 0, 0, 0.05);
-      border-radius: 10px;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border-radius: 10px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-    }
-
+    
     #visitorCounter {
         position: fixed;
         bottom: 20px;
