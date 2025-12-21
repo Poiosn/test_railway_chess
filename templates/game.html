@@ -963,8 +963,8 @@
       .board-section {
         width: 100%;
         max-width: 100%;
-        /* Add margin to top to clear space for the top timer */
-        margin-top: 60px !important; 
+        /* Adjusted margin top to keep things tight but safe */
+        margin-top: 50px !important; 
         margin-bottom: 20px;
       }
 
@@ -974,20 +974,19 @@
         border: 4px solid rgba(44, 62, 80, 0.8);
       }
       
-      /* Force timers to left side on mobile */
+      /* Force timers to left side on mobile and CLOSER to board */
       #blackTimer {
-        top: -50px !important;       /* Push comfortably above the board */
+        top: -38px !important;       /* Reduced distance (was -50px) */
         left: 0 !important;          /* Align to LEFT edge */
-        transform: none !important;  /* Remove centering transform */
+        transform: none !important;  
         font-size: 13px !important;
         padding: 6px 12px !important;
-        /* Ensure it's outside the flow */
       }
 
       #whiteTimer {
-        bottom: -50px !important;    /* Push comfortably below the board */
-        left: 0 !important;          /* Align to LEFT edge */
-        transform: none !important;  /* Remove centering transform */
+        bottom: -38px !important;    /* Reduced distance (was -50px) */
+        left: 0 !important;          
+        transform: none !important;  
         font-size: 13px !important;
         padding: 6px 12px !important;
       }
