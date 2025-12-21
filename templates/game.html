@@ -974,9 +974,9 @@
         border: 4px solid rgba(44, 62, 80, 0.8);
       }
       
-      /* Force timers to left side on mobile and CLOSER to board */
+      /* Force timers to left side on mobile and CLOSER to board (Updated to -28px) */
       #blackTimer {
-        top: -38px !important;       /* Reduced distance (was -50px) */
+        top: -28px !important;       /* Reduced distance */
         left: 0 !important;          /* Align to LEFT edge */
         transform: none !important;  
         font-size: 13px !important;
@@ -984,7 +984,7 @@
       }
 
       #whiteTimer {
-        bottom: -38px !important;    /* Reduced distance (was -50px) */
+        bottom: -28px !important;    /* Reduced distance */
         left: 0 !important;          
         transform: none !important;  
         font-size: 13px !important;
@@ -1640,16 +1640,21 @@ socket.on("game_update", d => {
   updateStatus(gameState);
   updateTurnIndicator(gameState);
 
+  // === UPDATED SOUND LOGIC FOR SERVER UPDATES ===
   if (prev) {
     if (gameState.winner) playSound("win");
     else if (gameState.check) playSound("check");
     else if (d.lastMove) {
-      if (lastMoveWasMine) lastMoveWasMine = false;
-      else {
-        const tr = d.lastMove.to.row;
-        const tc = d.lastMove.to.col;
-        const wasCapture = prev.board[tr][tc] !== ".";
-        playSound(wasCapture ? "capture" : "move");
+      // If I just made the move (lastMoveWasMine is true), I already played the sound locally.
+      // So I clear the flag and DO NOT play sound again.
+      if (lastMoveWasMine) {
+          lastMoveWasMine = false;
+      } else {
+          // It's the opponent's move. Play sound.
+          const tr = d.lastMove.to.row;
+          const tc = d.lastMove.to.col;
+          const wasCapture = prev.board[tr][tc] !== ".";
+          playSound(wasCapture ? "capture" : "move");
       }
     }
   }
@@ -1874,21 +1879,28 @@ function handleSquareClick(row, col, state){
 }
 
 function makeMove(from, to, promotion=null){
-  lastMoveWasMine = true;
+  lastMoveWasMine = true; // Set flag to true so we don't play sound again when server responds
   const moveId = ++moveSequence;
-  const previousState = JSON.parse(JSON.stringify(gameState));
-  const optimisticState = applyOptimisticMove(from, to, promotion);
-  if (optimisticState) {
-    gameState = optimisticState;
-    renderBoard(gameState, { from, to });
-    updateTurnIndicator(gameState);
-    const wasCapture = previousState.board[to.row][to.col] !== ".";
-    playSound(wasCapture ? "capture" : "move");
-    pendingMoves.set(moveId, {
-      from, to, promotion, previousState, timestamp: Date.now()
-    });
-  }
   socket.emit("move", { room: currentRoom, from, to, promotion, moveId });
+  
+  // Optimistic Update
+  const p = JSON.parse(JSON.stringify(gameState));
+  const pc = p.board[from.row][from.col];
+  p.board[to.row][to.col] = promotion ? (playerColor==="white"?promotion.toUpperCase():promotion) : pc;
+  p.board[from.row][from.col] = ".";
+  p.turn = (p.turn==="white"?"black":"white");
+  
+  // === PLAY SOUND IMMEDIATELY ===
+  const wasCapture = gameState.board[to.row][to.col] !== ".";
+  playSound(wasCapture ? "capture" : "move");
+
+  renderBoard(p, { from, to });
+  updateTurnIndicator(gameState);
+  
+  pendingMoves.set(moveId, {
+    from, to, promotion, previousState: gameState, timestamp: Date.now()
+  });
+
   selectedSquare = null;
   possibleMoves = [];
   pendingPromotion = null;
