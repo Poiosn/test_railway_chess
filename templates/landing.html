@@ -14,7 +14,6 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      /* padding: 20px;  <-- Removed padding on body for better mobile fit */
       overflow-x: hidden;
     }
 
@@ -260,38 +259,67 @@
     @media (max-width: 600px) {
       body {
         padding: 0;
-        align-items: flex-start; /* Start from top */
+        align-items: center; /* Center vertically */
         background: #f0f8ff; /* Fallback flat color for performance */
+        height: 100vh;
+        overflow: hidden;
       }
 
       .container {
         width: 100%;
-        height: 100vh; /* Fill full screen height */
-        max-height: none; /* Remove height limit */
+        height: 100%;
+        max-height: 100vh;
         border-radius: 0; /* Remove corners */
         border: none;
         background: rgba(255, 255, 255, 0.85); /* More opaque */
-        padding: 20px 16px;
-        justify-content: flex-start; /* content at top */
-        padding-top: 40px;
+        padding: 10px 16px;
+        padding-bottom: 40px;
+        justify-content: center; /* Center content */
+        padding-top: 10px;
+        overflow-y: auto;
+        margin-bottom: 0;
       }
 
-      h1 { font-size: 32px; margin-top: 10px; }
+      h1 { font-size: 26px; margin-top: 0; margin-bottom: 4px; }
+      
+      .subtitle { margin-bottom: 10px; font-size: 12px; }
       
       .time-btn {
-        flex: 1 1 45%; /* 2 buttons per row */
-        font-size: 14px;
-        padding: 14px;
+        flex: 1 1 30%; /* 3 buttons per row */
+        font-size: 12px;
+        padding: 8px;
       }
       
       .game-info, .time-control-section {
-        padding: 16px;
+        padding: 10px;
+        margin-bottom: 10px;
+      }
+
+      .game-info h3 { font-size: 14px; margin-bottom: 2px; }
+      .game-info p { font-size: 12px; margin: 0; }
+      .time-control-section h4 { margin-bottom: 6px; font-size: 14px; }
+      
+      .connection-status {
+        margin-bottom: 10px;
+        padding: 8px;
+        font-size: 12px;
+      }
+
+      .room-controls { margin-bottom: 10px; gap: 8px; }
+      input[type="text"] { padding: 10px; }
+      button { padding: 10px; }
+      
+      .btn-bot {
+        margin-bottom: 10px;
+        margin-top: 0;
       }
       
       #visitorCounter {
-        bottom: 10px;
-        right: 10px;
-        font-size: 11px;
+        bottom: 5px;
+        right: 5px;
+        font-size: 10px;
+        padding: 4px 10px;
+        position: fixed;
       }
     }
   </style>
@@ -444,4 +472,4 @@ function cancelNameModal() {
 })();
 </script>
 </body>
-</html>
+</html
