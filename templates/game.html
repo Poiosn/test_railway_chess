@@ -347,6 +347,41 @@
       50% { transform: scale(1.12); }
     }
 
+    /* === NEW: PLAYER NAME STYLES === */
+    .player-name {
+      padding: 8px 24px;
+      border-radius: 12px;
+      text-align: center;
+      font-size: 16px;
+      font-weight: 700;
+      position: absolute;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      min-width: 140px;
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+    .player-name.white {
+      background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+      border: 2px solid #e0e0e0;
+      color: #333;
+    }
+    .player-name.black {
+      background: linear-gradient(135deg, #434343 0%, #000000 100%);
+      color: #fff;
+      border: 2px solid #666;
+    }
+
+    .board-wrapper {
+      position: relative;
+      margin-top: 70px;
+      margin-bottom: 70px;
+    }
+
     .board-section {
       position: relative;
       width: 100%;
@@ -427,32 +462,25 @@
     @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
     /* ================================== */
 
-    .coordinates {
+    .square-coord {
       position: absolute;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 800;
-      color: #2c3e50;
       pointer-events: none;
-      text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+      user-select: none;
+      opacity: 0.7;
+      z-index: 5;
     }
-    .coord-file {
-      bottom: -28px;
-      left: 0;
-      width: 100%;
-      display: flex;
-      justify-content: space-between;
-      padding: 0 8px;
+    .square-coord.file {
+      bottom: 2px;
+      right: 4px;
     }
-    .coord-rank {
-      top: 0;
-      height: 100%;
-      left: -32px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
+    .square-coord.rank {
+      top: 2px;
+      left: 4px;
     }
-    .coord-file.flipped { top: -24px; bottom: auto; }
-    .coord-rank.flipped { left: auto; right: -28px; }
+    .square.light .square-coord { color: #b58863; }
+    .square.dark .square-coord { color: #f0d9b5; }
 
     /* ENHANCED SQUARES WITH DEPTH */
     .square {
@@ -887,9 +915,10 @@
 
     /* PREMIUM SOUND TOGGLE */
     .sound-toggle {
-      position: fixed;
-      top: 20px;
-      left: 20px;
+      position: absolute;
+      top: 30px;
+      right: 30px;
+      left: auto;
       width: 44px;
       height: 44px;
       background: rgba(255, 255, 255, 0.95);
@@ -1021,24 +1050,29 @@
         padding: 6px 12px !important;
       }
 
-      .coord-file {
-        bottom: -22px !important;
-        font-size: 10px !important;
+      #blackName {
+        top: -80px !important;
+        right: auto !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        font-size: 14px !important;
+        padding: 8px 20px !important;
       }
 
-      .coord-rank {
-        left: -24px !important;
-        font-size: 10px !important;
+      #whiteName {
+        bottom: -80px !important;
+        right: auto !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        font-size: 14px !important;
+        padding: 8px 20px !important;
       }
 
-      .coord-file.flipped {
-        top: -22px !important;
+      .board-wrapper {
+        margin-top: 85px !important;
+        margin-bottom: 95px !important;
       }
 
-      .coord-rank.flipped {
-        right: -22px !important;
-      }
-      
       .button-group {
         display: grid !important;
         grid-template-columns: 1fr 1fr;
@@ -1117,9 +1151,8 @@
 
 <body>
 
-<div id="soundToggle" class="sound-toggle" onclick="toggleSound()" title="Toggle Sound">🔊</div>
-
 <div class="container">
+    <div id="soundToggle" class="sound-toggle" onclick="toggleSound()" title="Toggle Sound">🔊</div>
 
     <h1>♔ Chess Master ♚</h1>
     <p class="subtitle">⚡ Premium Edition — Real-time Multiplayer</p>
@@ -1132,7 +1165,6 @@
     <div id="game" style="display:none;">
       <div class="game-info">
         <h3>👥 Room: <span id="roomName"></span></h3>
-        <p>You are playing as: <span id="playerColorBadge"></span></p>
       </div>
 
       <div class="game-layout" style="display:flex; gap:40px; align-items:flex-start;">
@@ -1140,12 +1172,14 @@
           
           <div class="turn-indicator" id="turnIndicator"></div>
 
-          <div class="board-wrapper" style="position:relative;" id="boardWrapper">
+          <div class="board-wrapper" id="boardWrapper">
+            <!-- === FIXED: ADDED PLAYER NAME ELEMENTS === -->
             <div id="blackTimer" class="timer black" style="left:0px;">5:00</div>
             <div id="whiteTimer" class="timer white" style="left:0px;">5:00</div>
+            <div id="blackName" class="player-name black">Black</div>
+            <div id="whiteName" class="player-name white">White</div>
+            <!-- ========================================= -->
             <div class="chessboard" id="chessboard"></div>
-            <div class="coordinates coord-file" id="coordFiles"></div>
-            <div class="coordinates coord-rank" id="coordRanks"></div>
             <div id="disconnectOverlay" class="disconnect-overlay">
                 <div class="waiting-spinner"></div>
                 <div style="font-size:18px; margin-bottom:8px;">⚠️ Opponent Disconnected</div>
@@ -1274,6 +1308,8 @@ let disconnectInterval = null; // New variable for local countdown
 function updateTimerPositions(myColor) {
     const whiteTimer = document.getElementById("whiteTimer");
     const blackTimer = document.getElementById("blackTimer");
+    const whiteName = document.getElementById("whiteName");
+    const blackName = document.getElementById("blackName");
 
     // Reset styles first to avoid conflicts
     whiteTimer.style.top = "";
@@ -1281,20 +1317,29 @@ function updateTimerPositions(myColor) {
     blackTimer.style.top = "";
     blackTimer.style.bottom = "";
 
+    if (whiteName) { whiteName.style.top = ""; whiteName.style.bottom = ""; }
+    if (blackName) { blackName.style.top = ""; blackName.style.bottom = ""; }
+
     if (myColor === 'black') {
         // I am Black (Bottom). White is Opponent (Top).
-        whiteTimer.style.top = "-34px";
+        whiteTimer.style.top = "-60px";
         whiteTimer.style.bottom = "auto";
         
-        blackTimer.style.bottom = "-34px";
+        blackTimer.style.bottom = "-60px";
         blackTimer.style.top = "auto";
+
+        if (whiteName) whiteName.style.top = "-60px";
+        if (blackName) blackName.style.bottom = "-60px";
     } else {
         // I am White (Bottom). Black is Opponent (Top). (Default)
-        whiteTimer.style.bottom = "-34px";
+        whiteTimer.style.bottom = "-60px";
         whiteTimer.style.top = "auto";
         
-        blackTimer.style.top = "-34px";
+        blackTimer.style.top = "-60px";
         blackTimer.style.bottom = "auto";
+
+        if (whiteName) whiteName.style.bottom = "-60px";
+        if (blackName) blackName.style.top = "-60px";
     }
 }
 
@@ -1517,6 +1562,25 @@ function initializeEmojiPanel() {
   });
 }
 
+// === FIXED: UPDATE PLAYER NAMES FUNCTION ===
+function updatePlayerNames(state) {
+  const whiteNameEl = document.getElementById("whiteName");
+  const blackNameEl = document.getElementById("blackName");
+  
+  if (!whiteNameEl || !blackNameEl) return;
+  
+  // Use names from state if available, otherwise use defaults
+  let wName = state.whiteName || "White";
+  let bName = state.blackName || "Black";
+
+  // If state doesn't have names but we're that player, use our name
+  if (!state.whiteName && playerColor === 'white') wName = playerName;
+  if (!state.blackName && playerColor === 'black') bName = playerName;
+
+  whiteNameEl.textContent = wName;
+  blackNameEl.textContent = bName;
+}
+
 /* -------------------------
    SOCKET EVENTS
    ------------------------- */
@@ -1556,6 +1620,9 @@ function startGame(data){
 
   // === FIX: UPDATE TIMER POSITIONS ===
   updateTimerPositions(playerColor);
+  
+  // === FIX: UPDATE PLAYER NAMES ===
+  updatePlayerNames(gameState);
 
   const roomName = document.getElementById("roomName");
   const playerColorBadge = document.getElementById("playerColorBadge");
@@ -1591,6 +1658,10 @@ function startGame(data){
 socket.on("game_start", d=>{
   gameState = d.state;
   updateWaitingOverlay(false);
+  
+  // === FIX: UPDATE PLAYER NAMES ON GAME START ===
+  updatePlayerNames(gameState);
+  
   startLocalTimer();
   renderBoard(gameState);
   updateStatus(gameState);
@@ -1654,6 +1725,9 @@ socket.on("player_reconnected", (data) => {
 socket.on("game_update", d => {
   const prev = gameState;
   gameState = d.state;
+
+  // === FIX: UPDATE PLAYER NAMES ON EVERY UPDATE ===
+  updatePlayerNames(gameState);
 
   pendingMoves.clear();
   const SERVER_SYNC_THRESHOLD = 2;
@@ -1754,6 +1828,25 @@ function renderBoard(state, lastMove=null){
       sq.className=`square ${(r+c)%2===0?"light":"dark"}`;
       sq.dataset.row=r;
       sq.dataset.col=c;
+
+      // === NEW: IN-BOARD COORDINATES ===
+      const isBottom = (playerColor === "black") ? (r === 0) : (r === 7);
+      const isLeft = (playerColor === "black") ? (c === 7) : (c === 0);
+
+      if (isBottom) {
+          const fileLabel = document.createElement("div");
+          fileLabel.className = "square-coord file";
+          fileLabel.textContent = String.fromCharCode(97 + c);
+          sq.appendChild(fileLabel);
+      }
+      if (isLeft) {
+          const rankLabel = document.createElement("div");
+          rankLabel.className = "square-coord rank";
+          rankLabel.textContent = (8 - r).toString();
+          sq.appendChild(rankLabel);
+      }
+      // =================================
+
       if(lastMove){
         const fm=lastMove.from, to=lastMove.to;
         if((fm.row===r && fm.col===c)||(to.row===r && to.col===c)){
@@ -1849,23 +1942,6 @@ function renderBoard(state, lastMove=null){
       board.appendChild(sq);
     }
   }
-  renderCoordinates();
-}
-
-function renderCoordinates(){
-  const f=document.getElementById("coordFiles");
-  const r=document.getElementById("coordRanks");
-  if (!f || !r) return;
-  const files = playerColor==="black"
-    ? ["h","g","f","e","d","c","b","a"]
-    : ["a","b","c","d","e","f","g","h"];
-  const ranks = playerColor==="black"
-    ? ["1","2","3","4","5","6","7","8"]
-    : ["8","7","6","5","4","3","2","1"];
-  f.innerHTML = files.map(x=>`<span>${x}</span>`).join("");
-  r.innerHTML = ranks.map(x=>`<span>${x}</span>`).join("");
-  f.className=`coordinates coord-file ${playerColor==="black"?"flipped":""}`;
-  r.className=`coordinates coord-rank ${playerColor==="black"?"flipped":""}`;
 }
 
 function handleSquareClick(row, col, state){
