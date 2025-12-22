@@ -196,12 +196,10 @@ def board_to_matrix(board):
         grid[7 - chess.square_rank(sq)][chess.square_file(sq)] = piece.symbol()
     return grid
 
-# === NEW HELPER FUNCTION FOR OPTIMIZATION ===
 def get_legal_moves_map(board):
     """Pre-calculates all legal moves mapped by starting square (row,col)"""
     moves = {}
     for move in board.legal_moves:
-        # Convert to frontend matrix coordinates
         r_from = 7 - chess.square_rank(move.from_square)
         c_from = chess.square_file(move.from_square)
         r_to = 7 - chess.square_rank(move.to_square)
@@ -213,9 +211,10 @@ def get_legal_moves_map(board):
         moves[key].append({"row": r_to, "col": c_to})
     return moves
 
-def export_state(room):
+# === FIXED: Added current_sid parameter to send correct opponentName ===
+def export_state(room, current_sid=None):
     g = games[room]
-    return {
+    state = {
         "board": board_to_matrix(g["board"]),
         "turn": "white" if g["board"].turn else "black",
         "check": g["board"].is_check(),
@@ -226,9 +225,19 @@ def export_state(room):
         "blackTime": g["blackTime"],
         "whiteTimeFormatted": format_seconds(g["whiteTime"]),
         "blackTimeFormatted": format_seconds(g["blackTime"]),
-        # === SEND MOVES UPFRONT ===
-        "moves": get_legal_moves_map(g["board"])
+        "moves": get_legal_moves_map(g["board"]),
+        "whiteName": g["white_player"],
+        "blackName": g["black_player"]
     }
+    
+    # === ADD OPPONENT NAME BASED ON CURRENT USER ===
+    if current_sid:
+        if current_sid == g.get("white_sid"):
+            state["opponentName"] = g["black_player"]
+        elif current_sid == g.get("black_sid"):
+            state["opponentName"] = g["white_player"]
+    
+    return state
 
 def update_time(g):
     if not g.get("isActive") or g["winner"]: return
@@ -288,7 +297,9 @@ def timeout_watcher():
                     update_time(g)
                     if g["winner"]:
                         save_game(r, g)
-                        socketio.emit("game_update", {"state": export_state(r)}, room=r)
+                        # Fixed: Send state to all clients properly
+                        for sid in g.get("clients", set()):
+                            socketio.emit("game_update", {"state": export_state(r, sid)}, room=sid)
 
 timeout_thread = threading.Thread(target=timeout_watcher, daemon=True)
 timeout_thread.start()
@@ -310,7 +321,9 @@ def handle_disconnect_timeout(room, color):
         else:
             return 
         save_game(room, g)
-        socketio.emit("game_update", {"state": export_state(room)}, room=room)
+        # Fixed: Send state to all clients properly
+        for sid in g.get("clients", set()):
+            socketio.emit("game_update", {"state": export_state(room, sid)}, room=sid)
 
 def cancel_timer(g, color):
     if color == "white" and g.get("white_disconnect_timer"):
@@ -353,11 +366,11 @@ def create(data):
     
     sid_to_room[request.sid] = room
     join_room(room)
+    # Fixed: Pass current_sid to export_state
     emit("room_created", {
         "color": "white", 
-        "state": export_state(room), 
-        "room": room, 
-        "playerNames": {"white": games[room]["white_player"], "black": games[room]["black_player"]}
+        "state": export_state(room, request.sid), 
+        "room": room
     })
 
 @socketio.on("join_room")
@@ -404,13 +417,16 @@ def join(data):
     if request.sid != g.get("white_sid") and request.sid != g.get("black_sid"):
         my_color = "spectator"
 
+    # Fixed: Pass current_sid to export_state
     emit("room_joined", {
         "color": my_color, 
-        "state": export_state(room), 
-        "room": room, 
-        "playerNames": {"white": g["white_player"], "black": g["black_player"]}
+        "state": export_state(room, request.sid), 
+        "room": room
     })
-    socketio.emit("game_start", {"state": export_state(room)}, room=room)
+    
+    # Fixed: Send game_start with proper state to each client
+    for sid in g.get("clients", set()):
+        socketio.emit("game_start", {"state": export_state(room, sid)}, room=sid)
 
 @socketio.on("disconnect")
 def on_disconnect():
@@ -474,12 +490,14 @@ def move(data):
                 if board.is_stalemate(): g["winner"] = "draw"
                 else: g["reason"] = "checkmate"
                 save_game(room, g)
-                
-            socketio.emit("game_update", {
-                "state": export_state(room),
-                "lastMove": data,
-                "moveNotation": san
-            }, room=room)
+            
+            # Fixed: Send state to each client with their perspective
+            for sid in g.get("clients", set()):
+                socketio.emit("game_update", {
+                    "state": export_state(room, sid),
+                    "lastMove": data,
+                    "moveNotation": san
+                }, room=sid)
 
             if g["bot"] and not g["winner"]:
                 socketio.start_background_task(bot_play, room)
@@ -515,12 +533,14 @@ def bot_play(room):
                 g["reason"] = "checkmate"
                 save_game(room, g)
             
-            socketio.emit("game_update", {
-                "state": export_state(room),
-                "lastMove": {"from": {"row": 7-chess.square_rank(best_move.from_square), "col": chess.square_file(best_move.from_square)}, 
-                             "to": {"row": 7-chess.square_rank(best_move.to_square), "col": chess.square_file(best_move.to_square)}},
-                "moveNotation": san
-            }, room=room)
+            # Fixed: Send state to each client with their perspective
+            for sid in g.get("clients", set()):
+                socketio.emit("game_update", {
+                    "state": export_state(room, sid),
+                    "lastMove": {"from": {"row": 7-chess.square_rank(best_move.from_square), "col": chess.square_file(best_move.from_square)}, 
+                                 "to": {"row": 7-chess.square_rank(best_move.to_square), "col": chess.square_file(best_move.to_square)}},
+                    "moveNotation": san
+                }, room=sid)
 
 @socketio.on("send_message")
 def msg(data): socketio.emit("chat_message", data, room=data["room"])
@@ -538,7 +558,9 @@ def respond_draw(data):
         g["winner"] = "draw"
         g["reason"] = "agreement"
         save_game(room, g)
-        socketio.emit("game_update", {"state": export_state(room)}, room=room)
+        # Fixed: Send state to each client with their perspective
+        for sid in g.get("clients", set()):
+            socketio.emit("game_update", {"state": export_state(room, sid)}, room=sid)
     else:
         socketio.emit("draw_declined", {}, room=room)
 
@@ -551,7 +573,9 @@ def resign(data):
     g["winner"] = "black" if data["color"] == "white" else "white"
     g["reason"] = "resign"
     save_game(room, g)
-    socketio.emit("game_update", {"state": export_state(room)}, room=room)
+    # Fixed: Send state to each client with their perspective
+    for sid in g.get("clients", set()):
+        socketio.emit("game_update", {"state": export_state(room, sid)}, room=sid)
 
 @socketio.on("leave_room")
 def on_leave(data):
