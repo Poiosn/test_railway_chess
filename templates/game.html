@@ -1566,20 +1566,29 @@ function initializeEmojiPanel() {
 function updatePlayerNames(state) {
   const whiteNameEl = document.getElementById("whiteName");
   const blackNameEl = document.getElementById("blackName");
-  
-  if (!whiteNameEl || !blackNameEl) return;
-  
-  // Use names from state if available, otherwise use defaults
-  let wName = state.whiteName || "White";
-  let bName = state.blackName || "Black";
 
-  // If state doesn't have names but we're that player, use our name
-  if (!state.whiteName && playerColor === 'white') wName = playerName;
-  if (!state.blackName && playerColor === 'black') bName = playerName;
+  if (!whiteNameEl || !blackNameEl || !state) return;
 
-  whiteNameEl.textContent = wName;
-  blackNameEl.textContent = bName;
+  let whiteName = "";
+  let blackName = "";
+
+  // In multiplayer, use player names directly
+  if (playerColor === "white") {
+    whiteName = playerName;
+    blackName = state.opponentName || "Opponent";
+  } else if (playerColor === "black") {
+    blackName = playerName;
+    whiteName = state.opponentName || "Opponent";
+  } else {
+    // Spectator fallback
+    whiteName = state.whiteName || "White";
+    blackName = state.blackName || "Black";
+  }
+
+  whiteNameEl.textContent = whiteName;
+  blackNameEl.textContent = blackName;
 }
+
 
 /* -------------------------
    SOCKET EVENTS
