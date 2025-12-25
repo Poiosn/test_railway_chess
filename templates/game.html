@@ -1874,6 +1874,13 @@ function processGameUpdate(d) {
   }
 }
 
+socket.on("user_typing", data=>{
+  if(data.sender===playerColor) return;
+  const dest = document.getElementById("typingIndicator");
+  const displayName = data.senderName || (data.sender === "white" ? "White" : "Black");
+  if (dest) dest.innerText = `${displayName} is typing...`;
+});
+
 socket.on("user_stop_typing", data=>{
   if(data.sender===playerColor) return;
   const dest = document.getElementById("typingIndicator");
