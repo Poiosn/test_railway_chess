@@ -20,6 +20,8 @@
       padding:20px;
       position:relative;
       overflow-x:hidden;
+      user-select: none;
+      -webkit-user-select: none;
     }
 
     /* GLASSMORPHISM CONTAINER */
@@ -106,7 +108,7 @@
     /* ENHANCED GAME INFO CARD */
     .game-info {
       text-align:center;
-      margin-bottom: 60px;
+      margin-bottom: 10px;
       padding:16px;
       background: rgba(255, 255, 255, 0.6);
       backdrop-filter: blur(10px);
@@ -244,6 +246,8 @@
       transition: all 0.3s ease;
       background: rgba(255, 255, 255, 0.9);
       backdrop-filter: blur(10px);
+      user-select: text;
+      -webkit-user-select: text;
     }
     input[type="text"]:focus {
       outline: none;
@@ -362,8 +366,7 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      left: 50%;
-      transform: translateX(-50%);
+      right: 0;
     }
     .player-name.white {
       background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
@@ -378,8 +381,8 @@
 
     .board-wrapper {
       position: relative;
-      margin-top: 70px;
-      margin-bottom: 70px;
+      margin-top: 10px;
+      margin-bottom: 10px;
     }
 
     .board-section {
@@ -491,7 +494,6 @@
       cursor: pointer;
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       position: relative;
-      overflow: hidden;
     }
     .square::before {
       content: '';
@@ -568,16 +570,6 @@
       opacity: 0.7;
       transform: scale(0.95);
     }
-    .piece:hover {
-      transform: scale(1.12) translateY(-5px);
-      filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.4));
-      animation: pieceFloat 0.6s ease-in-out;
-    }
-
-    @keyframes pieceFloat {
-      0%, 100% { transform: scale(1.12) translateY(-5px); }
-      50% { transform: scale(1.15) translateY(-8px); }
-    }
 
     .piece img {
       width: 88%;
@@ -587,9 +579,6 @@
       filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
       transition: filter 0.3s ease;
     }
-    .piece:hover img {
-      filter: drop-shadow(0 6px 15px rgba(0, 0, 0, 0.5));
-    }
 
     /* ENHANCED MOVE HISTORY */
     .move-history {
@@ -597,7 +586,7 @@
       backdrop-filter: blur(10px);
       border-radius: 16px;
       padding: 14px;
-      height: 720px;
+      height: 700px;
       overflow-y: scroll;
       min-width: 0;
       border: 1px solid rgba(255, 255, 255, 0.8);
@@ -826,6 +815,8 @@
       animation: chatAppear 0.3s ease;
       font-size: 13px;
       font-weight: 500;
+      user-select: text;
+      -webkit-user-select: text;
     }
 
     @keyframes chatAppear {
@@ -955,6 +946,7 @@
       gap: 20px;
       width: 750px; /* Fixed width to prevent resizing */
       flex-shrink: 0;
+      margin-top: 3%;
     }
 
     /* ========================================
@@ -1200,7 +1192,7 @@
 
           <div class="chat-box" id="chatBox" style="flex:1;">
             <h4>💬 Live Chat</h4>
-            <div class="chat-messages" id="chatMessages" style="height:580px;"></div>
+            <div class="chat-messages" id="chatMessages" style="height:570px;"></div>
             <div class="typing-indicator" id="typingIndicator"></div>
 
             <div class="chat-input" style="margin-top:10px; position:relative;">
@@ -1295,12 +1287,15 @@ let pendingPromotion = null;
 let moveHistory = [];
 let soundEnabled = true;
 let lastMoveWasMine = false;
+let lastMoveTime = 0;
 let whiteSeconds = 0;
 let blackSeconds = 0;
 let timerInterval = null;
 let pendingMoves = new Map();
 let moveSequence = 0;
 let disconnectInterval = null; // New variable for local countdown
+let isDragging = false;
+let pendingUpdate = null;
 
 /* -------------------------
    TIMER POSITIONING FIX
@@ -1441,6 +1436,72 @@ function toggleSound(){
   if (btn) {
     btn.textContent = soundEnabled ? "🔊" : "🔇";
     btn.classList.toggle("muted", !soundEnabled);
+  }
+}
+
+function animateMove(from, to, renderFn) {
+  const fromSq = document.querySelector(`.square[data-row="${from.row}"][data-col="${from.col}"]`);
+  const toSq = document.querySelector(`.square[data-row="${to.row}"][data-col="${to.col}"]`);
+  
+  const piece = fromSq ? fromSq.querySelector('.piece') : null;
+  const captured = toSq ? toSq.querySelector('.piece') : null;
+  
+  const startRect = piece ? piece.getBoundingClientRect() : null;
+  const capturedRect = captured ? captured.getBoundingClientRect() : null;
+
+  renderFn();
+
+  // Animate Capture
+  if (capturedRect) {
+    const ghost = captured.cloneNode(true);
+    ghost.style.position = 'fixed';
+    ghost.style.left = `${capturedRect.left}px`;
+    ghost.style.top = `${capturedRect.top}px`;
+    ghost.style.width = `${capturedRect.width}px`;
+    ghost.style.height = `${capturedRect.height}px`;
+    ghost.style.zIndex = '90';
+    ghost.style.pointerEvents = 'none';
+    ghost.style.transition = 'all 0.3s ease-out';
+    ghost.style.opacity = '1';
+    ghost.style.transform = 'scale(1)';
+    
+    document.body.appendChild(ghost);
+    
+    requestAnimationFrame(() => {
+      ghost.style.opacity = '0';
+      ghost.style.transform = 'scale(0.8)';
+    });
+    
+    setTimeout(() => ghost.remove(), 300);
+  }
+
+  if (startRect) {
+    const newToSq = document.querySelector(`.square[data-row="${to.row}"][data-col="${to.col}"]`);
+    const newPiece = newToSq ? newToSq.querySelector('.piece') : null;
+    
+    if (newPiece) {
+      const endRect = newPiece.getBoundingClientRect();
+      const dx = startRect.left - endRect.left;
+      const dy = startRect.top - endRect.top;
+      
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+
+      newPiece.style.transition = 'none';
+      newPiece.style.transform = `translate(${dx}px, ${dy}px)`;
+      newPiece.style.zIndex = '100';
+      
+      // Force reflow
+      void newPiece.offsetWidth;
+      
+      newPiece.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)';
+      newPiece.style.transform = 'translate(0, 0)';
+      
+      setTimeout(() => {
+        newPiece.style.zIndex = '';
+        newPiece.style.transition = '';
+        newPiece.style.transform = '';
+      }, 260);
+    }
   }
 }
 
@@ -1732,58 +1793,86 @@ socket.on("player_reconnected", (data) => {
 });
 
 socket.on("game_update", d => {
+  if (isDragging) {
+    pendingUpdate = d;
+    return;
+  }
+  const now = Date.now();
+  // If this update confirms my own move and arrived too quickly (before animation finished),
+  // delay it slightly to prevent the board re-render from cutting off the animation.
+  if (d.lastMove && lastMoveWasMine && (now - lastMoveTime < 260)) {
+    setTimeout(() => processGameUpdate(d), 260 - (now - lastMoveTime));
+    return;
+  }
+  processGameUpdate(d);
+});
+
+function processGameUpdate(d) {
   const prev = gameState;
-  gameState = d.state;
-
-  // === FIX: UPDATE PLAYER NAMES ON EVERY UPDATE ===
-  updatePlayerNames(gameState);
-
-  pendingMoves.clear();
-  const SERVER_SYNC_THRESHOLD = 2;
-  if (gameState.whiteTimeFormatted !== undefined) {
-    const srv = timeStringToSeconds(gameState.whiteTimeFormatted);
-    if (srv > 0 && Math.abs(srv - whiteSeconds) > SERVER_SYNC_THRESHOLD) {
-      whiteSeconds = srv;
-    }
-  }
-  if (gameState.blackTimeFormatted !== undefined) {
-    const srv = timeStringToSeconds(gameState.blackTimeFormatted);
-    if (srv > 0 && Math.abs(srv - blackSeconds) > SERVER_SYNC_THRESHOLD) {
-      blackSeconds = srv;
-    }
-  }
-
-  updateDisplayedTimers();
+  const isMyMoveConfirmation = d.lastMove && lastMoveWasMine;
   
-  // Clear disconnect overlay if game ends
-  if (gameState.winner) {
-      const overlay = document.getElementById("disconnectOverlay");
-      if (overlay) overlay.classList.remove("active");
-      if (disconnectInterval) clearInterval(disconnectInterval);
-  }
+  const performUpdate = () => {
+    const boardChanged = JSON.stringify(prev.board) !== JSON.stringify(d.state.board);
+    gameState = d.state;
 
-  if (d.lastMove) addMoveToHistory(d.lastMove, d.moveNotation);
-  renderBoard(gameState, d.lastMove);
-  updateStatus(gameState);
-  updateTurnIndicator(gameState);
+    // === FIX: UPDATE PLAYER NAMES ON EVERY UPDATE ===
+    updatePlayerNames(gameState);
+
+    pendingMoves.clear();
+    const SERVER_SYNC_THRESHOLD = 2;
+    if (gameState.whiteTimeFormatted !== undefined) {
+      const srv = timeStringToSeconds(gameState.whiteTimeFormatted);
+      if (srv > 0 && Math.abs(srv - whiteSeconds) > SERVER_SYNC_THRESHOLD) {
+        whiteSeconds = srv;
+      }
+    }
+    if (gameState.blackTimeFormatted !== undefined) {
+      const srv = timeStringToSeconds(gameState.blackTimeFormatted);
+      if (srv > 0 && Math.abs(srv - blackSeconds) > SERVER_SYNC_THRESHOLD) {
+        blackSeconds = srv;
+      }
+    }
+
+    updateDisplayedTimers();
+    
+    // Clear disconnect overlay if game ends
+    if (gameState.winner) {
+        const overlay = document.getElementById("disconnectOverlay");
+        if (overlay) overlay.classList.remove("active");
+        if (disconnectInterval) clearInterval(disconnectInterval);
+    }
+
+    if (boardChanged || !isMyMoveConfirmation) {
+      if (d.lastMove) addMoveToHistory(d.lastMove, d.moveNotation);
+      renderBoard(gameState, d.lastMove);
+    } else {
+      if (d.lastMove) addMoveToHistory(d.lastMove, d.moveNotation);
+    }
+    updateStatus(gameState);
+    updateTurnIndicator(gameState);
+  };
+
+  if (d.lastMove && !isMyMoveConfirmation) {
+    animateMove(d.lastMove.from, d.lastMove.to, performUpdate);
+  } else {
+    performUpdate();
+  }
 
   if (prev) {
-    let isMyMove = false;
-    if (d.lastMove && lastMoveWasMine) {
+    if (isMyMoveConfirmation) {
       lastMoveWasMine = false;
-      isMyMove = true;
     }
 
     if (gameState.winner) playSound("win");
     else if (gameState.check) playSound("check");
-    else if (d.lastMove && !isMyMove) {
+    else if (d.lastMove && !isMyMoveConfirmation) {
       const tr = d.lastMove.to.row;
       const tc = d.lastMove.to.col;
       const wasCapture = prev.board[tr][tc] !== ".";
       playSound(wasCapture ? "capture" : "move");
     }
   }
-});
+}
 
 socket.on("user_stop_typing", data=>{
   if(data.sender===playerColor) return;
@@ -1796,6 +1885,7 @@ socket.on("chat_message", data => {
 });
 // socket.on("possible_moves", ...) REMOVED for Speed
 socket.on("invalid_move", data => {
+  lastMoveWasMine = false;
   console.warn("Server rejected move:", data);
   if (data.moveId) revertOptimisticMove(data.moveId);
   const messages = document.getElementById("messages");
@@ -1882,6 +1972,7 @@ function renderBoard(state, lastMove=null){
         
         // === UPDATED DRAG HANDLER FOR DRAG & DROP FIX ===
         pDiv.addEventListener("dragstart", e=>{
+          isDragging = true;
           selectedSquare = { row:r, col:c };
           
           // Get PRE-LOADED MOVES from state
@@ -1912,8 +2003,13 @@ function renderBoard(state, lastMove=null){
 
         // Add dragend to clean up highlights if drag is cancelled
         pDiv.addEventListener("dragend", () => {
-             // Re-render board to clear highlights if no drop occurred
-             renderBoard(gameState, lastMove);
+             isDragging = false;
+             if (pendingUpdate) {
+               processGameUpdate(pendingUpdate);
+               pendingUpdate = null;
+             } else {
+               renderBoard(gameState, lastMove);
+             }
         });
 
         const img=document.createElement("img");
@@ -1945,7 +2041,7 @@ function renderBoard(state, lastMove=null){
           pendingPromotion = { from, to };
           showPromotionModal(playerColor);
         } else {
-          makeMove(from,to,null);
+          makeMove(from,to,null,true);
         }
       });
       board.appendChild(sq);
@@ -2007,21 +2103,32 @@ function handleSquareClick(row, col, state){
   }
 }
 
-function makeMove(from, to, promotion=null){
+function makeMove(from, to, promotion=null, isDrop=false){
   lastMoveWasMine = true;
+  lastMoveTime = Date.now();
   const moveId = ++moveSequence;
   const previousState = JSON.parse(JSON.stringify(gameState));
-  const optimisticState = applyOptimisticMove(from, to, promotion);
-  if (optimisticState) {
-    gameState = optimisticState;
-    renderBoard(gameState, { from, to });
-    updateTurnIndicator(gameState);
-    const wasCapture = previousState.board[to.row][to.col] !== ".";
-    playSound(wasCapture ? "capture" : "move");
-    pendingMoves.set(moveId, {
-      from, to, promotion, previousState, timestamp: Date.now()
-    });
+  
+  const performMove = () => {
+    const optimisticState = applyOptimisticMove(from, to, promotion);
+    if (optimisticState) {
+      gameState = optimisticState;
+      renderBoard(gameState, { from, to });
+      updateTurnIndicator(gameState);
+      const wasCapture = previousState.board[to.row][to.col] !== ".";
+      playSound(wasCapture ? "capture" : "move");
+      pendingMoves.set(moveId, {
+        from, to, promotion, previousState, timestamp: Date.now()
+      });
+    }
+  };
+
+  if (!isDrop) {
+    animateMove(from, to, performMove);
+  } else {
+    performMove();
   }
+
   socket.emit("move", { room: currentRoom, from, to, promotion, moveId });
   selectedSquare = null;
   possibleMoves = [];
