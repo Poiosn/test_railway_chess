@@ -569,6 +569,13 @@ def bot_play(room):
 
 @socketio.on("send_message")
 def msg(data): socketio.emit("chat_message", data, room=data["room"])
+@socketio.on("typing")
+def on_typing(data):
+    socketio.emit("user_typing", data, room=data["room"], skip_sid=request.sid)
+
+@socketio.on("stop_typing")
+def on_stop_typing(data):
+    socketio.emit("user_stop_typing", data, room=data["room"], skip_sid=request.sid)
 
 @socketio.on("offer_draw")
 def offer_draw(data):
