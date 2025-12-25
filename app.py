@@ -339,11 +339,21 @@ def create(data):
     is_bot = data.get("bot", False)
     player_name = data.get("playerName", "White")
     
+    # Random starting color for creator (always white against bot)
+    creator_color = random.choice(["white", "black"]) if not is_bot else "white"
+    
     if room in games:
         g = games[room]
         if g.get("winner") is None: 
             emit("error", {"message": f"Room '{room}' is already taken!"})
             return
+
+    # Assign players based on random color
+    white_player = player_name if creator_color == "white" else None
+    black_player = player_name if creator_color == "black" else None
+    
+    if is_bot:
+        black_player = "Bot"
 
     games[room] = {
         "board": chess.Board(),
@@ -355,10 +365,10 @@ def create(data):
         "winner": None,
         "bot": is_bot,
         "lock": threading.Lock(),
-        "white_player": player_name,
-        "black_player": "Bot" if is_bot else None,
-        "white_sid": request.sid,
-        "black_sid": None,
+        "white_player": white_player,
+        "black_player": black_player,
+        "white_sid": request.sid if creator_color == "white" else None,
+        "black_sid": request.sid if creator_color == "black" else None,
         "white_disconnect_timer": None,
         "black_disconnect_timer": None,
         "clients": {request.sid}
@@ -366,9 +376,8 @@ def create(data):
     
     sid_to_room[request.sid] = room
     join_room(room)
-    # Fixed: Pass current_sid to export_state
     emit("room_created", {
-        "color": "white", 
+        "color": creator_color, 
         "state": export_state(room, request.sid), 
         "room": room
     })
@@ -386,18 +395,36 @@ def join(data):
     
     reconnected = False
     
-    if player_name == g["white_player"]:
+    # First check for reconnection by session ID
+    if request.sid == g.get("white_sid"):
+        reconnected = True
+        cancel_timer(g, "white")
+        socketio.emit("player_reconnected", {"color": "white"}, room=room)
+        
+    elif request.sid == g.get("black_sid"):
+        reconnected = True
+        cancel_timer(g, "black")
+        socketio.emit("player_reconnected", {"color": "black"}, room=room)
+
+    # Then check for reconnection by name (only if sid is not set)
+    elif player_name == g["white_player"] and g.get("white_sid") is None:
         g["white_sid"] = request.sid
         cancel_timer(g, "white")
         reconnected = True
         socketio.emit("player_reconnected", {"color": "white"}, room=room)
         
-    elif g["black_player"] and player_name == g["black_player"]:
+    elif g["black_player"] and player_name == g["black_player"] and g.get("black_sid") is None:
         g["black_sid"] = request.sid
         cancel_timer(g, "black")
         reconnected = True
         socketio.emit("player_reconnected", {"color": "black"}, room=room)
 
+    # Join as new player if slot is empty
+    elif not g["white_player"]:
+        g["white_player"] = player_name
+        g["white_sid"] = request.sid
+        g["isActive"] = True
+        g["lastUpdate"] = time.time()
     elif not g["black_player"]:
         g["black_player"] = player_name
         g["black_sid"] = request.sid
@@ -417,14 +444,12 @@ def join(data):
     if request.sid != g.get("white_sid") and request.sid != g.get("black_sid"):
         my_color = "spectator"
 
-    # Fixed: Pass current_sid to export_state
     emit("room_joined", {
         "color": my_color, 
         "state": export_state(room, request.sid), 
         "room": room
     })
     
-    # Fixed: Send game_start with proper state to each client
     for sid in g.get("clients", set()):
         socketio.emit("game_start", {"state": export_state(room, sid)}, room=sid)
 
