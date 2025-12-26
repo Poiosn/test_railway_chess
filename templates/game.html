@@ -1211,6 +1211,72 @@
     align-items: flex-start;
   }
 }
+    /* =====================================================
+   DESKTOP: RESTORE OLD MOVE + CHAT UI (BOARD-ALIGNED)
+   ===================================================== */
+@media (min-width: 901px) {
+
+  /* Lock page */
+  html, body {
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  body {
+    min-height: unset;
+  }
+
+  .container {
+    height: calc(100vh - 40px);
+    max-height: calc(100vh - 40px);
+    overflow: hidden;
+  }
+
+  /* Board controls sidebar height */
+  .chessboard {
+    --board-size: min(70vh, 92vw, 700px);
+    width: var(--board-size);
+    height: var(--board-size);
+  }
+
+  .sidebar {
+    height: var(--board-size);
+    max-height: var(--board-size);
+    align-items: stretch;
+  }
+
+  /* === RESTORE OLD PROPORTIONS === */
+
+  /* Move history: tall like before */
+  .move-history {
+    flex: 0 0 65%;
+    height: auto;
+    max-height: 65%;
+    overflow-y: auto;
+  }
+
+  /* Chat box: compact like before */
+  .chat-box {
+    flex: 0 0 35%;
+    height: auto;
+    max-height: 35%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .chat-messages {
+    flex: 1;
+    height: auto !important;
+    max-height: none !important;
+    overflow-y: auto;
+  }
+
+  /* Prevent stretching */
+  .sidebar > * {
+    min-height: 0;
+  }
+}
+
 
   </style>
 </head>
