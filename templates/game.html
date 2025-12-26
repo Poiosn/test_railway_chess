@@ -1595,4 +1595,267 @@ function renderBoard(state, lastMove=null){
         });
 
         const img=document.createElement("img");
-        const clr = isWhitePiece ? "w
+        const clr = isWhitePiece ? "w" : "b";
+        const type = piece.toLowerCase();
+        img.src=`https://images.chesscomfiles.com/chess-themes/pieces/neo/150/${clr}${type}.png`;
+        pDiv.appendChild(img);
+        sq.appendChild(pDiv);
+      }
+      sq.addEventListener("click", ()=> handleSquareClick(r,c,state));
+      sq.addEventListener("dragover", e=> e.preventDefault());
+      sq.addEventListener("drop", e=>{
+        e.preventDefault();
+        const fr=parseInt(e.dataTransfer.getData("fromRow"));
+        const fc=parseInt(e.dataTransfer.getData("fromCol"));
+        const from={row:fr,col:fc};
+        const to={row:r,col:c};
+        const valid = possibleMoves.some(m=>m.row===r && m.col===c);
+        if(!valid){
+          const messages = document.getElementById("messages");
+          if (messages) messages.textContent="❌ Invalid move!";
+          return;
+        }
+        const movingPiece = state.board[fr][fc];
+        const isPawn = movingPiece.toLowerCase()==="p";
+        const isPromoRank = (playerColor==="white" && r===0) ||
+                            (playerColor==="black" && r===7);
+        if(isPawn && isPromoRank){
+          pendingPromotion = { from, to };
+          showPromotionModal(playerColor);
+        } else {
+          makeMove(from,to,null,true);
+        }
+      });
+      board.appendChild(sq);
+    }
+  }
+}
+
+function handleSquareClick(row, col, state){
+  if(state.winner) return;
+  if (state.isActive === false) {
+    const messages = document.getElementById("messages");
+    if (messages) messages.textContent = "⏳ Waiting for opponent...";
+    return;
+  }
+  if(state.turn !== playerColor){
+    const messages = document.getElementById("messages");
+    if (messages) messages.textContent = "⏳ Wait for your turn!";
+    return;
+  }
+  const piece = state.board[row][col];
+  const isWhite = piece !== "." && piece === piece.toUpperCase();
+  const isMine = piece !== "." && (
+    (playerColor==="white" && isWhite) ||
+    (playerColor==="black" && !isWhite)
+  );
+  
+  if(isMine){
+    selectedSquare = { row,col };
+    const key = `${row},${col}`;
+    possibleMoves = (state.moves && state.moves[key]) ? state.moves[key] : [];
+    
+    renderBoard(state);
+    
+    const messages = document.getElementById("messages");
+    if (messages) messages.textContent="";
+    return;
+  }
+
+  if(!selectedSquare) return;
+  const isValid = possibleMoves.some(m=>m.row===row && m.col===col);
+  if(!isValid){
+    const messages = document.getElementById("messages");
+    if (messages) messages.textContent = "❌ Invalid move!";
+    return;
+  }
+  const movingPiece = state.board[selectedSquare.row][selectedSquare.col];
+  const isPawn = movingPiece.toLowerCase()==="p";
+  const isPromoRank = (playerColor==="white" && row===0) ||
+                      (playerColor==="black" && row===7);
+  if(isPawn && isPromoRank){
+    pendingPromotion = { from:selectedSquare, to:{row,col} };
+    showPromotionModal(playerColor);
+  } else {
+    makeMove(selectedSquare, {row,col}, null);
+  }
+}
+
+function makeMove(from, to, promotion=null, isDrop=false){
+  lastMoveWasMine = true;
+  lastMoveTime = Date.now();
+  const moveId = ++moveSequence;
+  const previousState = JSON.parse(JSON.stringify(gameState));
+  
+  const performMove = () => {
+    const optimisticState = applyOptimisticMove(from, to, promotion);
+    if (optimisticState) {
+      gameState = optimisticState;
+      renderBoard(gameState, { from, to });
+      updateTurnIndicator(gameState);
+      const wasCapture = previousState.board[to.row][to.col] !== ".";
+      playSound(wasCapture ? "capture" : "move");
+      pendingMoves.set(moveId, {
+        from, to, promotion, previousState, timestamp: Date.now()
+      });
+    }
+  };
+
+  if (!isDrop) {
+    animateMove(from, to, performMove);
+  } else {
+    performMove();
+  }
+
+  socket.emit("move", { room: currentRoom, from, to, promotion, moveId });
+  selectedSquare = null;
+  possibleMoves = [];
+  pendingPromotion = null;
+  const messages = document.getElementById("messages");
+  if (messages) messages.textContent = "";
+}
+
+function showPromotionModal(color){
+  const modal=document.getElementById("promotionModal");
+  const pcs=document.getElementById("promotionPieces");
+  if (!modal || !pcs) return;
+  pcs.innerHTML="";
+  const opt=['q','r','b','n'];
+  const pre = (color==="white") ? "w" : "b";
+  opt.forEach(t=>{
+    const img=document.createElement("img");
+    img.src=`https://images.chesscomfiles.com/chess-themes/pieces/neo/150/${pre}${t}.png`;
+    img.onclick = ()=>{
+      makeMove(pendingPromotion.from, pendingPromotion.to, t);
+      modal.classList.remove("active");
+    };
+    pcs.appendChild(img);
+  });
+  modal.classList.add("active");
+}
+
+function cancelPromotion(){
+  pendingPromotion=null;
+  const modal = document.getElementById("promotionModal");
+  if (modal) modal.classList.remove("active");
+}
+
+function addMoveToHistory(lastMove,notation){
+  moveHistory.push({ from:lastMove.from, to:lastMove.to, notation: notation });
+  renderMoveHistory();
+}
+
+function renderMoveHistory(){
+  const list=document.getElementById("moveList");
+  if (!list) return;
+  list.innerHTML="";
+  for(let i=0;i<moveHistory.length;i+=2){
+    const num=document.createElement("div");
+    num.className="move-number";
+    num.textContent=(i/2+1)+".";
+    list.appendChild(num);
+    const w=document.createElement("div");
+    w.className="move-item white";
+    w.textContent=moveHistory[i].notation;
+    list.appendChild(w);
+    if(i+1 < moveHistory.length){
+      const b=document.createElement("div");
+      b.className="move-item black";
+      b.textContent=moveHistory[i+1].notation;
+      list.appendChild(b);
+    } else {
+      list.appendChild(document.createElement("div"));
+    }
+  }
+  const parent = list.parentElement;
+  if (parent) parent.scrollTop = parent.scrollHeight;
+}
+
+function updateTurnIndicator(state){
+  const ind=document.getElementById("turnIndicator");
+  if (!ind) return;
+  if(state.winner){
+    ind.textContent="🏁 Game Over";
+    ind.style.background="linear-gradient(135deg, #11998e 0%, #38ef7d 100%)";
+    ind.style.color="#fff";
+    return;
+  }
+  ind.textContent = (state.turn==="white") ? "♔ White to move" : "♚ Black to move";
+  ind.style.background = "";
+  ind.style.color = "";
+}
+
+function updateStatus(state){
+  const s=document.getElementById("status");
+  if (!s) return;
+  if(state.winner){
+    if(state.winner==="draw"){
+      s.textContent="🤝 Game Draw!";
+      s.style.background="linear-gradient(135deg, #f7971e 0%, #ffd200 100%)";
+      s.style.color="#fff";
+    } else {
+      const w = state.winner==="white" ? "♔ WHITE" : "♚ BLACK";
+      const r =
+        state.reason==="checkmate" ? "by Checkmate" :
+        state.reason==="resign" ? "by Resignation" :
+        state.reason==="timeout" ? "by Timeout" : 
+        state.reason==="abandonment" ? "by Abandonment" : "";
+      s.textContent=`👑 ${w} Wins ${r}!`;
+      s.style.background="linear-gradient(135deg, #11998e 0%, #38ef7d 100%)";
+      s.style.color="#fff";
+    }
+    return;
+  }
+  if(state.check){
+    const t = state.turn==="white"?"♔ WHITE":"♚ BLACK";
+    s.textContent=`⚠️ CHECK! ${t}'s turn`;
+    s.style.background="linear-gradient(135deg, #eb3349 0%, #f45c43 100%)";
+    s.style.color="#fff";
+    return;
+  }
+  s.textContent="";
+  s.style.background="";
+  s.style.color="";
+}
+
+function goHome(){
+  if(confirm("Return to home? Current game will end.")){
+    socket.emit("leave_room",{room:currentRoom});
+    window.location.href = "/";
+  }
+}
+
+function offerDraw(){
+  socket.emit("offer_draw",{room:currentRoom,color:playerColor});
+  const messages = document.getElementById("messages");
+  if (messages) messages.textContent="🤝 Draw offer sent...";
+}
+
+socket.on("draw_offered", data=>{
+  const drawMessage = document.getElementById("drawMessage");
+  const drawModal = document.getElementById("drawModal");
+  if (drawMessage && drawModal) {
+    drawMessage.textContent = `${data.fromColor.toUpperCase()} offers a draw. Accept?`;
+    drawModal.classList.add("active");
+  }
+});
+
+socket.on("draw_declined", ()=>{
+  const messages = document.getElementById("messages");
+  if (messages) messages.textContent="❌ Opponent declined your draw.";
+});
+
+function respondToDraw(acc){
+  const drawModal = document.getElementById("drawModal");
+  if (drawModal) drawModal.classList.remove("active");
+  socket.emit("respond_draw",{room:currentRoom,accept:acc});
+}
+
+function resignGame(){
+  if(confirm("Are you sure you want to resign?")){
+    socket.emit("resign",{room:currentRoom,color:playerColor});
+  }
+}
+</script>
+</body>
+</html>
