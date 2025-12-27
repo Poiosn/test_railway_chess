@@ -1625,12 +1625,25 @@ function renderBoard(state, lastMove=null){
           const key = `${r},${c}`;
           possibleMoves = (state.moves && state.moves[key]) ? state.moves[key] : [];
 
+          // Hide the original piece during drag
+          e.target.style.opacity = '0';
+          
+          // Create drag image with proper sizing
+          const dragImg = e.target.cloneNode(true);
+          dragImg.style.opacity = '1';
+          dragImg.style.position = 'absolute';
+          dragImg.style.top = '-1000px';
+          dragImg.style.width = e.target.offsetWidth + 'px';
+          dragImg.style.height = e.target.offsetHeight + 'px';
+          document.body.appendChild(dragImg);
+          const offsetX = e.target.offsetWidth / 2;
+          const offsetY = e.target.offsetHeight / 2;
+          e.dataTransfer.setDragImage(dragImg, offsetX, offsetY);
+          setTimeout(() => dragImg.remove(), 0);
+
           document.querySelectorAll('.square').forEach(s => {
              s.classList.remove('selected', 'possible-move');
           });
-
-          const sourceSq = document.querySelector(`.square[data-row="${r}"][data-col="${c}"]`);
-          if(sourceSq) sourceSq.classList.add('selected');
 
           possibleMoves.forEach(m => {
              const targetSq = document.querySelector(`.square[data-row="${m.row}"][data-col="${m.col}"]`);
@@ -1641,8 +1654,11 @@ function renderBoard(state, lastMove=null){
           e.dataTransfer.setData("fromCol", c);
         });
 
-        pDiv.addEventListener("dragend", () => {
+        pDiv.addEventListener("dragend", (e) => {
+             e.target.style.opacity = '1';
              isDragging = false;
+             selectedSquare = null;
+             possibleMoves = [];
              if (pendingUpdate) {
                processGameUpdate(pendingUpdate);
                pendingUpdate = null;
@@ -1667,9 +1683,15 @@ function renderBoard(state, lastMove=null){
         const from={row:fr,col:fc};
         const to={row:r,col:c};
         const valid = possibleMoves.some(m=>m.row===r && m.col===c);
+        
+        // Clear highlights immediately
+        selectedSquare = null;
+        possibleMoves = [];
+        
         if(!valid){
           const messages = document.getElementById("messages");
           if (messages) messages.textContent="❌ Invalid move!";
+          renderBoard(gameState, lastMove);
           return;
         }
         const movingPiece = state.board[fr][fc];
@@ -1744,6 +1766,11 @@ function makeMove(from, to, promotion=null, isDrop=false){
   const moveId = ++moveSequence;
   const previousState = JSON.parse(JSON.stringify(gameState));
   
+  // Clear selections immediately
+  selectedSquare = null;
+  possibleMoves = [];
+  pendingPromotion = null;
+  
   const performMove = () => {
     const optimisticState = applyOptimisticMove(from, to, promotion);
     if (optimisticState) {
@@ -1765,9 +1792,6 @@ function makeMove(from, to, promotion=null, isDrop=false){
   }
 
   socket.emit("move", { room: currentRoom, from, to, promotion, moveId });
-  selectedSquare = null;
-  possibleMoves = [];
-  pendingPromotion = null;
   const messages = document.getElementById("messages");
   if (messages) messages.textContent = "";
 }
