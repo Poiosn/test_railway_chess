@@ -1,1891 +1,618 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Chess Master — Premium Edition</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-  <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
+from flask import Flask, render_template, request, jsonify
+from flask_socketio import SocketIO, emit, join_room, leave_room
+import chess
+import chess.engine
+import time
+import random
+import secrets
+import threading
+import os
+import psycopg2
+from psycopg2 import pool
+from psycopg2.extras import RealDictCursor
+from datetime import datetime
+import shutil
 
-    body {
-      font-family:'Inter','Segoe UI','Helvetica Neue',sans-serif;
-      background: #87CEEB;
-      min-height:100vh;
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      padding:8px;
-      position:relative;
-      overflow-x:hidden;
-      user-select: none;
-      -webkit-user-select: none;
-    }
+# ===== FLASK APP =====
+app = Flask(__name__)
+app.config["SECRET_KEY"] = secrets.token_hex(16)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
-    .container{
-      background: rgba(255, 255, 255, 0.25);
-      backdrop-filter: blur(20px) saturate(180%);
-      -webkit-backdrop-filter: blur(20px) saturate(180%);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: 16px;
-      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37), inset 0 1px 0 0 rgba(255, 255, 255, 0.5);
-      padding:10px;
-      width:100%;
-      max-width:1400px;
-      position:relative;
-      z-index:1;
-      animation: containerFadeIn 0.6s ease;
-      max-height: 98vh;
-      overflow-y: auto;
-    }
+# ===== DATABASE CONFIGURATION =====
+db_pool = None
 
-    @keyframes containerFadeIn {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    h1 {
-      text-align:center;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
-      background-size: 200% auto;
-      -webkit-background-clip:text;
-      -webkit-text-fill-color:transparent;
-      background-clip:text;
-      font-size:clamp(16px, 3vw, 28px);
-      font-weight:900;
-      margin-bottom:3px;
-      letter-spacing:-0.5px;
-      animation: titleShine 3s linear infinite;
-    }
-
-    @keyframes titleShine {
-      to { background-position: 200% center; }
-    }
-
-    .subtitle {
-      text-align:center;
-      color:#555;
-      margin-bottom:6px;
-      font-size:clamp(9px, 1.5vw, 11px);
-      font-weight:500;
-      letter-spacing: 0.3px;
-    }
-
-    .game-info {
-      text-align:center;
-      margin-bottom: 5px;
-      padding:6px;
-      background: rgba(255, 255, 255, 0.6);
-      backdrop-filter: blur(10px);
-      border-radius:10px;
-      border: 1px solid rgba(255, 255, 255, 0.8);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    }
-
-    .game-info h3 {
-      font-size: clamp(12px, 2.2vw, 14px);
-      font-weight: 800;
-      color: #333;
-      margin-bottom: 2px;
-    }
-
-    .timer {
-      padding: 3px 8px;
-      border-radius: 8px;
-      text-align: center;
-      font-size: clamp(10px, 1.8vw, 13px);
-      font-weight: 800;
-      transition: all 0.3s ease;
-      position: absolute;
-      backdrop-filter: blur(10px);
-      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
-      min-width: 55px;
-      z-index: 10;
-    }
-    .timer.white {
-      background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-      border: 2px solid #e0e0e0;
-      color: #333;
-    }
-    .timer.black {
-      background: linear-gradient(135deg, #434343 0%, #000000 100%);
-      color: #fff;
-      border: 2px solid #666;
-    }
-    .timer.active {
-      box-shadow: 0 0 20px rgba(102, 126, 234, 0.6), 0 3px 10px rgba(0, 0, 0, 0.2);
-      transform: scale(1.03);
-      animation: timerPulse 1.5s ease-in-out infinite;
-    }
-
-    @keyframes timerPulse {
-      0%, 100% { transform: scale(1.03); }
-      50% { transform: scale(1.06); }
-    }
-
-    .player-name {
-      padding: 3px 10px;
-      border-radius: 8px;
-      text-align: center;
-      font-size: clamp(10px, 1.8vw, 12px);
-      font-weight: 700;
-      position: absolute;
-      backdrop-filter: blur(10px);
-      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
-      min-width: 70px;
-      max-width: 180px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      right: 0;
-      z-index: 10;
-    }
-    .player-name.white {
-      background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-      border: 2px solid #e0e0e0;
-      color: #333;
-    }
-    .player-name.black {
-      background: linear-gradient(135deg, #434343 0%, #000000 100%);
-      color: #fff;
-      border: 2px solid #666;
-    }
-
-    .board-wrapper {
-      position: relative;
-      margin: 35px auto 35px auto;
-      max-width: 100%;
-    }
-
-    .board-section {
-      position: relative;
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    .chessboard {
-      display: grid;
-      grid-template-columns: repeat(8, 1fr);
-      width: 100%;
-      max-width: 520px;
-      aspect-ratio: 1 / 1;
-      border: 3px solid rgba(44, 62, 80, 0.8);
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.15);
-      position: relative;
-      margin: 0 auto;
-    }
-
-    .waiting-overlay, .disconnect-overlay {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      backdrop-filter: blur(5px);
-      z-index: 100;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      border-radius: 8px;
-      color: white;
-      font-weight: bold;
-      animation: fadeIn 0.3s;
-      font-size: clamp(10px, 2vw, 14px);
-      padding: 10px;
-      text-align: center;
-    }
-
-    .waiting-overlay {
-      background: rgba(0,0,0,0.6);
-    }
-
-    .disconnect-overlay {
-      background: rgba(220, 38, 38, 0.8);
-      display: none;
-    }
-    .disconnect-overlay.active {
-      display: flex;
-    }
+def init_db_pool():
+    global db_pool
+    DATABASE_URL = os.environ.get('DATABASE_URL')
     
-    .waiting-spinner {
-      border: 3px solid rgba(255,255,255,0.3);
-      border-top: 3px solid #fff;
-      border-radius: 50%;
-      width: 28px;
-      height: 28px;
-      animation: spin 1s linear infinite;
-      margin-bottom: 8px;
-    }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+    if not DATABASE_URL:
+        print("⚠️ DATABASE_URL not set. Database features will be disabled.")
+        return
 
-    .square-coord {
-      position: absolute;
-      font-size: clamp(7px, 1.1vw, 9px);
-      font-weight: 800;
-      pointer-events: none;
-      user-select: none;
-      opacity: 0.65;
-      z-index: 5;
-    }
-    .square-coord.file {
-      bottom: 1px;
-      right: 2px;
-    }
-    .square-coord.rank {
-      top: 1px;
-      left: 2px;
-    }
-    .square.light .square-coord { color: #b58863; }
-    .square.dark .square-coord { color: #f0d9b5; }
-
-    .square {
-      aspect-ratio: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      position: relative;
-    }
-    .square.light {
-      background: linear-gradient(135deg, #f5e6d3 0%, #f0d9b5 100%);
-    }
-    .square.dark {
-      background: linear-gradient(135deg, #c9a882 0%, #b58863 100%);
-    }
-    .square.selected {
-      background: radial-gradient(circle, #baca44 0%, #a8b834 100%) !important;
-      box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.3);
-    }
-    .square.possible-move::after {
-      content: '';
-      position: absolute;
-      width: 30%;
-      height: 30%;
-      background: radial-gradient(circle, rgba(34, 197, 94, 0.6), rgba(34, 197, 94, 0.3));
-      border-radius: 50%;
-      animation: moveIndicator 1.5s ease-in-out infinite;
-    }
-    @keyframes moveIndicator {
-      0%, 100% { transform: scale(1); opacity: 0.7; }
-      50% { transform: scale(1.15); opacity: 1; }
-    }
-    .square.last-move {
-      background: radial-gradient(circle, #ffd93d 0%, #cdd26a 100%) !important;
-    }
-
-    .piece {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: grab;
-    }
-    .piece:active {
-      cursor: grabbing;
-    }
-    .piece img {
-      width: 85%;
-      height: 85%;
-      object-fit: contain;
-      pointer-events: none;
-      filter: drop-shadow(0 1px 5px rgba(0, 0, 0, 0.25));
-    }
-
-    .game-layout {
-      display: flex;
-      gap: 12px;
-      align-items: flex-start;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-
-    .main-board {
-      flex: 1 1 auto;
-      max-width: 620px;
-      min-width: 280px;
-    }
-
-    .sidebar {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      flex: 0 1 320px;
-      min-width: 280px;
-    }
-
-    .move-history {
-      background: rgba(255, 255, 255, 0.6);
-      backdrop-filter: blur(10px);
-      border-radius: 10px;
-      padding: 8px;
-      max-height: 200px;
-      overflow-y: auto;
-      border: 1px solid rgba(255, 255, 255, 0.8);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    }
-    .move-history h4 {
-      color: #2c3e50;
-      margin-bottom: 6px;
-      font-size: clamp(11px, 2vw, 13px);
-      font-weight: 800;
-      position: sticky;
-      top: 0;
-      background: rgba(255, 255, 255, 0.95);
-      padding: 5px;
-      border-radius: 6px;
-      z-index: 5;
-      margin: -8px -8px 6px -8px;
-      padding-left: 8px;
-    }
+    if DATABASE_URL.startswith('postgres://'):
+        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
     
-    .move-list {
-      display: grid;
-      grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr);
-      gap: 5px;
-      font-size: clamp(9px, 1.6vw, 11px);
-    }
-    .move-number {
-      color: #666;
-      font-weight: 800;
-      text-align: right;
-      padding-right: 5px;
-    }
-    .move-item {
-      background: rgba(248, 249, 250, 0.8);
-      padding: 3px 6px;
-      border-radius: 5px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      font-weight: 600;
-      text-align: center;
-      overflow: hidden;
-      min-width: 0;
-    }
-    .move-item:hover {
-      background: rgba(102, 126, 234, 0.12);
-    }
-    .move-item.white {
-      border-left: 2px solid #e0e0e0;
-    }
-    .move-item.black {
-      border-left: 2px solid #333;
-    }
-
-    .turn-indicator {
-      text-align: center;
-      padding: 5px;
-      border-radius: 10px;
-      font-size: clamp(10px, 2vw, 13px);
-      font-weight: 800;
-      margin-bottom: 3px;
-      background: rgba(255, 255, 255, 0.6);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.8);
-      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
-    }
-
-    .status {
-      min-height: 20px;
-      text-align: center;
-      padding: 6px;
-      margin-top: 6px;
-      border-radius: 10px;
-      font-size: clamp(10px, 2vw, 13px);
-      font-weight: 800;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      backdrop-filter: blur(10px);
-    }
-
-    .button-group {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
-      gap: 6px;
-      margin-top: 8px;
-    }
-
-    button {
-      padding: 6px 12px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      font-weight: 700;
-      font-size: clamp(10px, 1.8vw, 12px);
-      transition: all 0.3s ease;
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25);
-      white-space: nowrap;
-    }
-    button:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 6px 16px rgba(102, 126, 234, 0.35);
-    }
-    button:active {
-      transform: translateY(0);
-    }
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-      transform: none !important;
-    }
-
-    .btn-bot {
-      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-    }
-    .btn-secondary {
-      background: linear-gradient(135deg, #bdc3c7 0%, #2c3e50 100%);
-    }
-    .btn-danger {
-      background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
-    }
-    .btn-draw {
-      background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
-    }
-
-    .promotion-modal, .draw-modal {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(6px);
-      z-index: 9999;
-      padding: 10px;
-    }
-    .promotion-modal.active, .draw-modal.active {
-      display: flex;
-    }
-
-    .promotion-content, .draw-content {
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(20px);
-      padding: 14px;
-      border-radius: 14px;
-      text-align: center;
-      min-width: 240px;
-      max-width: 90vw;
-      border: 1px solid rgba(255, 255, 255, 0.8);
-      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
-    }
-
-    .promotion-content h3, .draw-content h3 {
-      font-size: clamp(14px, 3vw, 18px);
-      font-weight: 900;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin-bottom: 6px;
-    }
-
-    .promotion-pieces img {
-      width: clamp(40px, 11vw, 60px);
-      height: clamp(40px, 11vw, 60px);
-      margin: 5px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.2));
-    }
-    .promotion-pieces img:hover {
-      transform: scale(1.12) translateY(-3px);
-    }
-    .promotion-pieces {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 5px;
-      margin-top: 8px;
-      flex-wrap: wrap;
-    }
-
-    .chat-box {
-      background: rgba(255, 255, 255, 0.6);
-      backdrop-filter: blur(10px);
-      border-radius: 10px;
-      padding: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.8);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    }
-    .chat-box h4 {
-      color: #2c3e50;
-      margin-bottom: 6px;
-      font-size: clamp(11px, 2vw, 13px);
-      font-weight: 800;
-    }
-    .chat-messages {
-      height: 150px;
-      overflow-y: auto;
-      padding: 4px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .chat-line {
-      padding: 6px 8px;
-      border-radius: 8px;
-      max-width: 85%;
-      word-break: break-word;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-      font-size: clamp(9px, 1.6vw, 11px);
-      font-weight: 500;
-      user-select: text;
-      -webkit-user-select: text;
-    }
-    .chat-line.you {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      align-self: flex-end;
-    }
-    .chat-line.opponent {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      align-self: flex-start;
-    }
-    
-    .typing-indicator {
-      height: 14px;
-      font-size: clamp(8px, 1.5vw, 10px);
-      color: #666;
-      margin-top: 4px;
-      font-style: italic;
-    }
-
-    .chat-input {
-      display: flex;
-      gap: 4px;
-      margin-top: 6px;
-      align-items: center;
-      position: relative;
-    }
-    .chat-input > div {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      flex: 1;
-    }
-    .chat-input input {
-      flex: 1;
-      padding: 6px;
-      border-radius: 8px;
-      border: 2px solid rgba(102, 126, 234, 0.25);
-      background: rgba(255, 255, 255, 0.9);
-      font-size: clamp(9px, 1.6vw, 11px);
-      min-width: 0;
-    }
-    .chat-input input:focus {
-      outline: none;
-      border-color: #667eea;
-      box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
-    }
-    .chat-input button {
-      padding: 6px 10px;
-      flex-shrink: 0;
-    }
-
-    .emoji-panel {
-      position: absolute;
-      bottom: 38px;
-      left: 0;
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(15px);
-      border: 1px solid rgba(255, 255, 255, 0.8);
-      border-radius: 8px;
-      padding: 5px;
-      display: flex;
-      gap: 3px;
-      flex-wrap: wrap;
-      width: 165px;
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
-      z-index: 100;
-    }
-    .emoji-btn {
-      cursor: pointer;
-      padding: 4px;
-      font-size: 15px;
-      border-radius: 6px;
-      transition: all 0.2s ease;
-      background: transparent;
-      border: none;
-    }
-    .emoji-btn:hover {
-      background: rgba(102, 126, 234, 0.12);
-      transform: scale(1.15);
-    }
-
-    #messages {
-      text-align: center;
-      color: #dc2626;
-      margin-top: 6px;
-      min-height: 16px;
-      font-weight: 600;
-      font-size: clamp(9px, 1.6vw, 11px);
-    }
-
-    .sound-toggle {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      width: 32px;
-      height: 32px;
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(15px);
-      border-radius: 50%;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
-      cursor: pointer;
-      z-index: 100;
-      transition: all 0.3s ease;
-      border: 2px solid rgba(102, 126, 234, 0.25);
-    }
-    .sound-toggle:hover {
-      transform: scale(1.1);
-      box-shadow: 0 6px 16px rgba(102, 126, 234, 0.3);
-    }
-    .sound-toggle.muted {
-      opacity: 0.6;
-      background: rgba(220, 38, 38, 0.1);
-    }
-
-    ::-webkit-scrollbar {
-      width: 5px;
-      height: 5px;
-    }
-    ::-webkit-scrollbar-track {
-      background: rgba(0, 0, 0, 0.04);
-      border-radius: 8px;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border-radius: 8px;
-    }
-
-    /* Desktop specific - prevent scrolling */
-    @media (min-width: 769px) {
-      body {
-        overflow: hidden;
-      }
-      
-      .container {
-        display: flex;
-        flex-direction: column;
-        max-height: 98vh;
-        overflow: hidden;
-      }
-      
-      #game {
-        flex: 1;
-        overflow-y: auto;
-        overflow-x: hidden;
-      }
-
-      .board-wrapper {
-        margin: 30px auto 30px auto;
-      }
-
-      .chessboard {
-        max-width: 480px;
-      }
-    }
-
-    /* Mobile specific adjustments */
-    @media (max-width: 768px) {
-      body {
-        padding: 5px;
-        align-items: flex-start;
-      }
-
-      .container {
-        padding: 8px;
-        border-radius: 12px;
-        margin: 5px auto;
-        max-height: none;
-      }
-
-      .game-info {
-        display: none;
-      }
-
-      .game-layout {
-        flex-direction: column;
-        gap: 8px;
-      }
-
-      .main-board, .sidebar {
-        width: 100%;
-        max-width: 100%;
-        min-width: 0;
-      }
-
-      .move-history {
-        display: none;
-      }
-
-      .board-wrapper {
-        margin: 35px auto 40px auto;
-      }
-
-      #blackTimer {
-        top: -28px !important;
-        left: 0 !important;
-      }
-
-      #whiteTimer {
-        bottom: -28px !important;
-        left: 0 !important;
-      }
-
-      #blackName {
-        top: -58px !important;
-        left: 50% !important;
-        right: auto !important;
-        transform: translateX(-50%) !important;
-      }
-
-      #whiteName {
-        bottom: -58px !important;
-        left: 50% !important;
-        right: auto !important;
-        transform: translateX(-50%) !important;
-      }
-
-      .chat-messages {
-        height: 130px;
-      }
-
-      .button-group {
-        grid-template-columns: 1fr 1fr;
-      }
-
-      .sound-toggle {
-        top: 8px;
-        right: 8px;
-        width: 28px;
-        height: 28px;
-        font-size: 14px;
-      }
-    }
-
-    /* Very small screens */
-    @media (max-width: 400px) {
-      .container {
-        padding: 5px;
-      }
-
-      h1 {
-        font-size: 14px;
-      }
-
-      .subtitle {
-        font-size: 8px;
-      }
-
-      .board-wrapper {
-        margin: 30px auto 35px auto;
-      }
-
-      .chat-messages {
-        height: 110px;
-      }
-    }
-
-    /* Landscape mobile */
-    @media (max-height: 600px) and (orientation: landscape) {
-      .container {
-        max-height: none;
-      }
-
-      .board-wrapper {
-        margin: 25px auto 30px auto;
-      }
-
-      .chessboard {
-        max-width: 360px;
-      }
-
-      .chat-messages {
-        height: 90px;
-      }
-    }
-  </style>
-</head>
-
-<body>
-
-<div class="container">
-    <div id="soundToggle" class="sound-toggle" onclick="toggleSound()" title="Toggle Sound">🔊</div>
-
-    <h1>♔ Chess Master ♚</h1>
-    <p class="subtitle">⚡ Premium Edition — Real-time Multiplayer</p>
-    
-    <div id="loadingMessage" style="text-align:center; padding:25px; font-weight:bold; color:#333; font-size:clamp(11px, 2.2vw, 14px);">
-        <div style="font-size:clamp(18px, 3.5vw, 22px); margin-bottom:6px;">🔌</div>
-        Connecting to server...
-    </div>
-
-    <div id="game" style="display:none;">
-      <div class="game-info">
-        <h3>👥 Room: <span id="roomName"></span></h3>
-      </div>
-
-      <div class="game-layout">
-        <div class="main-board">
-          <div class="turn-indicator" id="turnIndicator"></div>
-
-          <div class="board-wrapper" id="boardWrapper">
-            <div id="blackTimer" class="timer black" style="left:0;">5:00</div>
-            <div id="whiteTimer" class="timer white" style="left:0;">5:00</div>
-            <div id="blackName" class="player-name black">Black</div>
-            <div id="whiteName" class="player-name white">White</div>
-            <div class="chessboard" id="chessboard"></div>
-            <div id="disconnectOverlay" class="disconnect-overlay">
-                <div class="waiting-spinner"></div>
-                <div style="font-size:clamp(12px, 2.2vw, 15px); margin-bottom:5px;">⚠️ Opponent Disconnected</div>
-                <div style="font-size:clamp(10px, 1.8vw, 12px); font-weight:normal;">Claiming win in <span id="disconnectTimer">15</span>s...</div>
-            </div>
-          </div>
-
-          <div class="status" id="status"></div>
-          <div class="messages" id="messages"></div>
-        </div>
-
-        <div class="sidebar">
-          <div class="move-history">
-            <h4>📜 Move History</h4>
-            <div class="move-list" id="moveList"></div>
-          </div>
-
-          <div class="chat-box" id="chatBox">
-            <h4>💬 Live Chat</h4>
-            <div class="chat-messages" id="chatMessages"></div>
-            <div class="typing-indicator" id="typingIndicator"></div>
-
-            <div class="chat-input">
-              <div style="display:flex;align-items:center;gap:4px;flex:1;">
-                <div id="emojiPickerWrap" style="position:relative;">
-                  <button id="emojiToggle" class="emoji-btn" title="Add Emoji">😊</button>
-
-                  <div id="emojiPanel" class="emoji-panel" style="display:none;">
-                    <div class="emoji-btn" onclick="insertEmoji('😀')">😀</div>
-                    <div class="emoji-btn" onclick="insertEmoji('😄')">😄</div>
-                    <div class="emoji-btn" onclick="insertEmoji('😂')">😂</div>
-                    <div class="emoji-btn" onclick="insertEmoji('😍')">😍</div>
-                    <div class="emoji-btn" onclick="insertEmoji('👍')">👍</div>
-                    <div class="emoji-btn" onclick="insertEmoji('🤝')">🤝</div>
-                    <div class="emoji-btn" onclick="insertEmoji('🎉')">🎉</div>
-                    <div class="emoji-btn" onclick="insertEmoji('😅')">😅</div>
-                    <div class="emoji-btn" onclick="insertEmoji('♟️')">♟️</div>
-                    <div class="emoji-btn" onclick="insertEmoji('❤️')">❤️</div>
-                    <div class="emoji-btn" onclick="insertEmoji('🔥')">🔥</div>
-                    <div class="emoji-btn" onclick="insertEmoji('⚡')">⚡</div>
-                  </div>
-                </div>
-
-                <input id="chatInput" type="text" placeholder="Type message..." style="user-select:text;-webkit-user-select:text;" />
-              </div>
-              <button onclick="sendChat()">Send</button>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      <div class="button-group">
-        <button onclick="goHome()">🏠 Home</button>
-        <button onclick="offerDraw()" class="btn-draw">🤝 Draw</button>
-        <button onclick="resignGame()" class="btn-danger">🏳️ Resign</button>
-      </div>
-
-    </div>
-</div>
-
-<div class="promotion-modal" id="promotionModal">
-  <div class="promotion-content">
-    <h3>👑 Promote Pawn</h3>
-    <p style="color:#666;margin-top:5px;font-size:clamp(9px,1.8vw,11px);">Choose piece:</p>
-    <div class="promotion-pieces" id="promotionPieces"></div>
-    <div style="margin-top:10px;">
-      <button onclick="cancelPromotion()" class="btn-secondary">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<div class="draw-modal" id="drawModal">
-  <div class="draw-content">
-    <h3>🤝 Draw Offer</h3>
-    <p id="drawMessage" style="color:#666;margin-top:8px;font-size:clamp(10px,2vw,13px);"></p>
-    <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-      <button onclick="respondToDraw(true)" class="btn-bot">✅ Accept</button>
-      <button onclick="respondToDraw(false)" class="btn-danger">❌ Decline</button>
-    </div>
-  </div>
-</div>
-
-<script>
-const socket = io({ 
-  transports: ["websocket", "polling"],
-  reconnection: true,
-  reconnectionDelay: 500,
-  reconnectionAttempts: 10
-});
-
-const params = new URLSearchParams(window.location.search);
-const URL_ROOM = params.get('room');
-const URL_NAME = params.get('name');
-const URL_MODE = params.get('mode');
-const URL_TIME = params.get('time');
-
-if (!URL_ROOM || !URL_NAME) {
-    alert("Invalid game parameters. Redirecting to home.");
-    window.location.href = "/";
-}
-
-let currentRoom = URL_ROOM;
-let playerColor = null;
-let playerName = URL_NAME;
-let gameState = null;
-let selectedSquare = null;
-let possibleMoves = [];
-let pendingPromotion = null;
-let moveHistory = [];
-let soundEnabled = true;
-let lastMoveWasMine = false;
-let lastMoveTime = 0;
-let whiteSeconds = 0;
-let blackSeconds = 0;
-let timerInterval = null;
-let pendingMoves = new Map();
-let moveSequence = 0;
-let disconnectInterval = null;
-let isDragging = false;
-let pendingUpdate = null;
-
-function updateTimerPositions(myColor) {
-    const whiteTimer = document.getElementById("whiteTimer");
-    const blackTimer = document.getElementById("blackTimer");
-    const whiteName = document.getElementById("whiteName");
-    const blackName = document.getElementById("blackName");
-
-    whiteTimer.style.top = "";
-    whiteTimer.style.bottom = "";
-    blackTimer.style.top = "";
-    blackTimer.style.bottom = "";
-
-    if (whiteName) { whiteName.style.top = ""; whiteName.style.bottom = ""; }
-    if (blackName) { blackName.style.top = ""; blackName.style.bottom = ""; }
-
-    if (myColor === 'black') {
-        whiteTimer.style.top = "-35px";
-        whiteTimer.style.bottom = "auto";
+    try:
+        db_pool = psycopg2.pool.SimpleConnectionPool(1, 4, dsn=DATABASE_URL)
+        print("✅ Database connection pool created!")
         
-        blackTimer.style.bottom = "-35px";
-        blackTimer.style.top = "auto";
-
-        if (whiteName) whiteName.style.top = "-35px";
-        if (blackName) blackName.style.bottom = "-35px";
-    } else {
-        whiteTimer.style.bottom = "-35px";
-        whiteTimer.style.top = "auto";
-        
-        blackTimer.style.top = "-35px";
-        blackTimer.style.bottom = "auto";
-
-        if (whiteName) whiteName.style.bottom = "-35px";
-        if (blackName) blackName.style.top = "-35px";
-    }
-}
-
-function timeStringToSeconds(str) {
-  if (!str || typeof str !== "string" || !str.includes(":")) return 0;
-  const [m, s] = str.split(":").map(Number);
-  return m * 60 + s;
-}
-
-function formatSeconds(sec) {
-  sec = Math.max(0, Math.floor(sec));
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-function updateDisplayedTimers() {
-  const whiteTimer = document.getElementById("whiteTimer");
-  const blackTimer = document.getElementById("blackTimer");
-  
-  if (whiteTimer) whiteTimer.textContent = formatSeconds(whiteSeconds);
-  if (blackTimer) blackTimer.textContent = formatSeconds(blackSeconds);
-  
-  if (gameState && !gameState.winner) {
-    const activeColor = gameState.turn;
-    if (whiteTimer) whiteTimer.classList.toggle("active", activeColor === "white");
-    if (blackTimer) blackTimer.classList.toggle("active", activeColor === "black");
-  } else {
-    if (whiteTimer) whiteTimer.classList.remove("active");
-    if (blackTimer) blackTimer.classList.remove("active");
-  }
-}
-
-function startLocalTimer() {
-  if (timerInterval) clearInterval(timerInterval);
-
-  timerInterval = setInterval(() => {
-    if (!gameState || gameState.winner || (gameState.isActive === false)) {
-      clearInterval(timerInterval);
-      return;
-    }
-    if (gameState.turn === "white" && whiteSeconds > 0) {
-      whiteSeconds = Math.max(0, whiteSeconds - 1);
-    } else if (gameState.turn === "black" && blackSeconds > 0) {
-      blackSeconds = Math.max(0, blackSeconds - 1);
-    }
-    updateDisplayedTimers();
-    if (whiteSeconds === 0 || blackSeconds === 0) {
-      clearInterval(timerInterval);
-    }
-  }, 1000);
-}
-
-const sounds = {
-  move: { freq: 400, duration: 0.1 },
-  capture: { freq: 300, duration: 0.15 },
-  check: { freq: 600, duration: 0.2 },
-  win: { freq: 800, duration: 0.3 },
-  notify: { freq: 500, duration: 0.1 }
-};
-
-let audioCtx = null;
-
-function initAudio() {
-  if (typeof window.AudioContext === 'undefined' && typeof window.webkitAudioContext === 'undefined') return;
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
-  }
-}
-
-function playSound(type) {
-  if (!soundEnabled) return;
-  try {
-    initAudio();
-    if (!audioCtx) return;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain); 
-    gain.connect(audioCtx.destination);
-    osc.frequency.value = sounds[type].freq;
-    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + sounds[type].duration);
-    osc.start(audioCtx.currentTime);
-    osc.stop(audioCtx.currentTime + sounds[type].duration);
-  } catch (e) { console.error("Sound error:", e); }
-}
-
-function toggleSound(){
-  soundEnabled = !soundEnabled;
-  const btn = document.getElementById("soundToggle");
-  if (btn) {
-    btn.textContent = soundEnabled ? "🔊" : "🔇";
-    btn.classList.toggle("muted", !soundEnabled);
-  }
-}
-
-function animateMove(from, to, renderFn) {
-  const fromSq = document.querySelector(`.square[data-row="${from.row}"][data-col="${from.col}"]`);
-  const toSq = document.querySelector(`.square[data-row="${to.row}"][data-col="${to.col}"]`);
-  
-  const piece = fromSq ? fromSq.querySelector('.piece') : null;
-  const captured = toSq ? toSq.querySelector('.piece') : null;
-  
-  const startRect = piece ? piece.getBoundingClientRect() : null;
-  const capturedRect = captured ? captured.getBoundingClientRect() : null;
-
-  renderFn();
-
-  if (capturedRect) {
-    const ghost = captured.cloneNode(true);
-    ghost.style.position = 'fixed';
-    ghost.style.left = `${capturedRect.left}px`;
-    ghost.style.top = `${capturedRect.top}px`;
-    ghost.style.width = `${capturedRect.width}px`;
-    ghost.style.height = `${capturedRect.height}px`;
-    ghost.style.zIndex = '90';
-    ghost.style.pointerEvents = 'none';
-    ghost.style.transition = 'all 0.3s ease-out';
-    ghost.style.opacity = '1';
-    ghost.style.transform = 'scale(1)';
-    
-    document.body.appendChild(ghost);
-    
-    requestAnimationFrame(() => {
-      ghost.style.opacity = '0';
-      ghost.style.transform = 'scale(0.8)';
-    });
-    
-    setTimeout(() => ghost.remove(), 300);
-  }
-
-  if (startRect) {
-    const newToSq = document.querySelector(`.square[data-row="${to.row}"][data-col="${to.col}"]`);
-    const newPiece = newToSq ? newToSq.querySelector('.piece') : null;
-    
-    if (newPiece) {
-      const endRect = newPiece.getBoundingClientRect();
-      const dx = startRect.left - endRect.left;
-      const dy = startRect.top - endRect.top;
-      
-      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
-
-      newPiece.style.transition = 'none';
-      newPiece.style.transform = `translate(${dx}px, ${dy}px)`;
-      newPiece.style.zIndex = '100';
-      
-      void newPiece.offsetWidth;
-      
-      newPiece.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)';
-      newPiece.style.transform = 'translate(0, 0)';
-      
-      setTimeout(() => {
-        newPiece.style.zIndex = '';
-        newPiece.style.transition = '';
-        newPiece.style.transform = '';
-      }, 260);
-    }
-  }
-}
-
-function applyOptimisticMove(from, to, promotion = null) {
-  if (!gameState) return null;
-  const optimisticState = JSON.parse(JSON.stringify(gameState));
-  const piece = optimisticState.board[from.row][from.col];
-  optimisticState.board[to.row][to.col] = piece;
-  optimisticState.board[from.row][from.col] = ".";
-  if (promotion) {
-    const promotedPiece = playerColor === "white" ? promotion.toUpperCase() : promotion.toLowerCase();
-    optimisticState.board[to.row][to.col] = promotedPiece;
-  }
-  optimisticState.turn = optimisticState.turn === "white" ? "black" : "white";
-  return optimisticState;
-}
-
-function revertOptimisticMove(moveId) {
-  if (pendingMoves.has(moveId)) {
-    const moveData = pendingMoves.get(moveId);
-    if (moveData.previousState) {
-      gameState = moveData.previousState;
-      renderBoard(gameState);
-      updateStatus(gameState);
-      updateTurnIndicator(gameState);
-    }
-    pendingMoves.delete(moveId);
-  }
-}
-
-function sendChat(){
-  const input = document.getElementById("chatInput");
-  const text = input ? input.value.trim() : "";
-  if(!text || !currentRoom) return;
-  socket.emit("send_message", {
-    room: currentRoom,
-    sender: playerColor || "spectator",
-    message: text,
-    senderName: playerName
-  });
-  input.value = "";
-  stopTypingNow();
-  hideEmojiPanel();
-}
-
-function appendChat(data, isLocal){
-  const box = document.getElementById("chatMessages");
-  if (!box) return;
-  const div = document.createElement("div");
-  div.className = "chat-line " + (isLocal ? "you" : "opponent");
-  let displayName = data.senderName;
-  if (!displayName) {
-    if (data.sender === "white") displayName = "♔ White";
-    else if (data.sender === "black") displayName = "♚ Black";
-    else displayName = "User";
-  }
-  const prefix = data.sender === "white" ? "♔" : 
-                 data.sender === "black" ? "♚" : "💬";
-  div.innerText = `${prefix} ${displayName}: ${data.message}`;
-  box.appendChild(div);
-  box.scrollTop = box.scrollHeight;
-}
-
-let typingTimeout = null;
-let isTyping = false;
-
-function handleTypingInput(){
-  if(!currentRoom || !playerColor) return;
-  if(!isTyping){
-    isTyping = true;
-    socket.emit("typing", { room: currentRoom, sender: playerColor, senderName: playerName });
-  }
-  if(typingTimeout) clearTimeout(typingTimeout);
-  typingTimeout = setTimeout(() => { stopTypingNow(); }, 1400);
-}
-
-function stopTypingNow(){
-  if(!isTyping) return;
-  isTyping = false;
-  if (currentRoom && playerColor) {
-    socket.emit("stop_typing", { room: currentRoom, sender: playerColor, senderName: playerName });
-  }
-}
-
-function insertEmoji(emoji) {
-  const input = document.getElementById("chatInput");
-  if (!input) return;
-  const start = input.selectionStart;
-  const end = input.selectionEnd;
-  const text = input.value;
-  input.value = text.slice(0, start) + emoji + text.slice(end);
-  input.selectionStart = input.selectionEnd = start + emoji.length;
-  input.focus();
-  handleTypingInput();
-}
-
-function hideEmojiPanel(){
-  const panel = document.getElementById("emojiPanel");
-  if(panel) panel.style.display = "none";
-}
-
-function initializeEmojiPanel() {
-  const emojiToggle = document.getElementById("emojiToggle");
-  const emojiPanel = document.getElementById("emojiPanel");
-  const emojiWrap = document.getElementById("emojiPickerWrap");
-  if (emojiToggle && emojiPanel) {
-    emojiToggle.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const visible = window.getComputedStyle(emojiPanel).display !== "none";
-      emojiPanel.style.display = visible ? "none" : "flex";
-    });
-    emojiPanel.addEventListener("click", (e) => { e.stopPropagation(); });
-  }
-  document.addEventListener("click", (e) => {
-    if (emojiWrap && !emojiWrap.contains(e.target)) {
-      hideEmojiPanel();
-    }
-  });
-}
-
-function updatePlayerNames(state) {
-  const whiteNameEl = document.getElementById("whiteName");
-  const blackNameEl = document.getElementById("blackName");
-
-  if (!whiteNameEl || !blackNameEl || !state) return;
-
-  let whiteName = "";
-  let blackName = "";
-
-  if (playerColor === "white") {
-    whiteName = playerName;
-    blackName = state.opponentName || "Opponent";
-  } else if (playerColor === "black") {
-    blackName = playerName;
-    whiteName = state.opponentName || "Opponent";
-  } else {
-    whiteName = state.whiteName || "White";
-    blackName = state.blackName || "Black";
-  }
-
-  whiteNameEl.textContent = whiteName;
-  blackNameEl.textContent = blackName;
-}
-
-socket.on("connect",()=>{
-  if (URL_MODE === 'create') {
-    socket.emit("create_room", { room: URL_ROOM, timeControl: URL_TIME, playerName: URL_NAME, bot: false });
-  } else if (URL_MODE === 'join') {
-    socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME });
-  } else if (URL_MODE === 'bot') {
-    socket.emit("create_room", { room: URL_ROOM, timeControl: URL_TIME, playerName: URL_NAME, bot: true });
-  }
-});
-
-socket.on("disconnect",()=>{});
-
-socket.on("room_created", startGame);
-socket.on("room_joined", startGame);
-
-socket.on("error", (data) => {
-    alert(data.message);
-    window.location.href = "/";
-});
-
-function startGame(data){
-  document.getElementById("loadingMessage").style.display = "none";
-  document.getElementById("game").style.display = "block";
-
-  currentRoom = data.room;
-  playerColor = data.color;
-  gameState = data.state;
-
-  updateTimerPositions(playerColor);
-  updatePlayerNames(gameState);
-
-  const roomName = document.getElementById("roomName");
-  
-  if (roomName) roomName.textContent = currentRoom;
-
-  const defaultSeconds = URL_TIME || 300;
-  whiteSeconds = gameState.whiteTimeFormatted ? timeStringToSeconds(gameState.whiteTimeFormatted) : defaultSeconds;
-  blackSeconds = gameState.blackTimeFormatted ? timeStringToSeconds(gameState.blackTimeFormatted) : defaultSeconds;
-
-  updateDisplayedTimers();
-
-  const isWaiting = (gameState.isActive === false);
-  updateWaitingOverlay(isWaiting);
-
-  if (!isWaiting) {
-      startLocalTimer();
-  }
-
-  renderBoard(gameState);
-  updateStatus(gameState);
-  updateTurnIndicator(gameState);
-}
-
-socket.on("game_start", d=>{
-  gameState = d.state;
-  updateWaitingOverlay(false);
-  updatePlayerNames(gameState);
-  startLocalTimer();
-  renderBoard(gameState);
-  updateStatus(gameState);
-  updateTurnIndicator(gameState);
-  playSound("notify");
-});
-
-function updateWaitingOverlay(show) {
-    const wrapper = document.getElementById("boardWrapper");
-    let overlay = document.getElementById("waitingOverlay");
-    if (show) {
-        if (!overlay) {
-            overlay = document.createElement("div");
-            overlay.id = "waitingOverlay";
-            overlay.className = "waiting-overlay";
-            overlay.innerHTML = `
-                <div class="waiting-spinner"></div>
-                <div>Waiting for opponent...</div>
-                <div style="font-size:0.7em; margin-top:3px; color:#ddd;">Room: ${currentRoom}</div>
-            `;
-            wrapper.appendChild(overlay);
-        }
-    } else {
-        if (overlay) overlay.remove();
-    }
-}
-
-socket.on("player_disconnected", (data) => {
-    if (data.color !== playerColor) {
-        const overlay = document.getElementById("disconnectOverlay");
-        const timerSpan = document.getElementById("disconnectTimer");
-        let timeLeft = data.timeout || 15;
-        
-        if (overlay && timerSpan) {
-            overlay.classList.add("active");
-            timerSpan.textContent = timeLeft;
+        conn = db_pool.getconn()
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS visitors (
+                    visit_date DATE PRIMARY KEY DEFAULT CURRENT_DATE,
+                    visit_count INTEGER DEFAULT 0
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS games (
+                    id SERIAL PRIMARY KEY,
+                    room_name VARCHAR(255),
+                    white_player VARCHAR(255),
+                    black_player VARCHAR(255),
+                    winner VARCHAR(50),
+                    win_reason VARCHAR(100),
+                    start_time TIMESTAMP,
+                    end_time TIMESTAMP
+                );
+            """)
+            conn.commit()
+            cur.close()
+            print("✅ Database tables ready.")
+        except Exception as e:
+            print(f"❌ Table creation error: {e}")
+            conn.rollback()
+        finally:
+            db_pool.putconn(conn)
             
-            if (disconnectInterval) clearInterval(disconnectInterval);
-            disconnectInterval = setInterval(() => {
-                timeLeft--;
-                timerSpan.textContent = timeLeft;
-                if (timeLeft <= 0) {
-                    clearInterval(disconnectInterval);
-                }
-            }, 1000);
-        }
-    }
-});
+    except Exception as e:
+        print(f"❌ Failed to create DB pool: {e}")
 
-socket.on("player_reconnected", (data) => {
-    const overlay = document.getElementById("disconnectOverlay");
-    if (overlay) overlay.classList.remove("active");
-    if (disconnectInterval) clearInterval(disconnectInterval);
-});
-
-socket.on("game_update", d => {
-  if (isDragging) {
-    pendingUpdate = d;
-    return;
-  }
-  const now = Date.now();
-  if (d.lastMove && lastMoveWasMine && (now - lastMoveTime < 260)) {
-    setTimeout(() => processGameUpdate(d), 260 - (now - lastMoveTime));
-    return;
-  }
-  processGameUpdate(d);
-});
-
-function processGameUpdate(d) {
-  const prev = gameState;
-  const isMyMoveConfirmation = d.lastMove && lastMoveWasMine;
-  
-  const performUpdate = () => {
-    const boardChanged = JSON.stringify(prev.board) !== JSON.stringify(d.state.board);
-    gameState = d.state;
-
-    updatePlayerNames(gameState);
-
-    pendingMoves.clear();
-    const SERVER_SYNC_THRESHOLD = 2;
-    if (gameState.whiteTimeFormatted !== undefined) {
-      const srv = timeStringToSeconds(gameState.whiteTimeFormatted);
-      if (srv > 0 && Math.abs(srv - whiteSeconds) > SERVER_SYNC_THRESHOLD) {
-        whiteSeconds = srv;
-      }
-    }
-    if (gameState.blackTimeFormatted !== undefined) {
-      const srv = timeStringToSeconds(gameState.blackTimeFormatted);
-      if (srv > 0 && Math.abs(srv - blackSeconds) > SERVER_SYNC_THRESHOLD) {
-        blackSeconds = srv;
-      }
-    }
-
-    updateDisplayedTimers();
+def get_db_conn():
+    global db_pool
+    if not db_pool:
+        init_db_pool()
     
-    if (gameState.winner) {
-        const overlay = document.getElementById("disconnectOverlay");
-        if (overlay) overlay.classList.remove("active");
-        if (disconnectInterval) clearInterval(disconnectInterval);
-    }
+    if db_pool:
+        try:
+            conn = db_pool.getconn()
+            if conn:
+                if conn.closed:
+                    db_pool.putconn(conn, close=True)
+                    return db_pool.getconn()
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT 1")
+                    return conn
+                except (psycopg2.InterfaceError, psycopg2.OperationalError):
+                    try:
+                        db_pool.putconn(conn, close=True)
+                    except:
+                        pass
+                    return db_pool.getconn()
+        except Exception as e:
+            print(f"⚠️ DB Pool Exhausted or Error: {e}")
+            return None
+    return None
 
-    if (boardChanged || !isMyMoveConfirmation) {
-      if (d.lastMove) addMoveToHistory(d.lastMove, d.moveNotation);
-      renderBoard(gameState, d.lastMove);
-    } else {
-      if (d.lastMove) addMoveToHistory(d.lastMove, d.moveNotation);
-    }
-    updateStatus(gameState);
-    updateTurnIndicator(gameState);
-  };
+def release_db_conn(conn):
+    global db_pool
+    if db_pool and conn:
+        try:
+            db_pool.putconn(conn)
+        except Exception:
+            pass 
 
-  if (d.lastMove && !isMyMoveConfirmation) {
-    animateMove(d.lastMove.from, d.lastMove.to, performUpdate);
-  } else {
-    performUpdate();
-  }
+init_db_pool()
 
-  if (prev) {
-    if (isMyMoveConfirmation) {
-      lastMoveWasMine = false;
-    }
+STOCKFISH_PATH = shutil.which("stockfish") or "/usr/games/stockfish" or "/usr/bin/stockfish"
+print(f"♟️ Stockfish Engine Path: {STOCKFISH_PATH}")
 
-    if (gameState.winner) playSound("win");
-    else if (gameState.check) playSound("check");
-    else if (d.lastMove && !isMyMoveConfirmation) {
-      const tr = d.lastMove.to.row;
-      const tc = d.lastMove.to.col;
-      const wasCapture = prev.board[tr][tc] !== ".";
-      playSound(wasCapture ? "capture" : "move");
-    }
-  }
-}
+games = {}
+sid_to_room = {}
+DISCONNECT_TIMEOUT = 15.0 
 
-socket.on("user_typing", data=>{
-  if(data.sender===playerColor) return;
-  const dest = document.getElementById("typingIndicator");
-  const displayName = data.senderName || (data.sender === "white" ? "White" : "Black");
-  if (dest) dest.innerText = `${displayName} is typing...`;
-});
+# --- ROUTES ---
+@app.route("/")
+def index():
+    increment_visitor_count()
+    return render_template("landing.html")
 
-socket.on("user_stop_typing", data=>{
-  if(data.sender===playerColor) return;
-  const dest = document.getElementById("typingIndicator");
-  if (dest) dest.innerText = "";
-});
+@app.route("/game")
+def game_page():
+    return render_template("game.html")
 
-socket.on("chat_message", data => {
-  appendChat(data, data.sender === playerColor);
-  if (data.sender !== playerColor) playSound("notify");
-});
+# --- API ENDPOINTS ---
+def increment_visitor_count():
+    conn = get_db_conn()
+    if not conn: return
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO visitors (visit_date, visit_count) 
+            VALUES (CURRENT_DATE, 1)
+            ON CONFLICT (visit_date) 
+            DO UPDATE SET visit_count = visitors.visit_count + 1
+        """)
+        conn.commit()
+        cur.close()
+    except Exception as e:
+        print(f"Visitor count error: {e}")
+        conn.rollback()
+    finally:
+        release_db_conn(conn)
 
-socket.on("invalid_move", data => {
-  lastMoveWasMine = false;
-  console.warn("Server rejected move:", data);
-  if (data.moveId) revertOptimisticMove(data.moveId);
-  const messages = document.getElementById("messages");
-  if (messages) messages.textContent = "❌ Invalid move!";
-});
+@app.route('/api/visitor-count')
+def visitor_count_api():
+    conn = get_db_conn()
+    count = 0
+    if conn:
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT COALESCE(SUM(visit_count), 0) FROM visitors")
+            res = cur.fetchone()
+            count = res[0] if res else 0
+            cur.close()
+        except Exception as e:
+            print(f"Visitor API error: {e}")
+            conn.rollback()
+        finally: release_db_conn(conn)
+    return jsonify({'visitor_count': count})
 
-document.addEventListener("DOMContentLoaded", function() {
-  initializeEmojiPanel();
-  const chatInputEl = document.getElementById("chatInput");
-  if (chatInputEl) {
-    chatInputEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        sendChat();
-      }
-    });
-    chatInputEl.addEventListener("input", handleTypingInput);
-  }
-  document.body.addEventListener('click', initAudio, { once: true });
-});
+@app.route('/api/leaderboard')
+def leaderboard_api():
+    conn = get_db_conn()
+    data = []
+    if conn:
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("""
+                SELECT player_name, COUNT(*) as total,
+                SUM(CASE WHEN winner = player_color THEN 1 ELSE 0 END) as wins,
+                ROUND((SUM(CASE WHEN winner = player_color THEN 1 ELSE 0 END)::DECIMAL / NULLIF(COUNT(*),0))*100, 1) as win_rate
+                FROM (
+                    SELECT white_player as player_name, 'white' as player_color, winner FROM games WHERE white_player IS NOT NULL AND white_player != 'Bot'
+                    UNION ALL
+                    SELECT black_player as player_name, 'black' as player_color, winner FROM games WHERE black_player IS NOT NULL AND black_player != 'Bot'
+                ) as sub GROUP BY player_name HAVING COUNT(*) > 0 ORDER BY wins DESC LIMIT 5
+            """)
+            data = cur.fetchall()
+            cur.close()
+        except Exception as e:
+            print(f"Leaderboard error: {e}")
+            conn.rollback()
+        finally: release_db_conn(conn)
+    return jsonify([dict(row) for row in data])
 
-function renderBoard(state, lastMove=null){
-  const board=document.getElementById("chessboard");
-  if (!board) return;
-  board.innerHTML="";
-  const flipped = (playerColor === "black");
-  const rows = flipped ? [...Array(8).keys()].reverse() : [...Array(8).keys()];
-  const cols = flipped ? [...Array(8).keys()].reverse() : [...Array(8).keys()];
-  for (let r of rows){
-    for (let c of cols){
-      const sq=document.createElement("div");
-      sq.className=`square ${(r+c)%2===0?"light":"dark"}`;
-      sq.dataset.row=r;
-      sq.dataset.col=c;
+# --- CHESS LOGIC ---
+def format_seconds(sec):
+    total = int(max(0, round(sec)))
+    return f"{total//60}:{total%60:02d}"
 
-      const isBottom = (playerColor === "black") ? (r === 0) : (r === 7);
-      const isLeft = (playerColor === "black") ? (c === 7) : (c === 0);
+def board_to_matrix(board):
+    grid = [["." for _ in range(8)] for _ in range(8)]
+    for sq, piece in board.piece_map().items():
+        grid[7 - chess.square_rank(sq)][chess.square_file(sq)] = piece.symbol()
+    return grid
 
-      if (isBottom) {
-          const fileLabel = document.createElement("div");
-          fileLabel.className = "square-coord file";
-          fileLabel.textContent = String.fromCharCode(97 + c);
-          sq.appendChild(fileLabel);
-      }
-      if (isLeft) {
-          const rankLabel = document.createElement("div");
-          rankLabel.className = "square-coord rank";
-          rankLabel.textContent = (8 - r).toString();
-          sq.appendChild(rankLabel);
-      }
-
-      if(lastMove){
-        const fm=lastMove.from, to=lastMove.to;
-        if((fm.row===r && fm.col===c)||(to.row===r && to.col===c)){
-          sq.classList.add("last-move");
-        }
-      }
-      if(selectedSquare && selectedSquare.row===r && selectedSquare.col===c){
-        sq.classList.add("selected");
-      }
-      if(possibleMoves.some(m=>m.row===r && m.col===c)){
-        sq.classList.add("possible-move");
-      }
-      const piece = state.board[r][c];
-      if(piece !== "."){
-        const pDiv=document.createElement("div");
-        pDiv.className="piece";
-        const isWhitePiece = piece === piece.toUpperCase();
-        const color = isWhitePiece ? "white" : "black";
-        if(color === state.turn && color === playerColor){
-          pDiv.draggable=true;
-        }
-        pDiv.dataset.row=r;
-        pDiv.dataset.col=c;
+def get_legal_moves_map(board):
+    """Pre-calculates all legal moves mapped by starting square (row,col)"""
+    moves = {}
+    for move in board.legal_moves:
+        r_from = 7 - chess.square_rank(move.from_square)
+        c_from = chess.square_file(move.from_square)
+        r_to = 7 - chess.square_rank(move.to_square)
+        c_to = chess.square_file(move.to_square)
         
-        pDiv.addEventListener("dragstart", e=>{
-          isDragging = true;
-          selectedSquare = { row:r, col:c };
-          
-          const key = `${r},${c}`;
-          possibleMoves = (state.moves && state.moves[key]) ? state.moves[key] : [];
+        key = f"{r_from},{c_from}"
+        if key not in moves:
+            moves[key] = []
+        moves[key].append({"row": r_to, "col": c_to})
+    return moves
 
-          document.querySelectorAll('.square').forEach(s => {
-             s.classList.remove('selected', 'possible-move');
-          });
-
-          const sourceSq = document.querySelector(`.square[data-row="${r}"][data-col="${c}"]`);
-          if(sourceSq) sourceSq.classList.add('selected');
-
-          possibleMoves.forEach(m => {
-             const targetSq = document.querySelector(`.square[data-row="${m.row}"][data-col="${m.col}"]`);
-             if(targetSq) targetSq.classList.add('possible-move');
-          });
-          
-          e.dataTransfer.setData("fromRow", r);
-          e.dataTransfer.setData("fromCol", c);
-        });
-
-        pDiv.addEventListener("dragend", () => {
-             isDragging = false;
-             if (pendingUpdate) {
-               processGameUpdate(pendingUpdate);
-               pendingUpdate = null;
-             } else {
-               renderBoard(gameState, lastMove);
-             }
-        });
-
-        const img=document.createElement("img");
-        const clr = isWhitePiece ? "w" : "b";
-        const type = piece.toLowerCase();
-        img.src=`https://images.chesscomfiles.com/chess-themes/pieces/neo/150/${clr}${type}.png`;
-        pDiv.appendChild(img);
-        sq.appendChild(pDiv);
-      }
-      sq.addEventListener("click", ()=> handleSquareClick(r,c,state));
-      sq.addEventListener("dragover", e=> e.preventDefault());
-      sq.addEventListener("drop", e=>{
-        e.preventDefault();
-        const fr=parseInt(e.dataTransfer.getData("fromRow"));
-        const fc=parseInt(e.dataTransfer.getData("fromCol"));
-        const from={row:fr,col:fc};
-        const to={row:r,col:c};
-        const valid = possibleMoves.some(m=>m.row===r && m.col===c);
-        if(!valid){
-          const messages = document.getElementById("messages");
-          if (messages) messages.textContent="❌ Invalid move!";
-          return;
-        }
-        const movingPiece = state.board[fr][fc];
-        const isPawn = movingPiece.toLowerCase()==="p";
-        const isPromoRank = (playerColor==="white" && r===0) ||
-                            (playerColor==="black" && r===7);
-        if(isPawn && isPromoRank){
-          pendingPromotion = { from, to };
-          showPromotionModal(playerColor);
-        } else {
-          makeMove(from,to,null,true);
-        }
-      });
-      board.appendChild(sq);
+# === FIXED: Added current_sid parameter to send correct opponentName ===
+def export_state(room, current_sid=None):
+    g = games[room]
+    state = {
+        "board": board_to_matrix(g["board"]),
+        "turn": "white" if g["board"].turn else "black",
+        "check": g["board"].is_check(),
+        "winner": g["winner"],
+        "reason": g.get("reason"),
+        "isActive": g.get("isActive", False),
+        "whiteTime": g["whiteTime"], 
+        "blackTime": g["blackTime"],
+        "whiteTimeFormatted": format_seconds(g["whiteTime"]),
+        "blackTimeFormatted": format_seconds(g["blackTime"]),
+        "moves": get_legal_moves_map(g["board"]),
+        "whiteName": g["white_player"],
+        "blackName": g["black_player"]
     }
-  }
-}
-
-function handleSquareClick(row, col, state){
-  if(state.winner) return;
-  if (state.isActive === false) {
-    const messages = document.getElementById("messages");
-    if (messages) messages.textContent = "⏳ Waiting for opponent...";
-    return;
-  }
-  if(state.turn !== playerColor){
-    const messages = document.getElementById("messages");
-    if (messages) messages.textContent = "⏳ Wait for your turn!";
-    return;
-  }
-  const piece = state.board[row][col];
-  const isWhite = piece !== "." && piece === piece.toUpperCase();
-  const isMine = piece !== "." && (
-    (playerColor==="white" && isWhite) ||
-    (playerColor==="black" && !isWhite)
-  );
-  
-  if(isMine){
-    selectedSquare = { row,col };
-    const key = `${row},${col}`;
-    possibleMoves = (state.moves && state.moves[key]) ? state.moves[key] : [];
     
-    renderBoard(state);
+    # === ADD OPPONENT NAME BASED ON CURRENT USER ===
+    if current_sid:
+        if current_sid == g.get("white_sid"):
+            state["opponentName"] = g["black_player"]
+        elif current_sid == g.get("black_sid"):
+            state["opponentName"] = g["white_player"]
     
-    const messages = document.getElementById("messages");
-    if (messages) messages.textContent="";
-    return;
-  }
+    return state
 
-  if(!selectedSquare) return;
-  const isValid = possibleMoves.some(m=>m.row===row && m.col===col);
-  if(!isValid){
-    const messages = document.getElementById("messages");
-    if (messages) messages.textContent = "❌ Invalid move!";
-    return;
-  }
-  const movingPiece = state.board[selectedSquare.row][selectedSquare.col];
-  const isPawn = movingPiece.toLowerCase()==="p";
-  const isPromoRank = (playerColor==="white" && row===0) ||
-                      (playerColor==="black" && row===7);
-  if(isPawn && isPromoRank){
-    pendingPromotion = { from:selectedSquare, to:{row,col} };
-    showPromotionModal(playerColor);
-  } else {
-    makeMove(selectedSquare, {row,col}, null);
-  }
-}
+def update_time(g):
+    if not g.get("isActive") or g["winner"]: return
+    now = time.time()
+    elapsed = now - g["lastUpdate"]
+    g["lastUpdate"] = now
+    
+    if g["board"].turn:
+        g["whiteTime"] = max(0, g["whiteTime"] - elapsed)
+        if g["whiteTime"] <= 0: 
+            g["winner"] = "black"
+            g["reason"] = "timeout"
+    else:
+        g["blackTime"] = max(0, g["blackTime"] - elapsed)
+        if g["blackTime"] <= 0: 
+            g["winner"] = "white"
+            g["reason"] = "timeout"
 
-function makeMove(from, to, promotion=null, isDrop=false){
-  lastMoveWasMine = true;
-  lastMoveTime = Date.now();
-  const moveId = ++moveSequence;
-  const previousState = JSON.parse(JSON.stringify(gameState));
-  
-  const performMove = () => {
-    const optimisticState = applyOptimisticMove(from, to, promotion);
-    if (optimisticState) {
-      gameState = optimisticState;
-      renderBoard(gameState, { from, to });
-      updateTurnIndicator(gameState);
-      const wasCapture = previousState.board[to.row][to.col] !== ".";
-      playSound(wasCapture ? "capture" : "move");
-      pendingMoves.set(moveId, {
-        from, to, promotion, previousState, timestamp: Date.now()
-      });
+def save_game(room, g):
+    if g.get("saved"): return
+    conn = get_db_conn()
+    if conn:
+        try:
+            end_time = datetime.utcnow()
+            start_time = g.get("start_timestamp", end_time)
+            win_reason = g.get("reason", "unknown")
+
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO games 
+                (room_name, white_player, black_player, winner, win_reason, start_time, end_time) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (
+                room, 
+                g["white_player"], 
+                g["black_player"], 
+                g["winner"], 
+                win_reason, 
+                start_time, 
+                end_time
+            ))
+            conn.commit()
+            cur.close()
+            g["saved"] = True
+            print(f"✅ Game {room} saved to DB.")
+        except Exception as e:
+            print(f"❌ Save game error: {e}")
+            conn.rollback()
+        finally: release_db_conn(conn)
+
+def timeout_watcher():
+    while True:
+        time.sleep(1)
+        for r, g in list(games.items()):
+            if g.get("isActive") and not g["winner"]:
+                with g["lock"]:
+                    update_time(g)
+                    if g["winner"]:
+                        save_game(r, g)
+                        # Fixed: Send state to all clients properly
+                        for sid in g.get("clients", set()):
+                            socketio.emit("game_update", {"state": export_state(r, sid)}, room=sid)
+
+timeout_thread = threading.Thread(target=timeout_watcher, daemon=True)
+timeout_thread.start()
+
+def handle_disconnect_timeout(room, color):
+    if room not in games: return
+    g = games[room]
+    
+    with g["lock"]:
+        if g["winner"]: return
+        if color == "white" and g.get("white_disconnect_timer"):
+            g["winner"] = "black"
+            g["reason"] = "abandonment"
+            g["white_disconnect_timer"] = None
+        elif color == "black" and g.get("black_disconnect_timer"):
+            g["winner"] = "white"
+            g["reason"] = "abandonment"
+            g["black_disconnect_timer"] = None
+        else:
+            return 
+        save_game(room, g)
+        # Fixed: Send state to all clients properly
+        for sid in g.get("clients", set()):
+            socketio.emit("game_update", {"state": export_state(room, sid)}, room=sid)
+
+def cancel_timer(g, color):
+    if color == "white" and g.get("white_disconnect_timer"):
+        g["white_disconnect_timer"].cancel()
+        g["white_disconnect_timer"] = None
+    elif color == "black" and g.get("black_disconnect_timer"):
+        g["black_disconnect_timer"].cancel()
+        g["black_disconnect_timer"] = None
+
+@socketio.on("create_room")
+def create(data):
+    room = data["room"]
+    is_bot = data.get("bot", False)
+    player_name = data.get("playerName", "White")
+    
+    # Random starting color for creator (always white against bot)
+    creator_color = random.choice(["white", "black"]) if not is_bot else "white"
+    
+    if room in games:
+        g = games[room]
+        if g.get("winner") is None: 
+            emit("error", {"message": f"Room '{room}' is already taken!"})
+            return
+
+    # Assign players based on random color
+    white_player = player_name if creator_color == "white" else None
+    black_player = player_name if creator_color == "black" else None
+    
+    if is_bot:
+        black_player = "Bot"
+
+    games[room] = {
+        "board": chess.Board(),
+        "whiteTime": float(data.get("timeControl", 300)),
+        "blackTime": float(data.get("timeControl", 300)),
+        "lastUpdate": time.time(),
+        "start_timestamp": datetime.utcnow(),
+        "isActive": True if is_bot else False,
+        "winner": None,
+        "bot": is_bot,
+        "lock": threading.Lock(),
+        "white_player": white_player,
+        "black_player": black_player,
+        "white_sid": request.sid if creator_color == "white" else None,
+        "black_sid": request.sid if creator_color == "black" else None,
+        "white_disconnect_timer": None,
+        "black_disconnect_timer": None,
+        "clients": {request.sid}
     }
-  };
+    
+    sid_to_room[request.sid] = room
+    join_room(room)
+    emit("room_created", {
+        "color": creator_color, 
+        "state": export_state(room, request.sid), 
+        "room": room
+    })
 
-  if (!isDrop) {
-    animateMove(from, to, performMove);
-  } else {
-    performMove();
-  }
+@socketio.on("join_room")
+def join(data):
+    room = data["room"]
+    player_name = data.get("playerName", "Black")
 
-  socket.emit("move", { room: currentRoom, from, to, promotion, moveId });
-  selectedSquare = null;
-  possibleMoves = [];
-  pendingPromotion = null;
-  const messages = document.getElementById("messages");
-  if (messages) messages.textContent = "";
-}
+    if room not in games: 
+        emit("error", {"message": "Room not found"})
+        return
+        
+    g = games[room]
+    
+    reconnected = False
+    
+    # First check for reconnection by session ID
+    if request.sid == g.get("white_sid"):
+        reconnected = True
+        cancel_timer(g, "white")
+        socketio.emit("player_reconnected", {"color": "white"}, room=room)
+        
+    elif request.sid == g.get("black_sid"):
+        reconnected = True
+        cancel_timer(g, "black")
+        socketio.emit("player_reconnected", {"color": "black"}, room=room)
 
-function showPromotionModal(color){
-  const modal=document.getElementById("promotionModal");
-  const pcs=document.getElementById("promotionPieces");
-  if (!modal || !pcs) return;
-  pcs.innerHTML="";
-  const opt=['q','r','b','n'];
-  const pre = (color==="white") ? "w" : "b";
-  opt.forEach(t=>{
-    const img=document.createElement("img");
-    img.src=`https://images.chesscomfiles.com/chess-themes/pieces/neo/150/${pre}${t}.png`;
-    img.onclick = ()=>{
-      makeMove(pendingPromotion.from, pendingPromotion.to, t);
-      modal.classList.remove("active");
-    };
-    pcs.appendChild(img);
-  });
-  modal.classList.add("active");
-}
+    # Then check for reconnection by name (only if sid is not set)
+    elif player_name == g["white_player"] and g.get("white_sid") is None:
+        g["white_sid"] = request.sid
+        cancel_timer(g, "white")
+        reconnected = True
+        socketio.emit("player_reconnected", {"color": "white"}, room=room)
+        
+    elif g["black_player"] and player_name == g["black_player"] and g.get("black_sid") is None:
+        g["black_sid"] = request.sid
+        cancel_timer(g, "black")
+        reconnected = True
+        socketio.emit("player_reconnected", {"color": "black"}, room=room)
 
-function cancelPromotion(){
-  pendingPromotion=null;
-  const modal = document.getElementById("promotionModal");
-  if (modal) modal.classList.remove("active");
-}
+    # Join as new player if slot is empty
+    elif not g["white_player"]:
+        g["white_player"] = player_name
+        g["white_sid"] = request.sid
+        g["isActive"] = True
+        g["lastUpdate"] = time.time()
+    elif not g["black_player"]:
+        g["black_player"] = player_name
+        g["black_sid"] = request.sid
+        g["isActive"] = True
+        g["lastUpdate"] = time.time()
+    else:
+        if not reconnected:
+            emit("error", {"message": "Room is full"})
+            return
 
-function addMoveToHistory(lastMove,notation){
-  moveHistory.push({ from:lastMove.from, to:lastMove.to, notation: notation });
-  renderMoveHistory();
-}
+    if "clients" not in g: g["clients"] = set()
+    g["clients"].add(request.sid)
+    sid_to_room[request.sid] = room
+    join_room(room)
+    
+    my_color = "white" if request.sid == g.get("white_sid") else "black"
+    if request.sid != g.get("white_sid") and request.sid != g.get("black_sid"):
+        my_color = "spectator"
 
-function renderMoveHistory(){
-  const list=document.getElementById("moveList");
-  if (!list) return;
-  list.innerHTML="";
-  for(let i=0;i<moveHistory.length;i+=2){
-    const num=document.createElement("div");
-    num.className="move-number";
-    num.textContent=(i/2+1)+".";
-    list.appendChild(num);
-    const w=document.createElement("div");
-    w.className="move-item white";
-    w.textContent=moveHistory[i].notation;
-    list.appendChild(w);
-    if(i+1 < moveHistory.length){
-      const b=document.createElement("div");
-      b.className="move-item black";
-      b.textContent=moveHistory[i+1].notation;
-      list.appendChild(b);
-    } else {
-      list.appendChild(document.createElement("div"));
-    }
-  }
-  const parent = list.parentElement;
-  if (parent) parent.scrollTop = parent.scrollHeight;
-}
+    emit("room_joined", {
+        "color": my_color, 
+        "state": export_state(room, request.sid), 
+        "room": room
+    })
+    
+    for sid in g.get("clients", set()):
+        socketio.emit("game_start", {"state": export_state(room, sid)}, room=sid)
 
-function updateTurnIndicator(state){
-  const ind=document.getElementById("turnIndicator");
-  if (!ind) return;
-  if(state.winner){
-    ind.textContent="🏁 Game Over";
-    ind.style.background="linear-gradient(135deg, #11998e 0%, #38ef7d 100%)";
-    ind.style.color="#fff";
-    return;
-  }
-  ind.textContent = (state.turn==="white") ? "♔ White to move" : "♚ Black to move";
-  ind.style.background = "";
-  ind.style.color = "";
-}
+@socketio.on("disconnect")
+def on_disconnect():
+    sid = request.sid
+    room = sid_to_room.pop(sid, None)
+    
+    if room and room in games:
+        g = games[room]
+        
+        disconnected_color = None
+        if sid == g.get("white_sid"):
+            disconnected_color = "white"
+        elif sid == g.get("black_sid"):
+            disconnected_color = "black"
 
-function updateStatus(state){
-  const s=document.getElementById("status");
-  if (!s) return;
-  if(state.winner){
-    if(state.winner==="draw"){
-      s.textContent="🤝 Game Draw!";
-      s.style.background="linear-gradient(135deg, #f7971e 0%, #ffd200 100%)";
-      s.style.color="#fff";
-    } else {
-      const w = state.winner==="white" ? "♔ WHITE" : "♚ BLACK";
-      const r =
-        state.reason==="checkmate" ? "by Checkmate" :
-        state.reason==="resign" ? "by Resignation" :
-        state.reason==="timeout" ? "by Timeout" : 
-        state.reason==="abandonment" ? "by Abandonment" : "";
-      s.textContent=`👑 ${w} Wins ${r}!`;
-      s.style.background="linear-gradient(135deg, #11998e 0%, #38ef7d 100%)";
-      s.style.color="#fff";
-    }
-    return;
-  }
-  if(state.check){
-    const t = state.turn==="white"?"♔ WHITE":"♚ BLACK";
-    s.textContent=`⚠️ CHECK! ${t}'s turn`;
-    s.style.background="linear-gradient(135deg, #eb3349 0%, #f45c43 100%)";
-    s.style.color="#fff";
-    return;
-  }
-  s.textContent="";
-  s.style.background="";
-  s.style.color="";
-}
+        if "clients" in g:
+            g["clients"].discard(sid)
 
-function goHome(){
-  if(confirm("Return to home? Current game will end.")){
-    socket.emit("leave_room",{room:currentRoom});
-    window.location.href = "/";
-  }
-}
+        if disconnected_color and g.get("isActive") and not g["winner"]:
+            print(f"⚠️ {disconnected_color} disconnected from {room}. Starting {DISCONNECT_TIMEOUT}s timer.")
+            socketio.emit("player_disconnected", {"color": disconnected_color, "timeout": DISCONNECT_TIMEOUT}, room=room)
+            t = threading.Timer(DISCONNECT_TIMEOUT, handle_disconnect_timeout, [room, disconnected_color])
+            t.start()
+            if disconnected_color == "white":
+                g["white_disconnect_timer"] = t
+            else:
+                g["black_disconnect_timer"] = t
 
-function offerDraw(){
-  socket.emit("offer_draw",{room:currentRoom,color:playerColor});
-  const messages = document.getElementById("messages");
-  if (messages) messages.textContent="🤝 Draw offer sent...";
-}
+        if len(g["clients"]) == 0 and not g.get("white_disconnect_timer") and not g.get("black_disconnect_timer"):
+            print(f"🧹 Room '{room}' is empty and idle. Deleting game.")
+            del games[room]
 
-socket.on("draw_offered", data=>{
-  const drawMessage = document.getElementById("drawMessage");
-  const drawModal = document.getElementById("drawModal");
-  if (drawMessage && drawModal) {
-    drawMessage.textContent = `${data.fromColor.toUpperCase()} offers a draw. Accept?`;
-    drawModal.classList.add("active");
-  }
-});
+@socketio.on("move")
+def move(data):
+    room = data["room"]
+    if room not in games: return
+    g = games[room]
+    
+    if not g.get("isActive"): 
+        emit("error", {"message": "Waiting for opponent..."})
+        return
+    
+    with g["lock"]:
+        update_time(g)
+        if g["winner"]: return
+        
+        board = g["board"]
+        f = chess.square(data["from"]["col"], 7-data["from"]["row"])
+        t = chess.square(data["to"]["col"], 7-data["to"]["row"])
+        mv = chess.Move(f, t, chess.QUEEN if data.get("promotion") else None)
+        
+        if mv not in board.legal_moves and not data.get("promotion"):
+            mv = chess.Move(f, t, chess.QUEEN)
 
-socket.on("draw_declined", ()=>{
-  const messages = document.getElementById("messages");
-  if (messages) messages.textContent="❌ Opponent declined your draw.";
-});
+        if mv in board.legal_moves:
+            san = board.san(mv)
+            board.push(mv)
+            
+            if board.is_game_over():
+                g["winner"] = "white" if not board.turn else "black"
+                if board.is_stalemate(): g["winner"] = "draw"
+                else: g["reason"] = "checkmate"
+                save_game(room, g)
+            
+            # Fixed: Send state to each client with their perspective
+            for sid in g.get("clients", set()):
+                socketio.emit("game_update", {
+                    "state": export_state(room, sid),
+                    "lastMove": data,
+                    "moveNotation": san
+                }, room=sid)
 
-function respondToDraw(acc){
-  const drawModal = document.getElementById("drawModal");
-  if (drawModal) drawModal.classList.remove("active");
-  socket.emit("respond_draw",{room:currentRoom,accept:acc});
-}
+            if g["bot"] and not g["winner"]:
+                socketio.start_background_task(bot_play, room)
 
-function resignGame(){
-  if(confirm("Are you sure you want to resign?")){
-    socket.emit("resign",{room:currentRoom,color:playerColor});
-  }
-}
-</script>
-</body>
-</html>
+def bot_play(room):
+    time.sleep(0.5) 
+    if room not in games: return
+    g = games[room]
+    
+    with g["lock"]:
+        board = g["board"]
+        if board.is_game_over(): return
+
+        best_move = None
+        if STOCKFISH_PATH:
+            try:
+                engine = chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH)
+                result = engine.play(board, chess.engine.Limit(time=0.5))
+                best_move = result.move
+                engine.quit()
+            except Exception as e:
+                print(f"❌ Stockfish Error: {e}")
+                best_move = random.choice(list(board.legal_moves))
+        else:
+            best_move = random.choice(list(board.legal_moves))
+
+        if best_move:
+            san = board.san(best_move)
+            board.push(best_move)
+            
+            if board.is_game_over():
+                g["winner"] = "black"
+                g["reason"] = "checkmate"
+                save_game(room, g)
+            
+            # Fixed: Send state to each client with their perspective
+            for sid in g.get("clients", set()):
+                socketio.emit("game_update", {
+                    "state": export_state(room, sid),
+                    "lastMove": {"from": {"row": 7-chess.square_rank(best_move.from_square), "col": chess.square_file(best_move.from_square)}, 
+                                 "to": {"row": 7-chess.square_rank(best_move.to_square), "col": chess.square_file(best_move.to_square)}},
+                    "moveNotation": san
+                }, room=sid)
+
+@socketio.on("send_message")
+def msg(data): socketio.emit("chat_message", data, room=data["room"])
+@socketio.on("typing")
+def on_typing(data):
+    socketio.emit("user_typing", data, room=data["room"], skip_sid=request.sid)
+
+@socketio.on("stop_typing")
+def on_stop_typing(data):
+    socketio.emit("user_stop_typing", data, room=data["room"], skip_sid=request.sid)
+
+@socketio.on("offer_draw")
+def offer_draw(data):
+    socketio.emit("draw_offered", {"fromColor": data["color"]}, room=data["room"], skip_sid=request.sid)
+
+@socketio.on("respond_draw")
+def respond_draw(data):
+    room = data["room"]
+    if room not in games: return
+    g = games[room]
+    if data["accept"]:
+        g["winner"] = "draw"
+        g["reason"] = "agreement"
+        save_game(room, g)
+        # Fixed: Send state to each client with their perspective
+        for sid in g.get("clients", set()):
+            socketio.emit("game_update", {"state": export_state(room, sid)}, room=sid)
+    else:
+        socketio.emit("draw_declined", {}, room=room)
+
+@socketio.on("resign")
+def resign(data):
+    room = data["room"]
+    if room not in games: return
+    g = games[room]
+    if g["winner"]: return
+    g["winner"] = "black" if data["color"] == "white" else "white"
+    g["reason"] = "resign"
+    save_game(room, g)
+    # Fixed: Send state to each client with their perspective
+    for sid in g.get("clients", set()):
+        socketio.emit("game_update", {"state": export_state(room, sid)}, room=sid)
+
+@socketio.on("leave_room")
+def on_leave(data):
+    room = data.get("room")
+    if room: leave_room(room)
+
+if __name__ == "__main__":
+    socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
