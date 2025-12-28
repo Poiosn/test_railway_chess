@@ -447,21 +447,22 @@
     }
 
     .move-item-replay {
-      padding: 8px;
+      padding: 6px 8px;
       margin: 4px 0;
       background: white;
       border-radius: 6px;
-      cursor: pointer;
       transition: all 0.2s ease;
+      font-size: 14px;
     }
 
     .move-item-replay:hover {
-      background: rgba(102, 126, 234, 0.1);
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
     }
 
     .move-item-replay.active {
-      background: rgba(102, 126, 234, 0.2);
+      background: rgba(102, 126, 234, 0.15);
       font-weight: 700;
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
     }
 
     /* Modal for spectate */
@@ -914,12 +915,27 @@ function renderMoveListReplay() {
   const moves = currentReplayData.moves;
   const listEl = document.getElementById('moveListReplay');
 
-  listEl.innerHTML = moves.map((move, index) => `
-    <div class="move-item-replay ${index === currentMoveIndex ? 'active' : ''}" 
-         onclick="jumpToMove(${index})">
-      ${index + 1}. ${move.move_notation}
-    </div>
-  `).join('');
+  // Display moves in pairs (White + Black = 1 move number)
+  let html = '';
+  for (let i = 0; i < moves.length; i++) {
+    const moveNum = Math.floor(i / 2) + 1;
+    const isWhite = i % 2 === 0;
+    
+    if (isWhite) {
+      // Start new move pair
+      html += `<div class="move-item-replay ${i === currentMoveIndex || i + 1 === currentMoveIndex ? 'active' : ''}" style="display:flex; gap:10px;">
+        <span style="font-weight:700; min-width:25px;">${moveNum}.</span>
+        <span onclick="jumpToMove(${i})" style="cursor:pointer; flex:1; padding:4px; border-radius:4px; ${i === currentMoveIndex ? 'background:rgba(102, 126, 234, 0.3);' : ''}" onmouseover="this.style.background='rgba(102, 126, 234, 0.1)'" onmouseout="if(${i} !== ${currentMoveIndex}) this.style.background='transparent'">${moves[i].move_notation}</span>`;
+      
+      // Add black's move if it exists
+      if (i + 1 < moves.length) {
+        html += `<span onclick="jumpToMove(${i + 1})" style="cursor:pointer; flex:1; padding:4px; border-radius:4px; ${i + 1 === currentMoveIndex ? 'background:rgba(102, 126, 234, 0.3);' : ''}" onmouseover="this.style.background='rgba(102, 126, 234, 0.1)'" onmouseout="if(${i + 1} !== ${currentMoveIndex}) this.style.background='transparent'">${moves[i + 1].move_notation}</span>`;
+      }
+      html += `</div>`;
+    }
+  }
+  
+  listEl.innerHTML = html;
 }
 
 function renderReplayBoard(fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') {
