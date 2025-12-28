@@ -544,40 +544,47 @@ def join_matchmaking(data):
                 black_player = player_name
                 black_sid = sid
             
+            # Get user IDs if authenticated (check both possible players)
+            user = get_current_user()
+            # We can't determine user_ids yet since players will connect with new sids
+            # Set them to None and let join_room handle user linking
+            
             games[room] = {
                 "board": chess.Board(),
                 "whiteTime": float(time_control),
                 "blackTime": float(time_control),
                 "lastUpdate": time.time(),
                 "start_timestamp": datetime.utcnow(),
-                "isActive": True,
+                "isActive": False,  # Will become True when both players join
                 "winner": None,
                 "bot": False,
                 "lock": threading.Lock(),
                 "white_player": white_player,
                 "black_player": black_player,
-                "white_sid": white_sid,
-                "black_sid": black_sid,
+                "white_sid": None,  # Will be set when player joins
+                "black_sid": None,  # Will be set when player joins
+                "white_user_id": None,  # Will be set when player joins
+                "black_user_id": None,  # Will be set when player joins
                 "white_disconnect_timer": None,
                 "black_disconnect_timer": None,
-                "clients": {white_sid, black_sid},
-                "game_mode": "global"
+                "clients": set(),
+                "game_mode": "global",
+                "move_history": []
             }
             
-            sid_to_room[white_sid] = room
-            sid_to_room[black_sid] = room
+            # Don't add to sid_to_room yet - will be done in join_room
             
-            # Notify both players
+            # Notify both players with their assigned names
             socketio.emit("matchmaking_found", {
                 "room": room,
-                "color": "white",
-                "state": export_state(room, white_sid)
+                "playerName": white_player,
+                "color": "white"
             }, room=white_sid)
             
             socketio.emit("matchmaking_found", {
                 "room": room,
-                "color": "black",
-                "state": export_state(room, black_sid)
+                "playerName": black_player,
+                "color": "black"
             }, room=black_sid)
             
             print(f"✅ Match found! Room: {room}, White: {white_player}, Black: {black_player}")
