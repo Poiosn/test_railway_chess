@@ -495,6 +495,9 @@
       <button id="loginBtn" onclick="window.location.href='/profile'" class="btn-auth btn-login">
         🔐 Login
       </button>
+      <button id="profileLinkBtn" onclick="window.location.href='/profile'" class="btn-auth" style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); display:none;">
+        👤 My Profile
+      </button>
       <button id="signoutBtn" onclick="signOut()" class="btn-auth btn-signout" style="display:none;">
         🚪 Sign Out
       </button>
@@ -651,8 +654,9 @@ async function checkAuth() {
 }
 
 function updateUIForLoggedInUser() {
-  // Hide login button, show sign out button
+  // Hide login button, show profile link and sign out buttons
   document.getElementById('loginBtn').style.display = 'none';
+  document.getElementById('profileLinkBtn').style.display = 'inline-block';
   document.getElementById('signoutBtn').style.display = 'inline-block';
   
   // Show player stats, hide game info
@@ -661,8 +665,9 @@ function updateUIForLoggedInUser() {
 }
 
 function updateUIForGuest() {
-  // Show login button, hide sign out button
+  // Show login button, hide profile link and sign out buttons
   document.getElementById('loginBtn').style.display = 'inline-block';
+  document.getElementById('profileLinkBtn').style.display = 'none';
   document.getElementById('signoutBtn').style.display = 'none';
   
   // Hide player stats, show game info
