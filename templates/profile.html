@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Chess Master — Profile & Stats</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      font-family: 'Inter', 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 20px;
+      padding: 30px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    h1 {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      font-size: 36px;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
+    .nav {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+    }
+
+    .nav button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .nav button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    .section {
+      display: none;
+    }
+
+    .section.active {
+      display: block;
+    }
+
+    /* Login/Register Forms */
+    .auth-container {
+      max-width: 400px;
+      margin: 0 auto;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid rgba(102, 126, 234, 0.3);
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .form-group input:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    .error-message {
+      background: #fee;
+      color: #c00;
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      display: none;
+    }
+
+    .success-message {
+      background: #efe;
+      color: #0a0;
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      display: none;
+    }
+
+    /* Profile Stats */
+    .profile-header {
+      text-align: center;
+      padding: 30px;
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+      border-radius: 15px;
+      margin-bottom: 30px;
+    }
+
+    .profile-name {
+      font-size: 32px;
+      font-weight: 900;
+      color: #333;
+      margin-bottom: 10px;
+    }
+
+    .profile-rating {
+      font-size: 24px;
+      color: #667eea;
+      font-weight: 700;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .stat-card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      border: 2px solid rgba(102, 126, 234, 0.2);
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 36px;
+      font-weight: 900;
+      color: #667eea;
+      margin-bottom: 5px;
+    }
+
+    .stat-label {
+      font-size: 14px;
+      color: #666;
+      font-weight: 600;
+    }
+
+    /* Game History */
+    .game-list {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .game-card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      border: 2px solid rgba(102, 126, 234, 0.2);
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .game-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .game-players {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: #333;
+    }
+
+    .game-result {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .game-result.win {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .game-result.loss {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .game-result.draw {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .game-meta {
+      font-size: 13px;
+      color: #666;
+    }
+
+    /* Replay Viewer */
+    .replay-container {
+      display: grid;
+      grid-template-columns: 600px 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .replay-board {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      width: 600px;
+      aspect-ratio: 1;
+      border: 4px solid #2c3e50;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .replay-square {
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .replay-square.light {
+      background: #f0d9b5;
+    }
+
+    .replay-square.dark {
+      background: #b58863;
+    }
+
+    .replay-piece img {
+      width: 85%;
+      height: 85%;
+      filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
+    }
+
+    .replay-controls {
+      padding: 20px;
+      background: white;
+      border-radius: 12px;
+      border: 2px solid rgba(102, 126, 234, 0.2);
+    }
+
+    .replay-buttons {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .replay-buttons button {
+      flex: 1;
+      padding: 12px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 18px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .replay-buttons button:hover {
+      background: #764ba2;
+    }
+
+    .replay-buttons button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .move-list-replay {
+      max-height: 400px;
+      overflow-y: auto;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+
+    .move-item-replay {
+      padding: 8px;
+      margin: 4px 0;
+      background: white;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .move-item-replay:hover {
+      background: rgba(102, 126, 234, 0.1);
+    }
+
+    .move-item-replay.active {
+      background: rgba(102, 126, 234, 0.2);
+      font-weight: 700;
+    }
+
+    @media (max-width: 768px) {
+      .replay-container {
+        grid-template-columns: 1fr;
+      }
+
+      .replay-board {
+        width: 100%;
+        max-width: 500px;
+        margin: 0 auto;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>♔ Chess Master Profile ♚</h1>
+
+  <div class="nav">
+    <button onclick="window.location.href='/'">🏠 Home</button>
+    <button id="loginBtn" onclick="showSection('login')">🔐 Login</button>
+    <button id="registerBtn" onclick="showSection('register')">📝 Register</button>
+    <button id="profileBtn" onclick="showSection('profile')" style="display:none;">👤 Profile</button>
+    <button id="gamesBtn" onclick="showSection('games')" style="display:none;">🎮 My Games</button>
+    <button id="logoutBtn" onclick="logout()" style="display:none;">🚪 Logout</button>
+  </div>
+
+  <!-- Login Section -->
+  <div id="loginSection" class="section">
+    <div class="auth-container">
+      <h2 style="text-align:center; margin-bottom:20px;">Login</h2>
+      <div id="loginError" class="error-message"></div>
+      <form onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label>Username or Email</label>
+          <input type="text" id="loginUsername" required />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="loginPassword" required />
+        </div>
+        <button type="submit" class="btn-primary">Login</button>
+      </form>
+      <p style="text-align:center; margin-top:20px;">
+        Don't have an account? <a href="#" onclick="showSection('register'); return false;">Register</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- Register Section -->
+  <div id="registerSection" class="section">
+    <div class="auth-container">
+      <h2 style="text-align:center; margin-bottom:20px;">Create Account</h2>
+      <div id="registerError" class="error-message"></div>
+      <div id="registerSuccess" class="success-message"></div>
+      <form onsubmit="handleRegister(event)">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="regUsername" required minlength="3" maxlength="50" />
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="regEmail" required />
+        </div>
+        <div class="form-group">
+          <label>Display Name (optional)</label>
+          <input type="text" id="regDisplayName" maxlength="100" />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="regPassword" required minlength="6" />
+        </div>
+        <button type="submit" class="btn-primary">Create Account</button>
+      </form>
+      <p style="text-align:center; margin-top:20px;">
+        Already have an account? <a href="#" onclick="showSection('login'); return false;">Login</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- Profile Section -->
+  <div id="profileSection" class="section">
+    <div class="profile-header">
+      <div class="profile-name" id="profileName">Player</div>
+      <div class="profile-rating">⭐ <span id="profileRating">1200</span> ELO</div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="statGamesPlayed">0</div>
+        <div class="stat-label">Games Played</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statGamesWon">0</div>
+        <div class="stat-label">Wins</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statGamesDrawn">0</div>
+        <div class="stat-label">Draws</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statGamesLost">0</div>
+        <div class="stat-label">Losses</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Games History Section -->
+  <div id="gamesSection" class="section">
+    <h2 style="margin-bottom:20px;">Game History</h2>
+    <div id="gamesList" class="game-list">
+      <p style="text-align:center; color:#666;">No games found</p>
+    </div>
+  </div>
+
+  <!-- Replay Section -->
+  <div id="replaySection" class="section">
+    <button onclick="showSection('games')" style="margin-bottom:20px;">← Back to Games</button>
+    <h2 style="margin-bottom:20px;" id="replayTitle">Game Replay</h2>
+    <div class="replay-container">
+      <div class="replay-board" id="replayBoard"></div>
+      <div class="replay-controls">
+        <div class="replay-buttons">
+          <button onclick="replayFirst()">⏮</button>
+          <button onclick="replayPrev()">◀</button>
+          <button onclick="replayPlay()" id="playBtn">▶</button>
+          <button onclick="replayNext()">▶</button>
+          <button onclick="replayLast()">⏭</button>
+        </div>
+        <p style="text-align:center; margin-bottom:15px;">
+          Move <span id="currentMove">0</span> / <span id="totalMoves">0</span>
+        </p>
+        <div class="move-list-replay" id="moveListReplay"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentUser = null;
+let currentReplayData = null;
+let currentMoveIndex = -1;
+let replayInterval = null;
+
+// Check if user is logged in
+async function checkAuth() {
+  try {
+    const response = await fetch('/api/auth/me');
+    if (response.ok) {
+      const data = await response.json();
+      currentUser = data.user;
+      updateUIForLoggedInUser();
+      loadUserProfile();
+    } else {
+      updateUIForGuest();
+    }
+  } catch (error) {
+    console.error('Auth check failed:', error);
+    updateUIForGuest();
+  }
+}
+
+function updateUIForLoggedInUser() {
+  document.getElementById('loginBtn').style.display = 'none';
+  document.getElementById('registerBtn').style.display = 'none';
+  document.getElementById('profileBtn').style.display = 'inline-block';
+  document.getElementById('gamesBtn').style.display = 'inline-block';
+  document.getElementById('logoutBtn').style.display = 'inline-block';
+  showSection('profile');
+}
+
+function updateUIForGuest() {
+  document.getElementById('loginBtn').style.display = 'inline-block';
+  document.getElementById('registerBtn').style.display = 'inline-block';
+  document.getElementById('profileBtn').style.display = 'none';
+  document.getElementById('gamesBtn').style.display = 'none';
+  document.getElementById('logoutBtn').style.display = 'none';
+  showSection('login');
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  const username = document.getElementById('loginUsername').value;
+  const password = document.getElementById('loginPassword').value;
+  const errorEl = document.getElementById('loginError');
+
+  try {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      currentUser = data.user;
+      updateUIForLoggedInUser();
+      loadUserProfile();
+    } else {
+      errorEl.textContent = data.error || 'Login failed';
+      errorEl.style.display = 'block';
+    }
+  } catch (error) {
+    errorEl.textContent = 'Network error. Please try again.';
+    errorEl.style.display = 'block';
+  }
+}
+
+async function handleRegister(event) {
+  event.preventDefault();
+  const username = document.getElementById('regUsername').value;
+  const email = document.getElementById('regEmail').value;
+  const displayName = document.getElementById('regDisplayName').value || username;
+  const password = document.getElementById('regPassword').value;
+  const errorEl = document.getElementById('registerError');
+  const successEl = document.getElementById('registerSuccess');
+
+  errorEl.style.display = 'none';
+  successEl.style.display = 'none';
+
+  try {
+    const response = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, email, displayName, password })
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      currentUser = data.user;
+      successEl.textContent = 'Account created successfully! Redirecting...';
+      successEl.style.display = 'block';
+      setTimeout(() => {
+        updateUIForLoggedInUser();
+        loadUserProfile();
+      }, 1500);
+    } else {
+      errorEl.textContent = data.error || 'Registration failed';
+      errorEl.style.display = 'block';
+    }
+  } catch (error) {
+    errorEl.textContent = 'Network error. Please try again.';
+    errorEl.style.display = 'block';
+  }
+}
+
+async function logout() {
+  try {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    currentUser = null;
+    updateUIForGuest();
+  } catch (error) {
+    console.error('Logout failed:', error);
+  }
+}
+
+async function loadUserProfile() {
+  if (!currentUser) return;
+
+  try {
+    const response = await fetch(`/api/user/${currentUser.username}`);
+    const data = await response.json();
+
+    if (response.ok) {
+      const user = data.user;
+      document.getElementById('profileName').textContent = user.display_name || user.username;
+      document.getElementById('profileRating').textContent = user.elo_rating;
+      document.getElementById('statGamesPlayed').textContent = user.games_played;
+      document.getElementById('statGamesWon').textContent = user.games_won;
+      document.getElementById('statGamesDrawn').textContent = user.games_drawn;
+      document.getElementById('statGamesLost').textContent = user.games_lost;
+    }
+  } catch (error) {
+    console.error('Failed to load profile:', error);
+  }
+
+  loadUserGames();
+}
+
+async function loadUserGames() {
+  if (!currentUser) return;
+
+  try {
+    const response = await fetch(`/api/user/${currentUser.username}/games`);
+    const data = await response.json();
+
+    if (response.ok) {
+      renderGameList(data.games);
+    }
+  } catch (error) {
+    console.error('Failed to load games:', error);
+  }
+}
+
+function renderGameList(games) {
+  const listEl = document.getElementById('gamesList');
+
+  if (!games || games.length === 0) {
+    listEl.innerHTML = '<p style="text-align:center; color:#666;">No games found</p>';
+    return;
+  }
+
+  listEl.innerHTML = games.map(game => {
+    const isWhite = game.white_username === currentUser.username;
+    const myColor = isWhite ? 'white' : 'black';
+    let result = 'draw';
+    
+    if (game.winner !== 'draw') {
+      result = game.winner === myColor ? 'win' : 'loss';
+    }
+
+    const date = new Date(game.end_time).toLocaleDateString();
+    
+    return `
+      <div class="game-card" onclick="loadReplay(${game.id})">
+        <div class="game-players">
+          ♔ ${game.white_player} vs ♚ ${game.black_player}
+        </div>
+        <span class="game-result ${result}">
+          ${result === 'win' ? '✓ Won' : result === 'loss' ? '✗ Lost' : '⚌ Draw'}
+        </span>
+        <div class="game-meta">
+          ${date} • ${game.win_reason} • ${game.time_control}s
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function loadReplay(gameId) {
+  try {
+    const response = await fetch(`/api/game/${gameId}/replay`);
+    const data = await response.json();
+
+    if (response.ok) {
+      currentReplayData = data;
+      currentMoveIndex = -1;
+      showSection('replay');
+      initReplay();
+    }
+  } catch (error) {
+    console.error('Failed to load replay:', error);
+  }
+}
+
+function initReplay() {
+  if (!currentReplayData) return;
+
+  const game = currentReplayData.game;
+  document.getElementById('replayTitle').textContent = 
+    `${game.white_player} vs ${game.black_player}`;
+  
+  document.getElementById('totalMoves').textContent = currentReplayData.moves.length;
+  
+  renderMoveListReplay();
+  renderReplayBoard();
+}
+
+function renderMoveListReplay() {
+  const moves = currentReplayData.moves;
+  const listEl = document.getElementById('moveListReplay');
+
+  listEl.innerHTML = moves.map((move, index) => `
+    <div class="move-item-replay ${index === currentMoveIndex ? 'active' : ''}" 
+         onclick="jumpToMove(${index})">
+      ${index + 1}. ${move.move_notation}
+    </div>
+  `).join('');
+}
+
+function renderReplayBoard(fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') {
+  const boardEl = document.getElementById('replayBoard');
+  
+  // Parse FEN to get board position
+  const rows = fen.split(' ')[0].split('/');
+  boardEl.innerHTML = '';
+
+  for (let r = 0; r < 8; r++) {
+    let col = 0;
+    for (const char of rows[r]) {
+      if (char >= '1' && char <= '8') {
+        const emptySquares = parseInt(char);
+        for (let i = 0; i < emptySquares; i++) {
+          const sq = document.createElement('div');
+          sq.className = `replay-square ${(r + col) % 2 === 0 ? 'light' : 'dark'}`;
+          boardEl.appendChild(sq);
+          col++;
+        }
+      } else {
+        const sq = document.createElement('div');
+        sq.className = `replay-square ${(r + col) % 2 === 0 ? 'light' : 'dark'}`;
+        
+        const pieceDiv = document.createElement('div');
+        pieceDiv.className = 'replay-piece';
+        const isWhite = char === char.toUpperCase();
+        const color = isWhite ? 'w' : 'b';
+        const piece = char.toLowerCase();
+        pieceDiv.innerHTML = `<img src="https://images.chesscomfiles.com/chess-themes/pieces/neo/150/${color}${piece}.png" />`;
+        sq.appendChild(pieceDiv);
+        
+        boardEl.appendChild(sq);
+        col++;
+      }
+    }
+  }
+}
+
+function replayFirst() {
+  currentMoveIndex = -1;
+  document.getElementById('currentMove').textContent = 0;
+  renderReplayBoard();
+  renderMoveListReplay();
+}
+
+function replayPrev() {
+  if (currentMoveIndex > -1) {
+    currentMoveIndex--;
+    updateReplayPosition();
+  }
+}
+
+function replayNext() {
+  if (currentMoveIndex < currentReplayData.moves.length - 1) {
+    currentMoveIndex++;
+    updateReplayPosition();
+  }
+}
+
+function replayLast() {
+  currentMoveIndex = currentReplayData.moves.length - 1;
+  updateReplayPosition();
+}
+
+function replayPlay() {
+  if (replayInterval) {
+    clearInterval(replayInterval);
+    replayInterval = null;
+    document.getElementById('playBtn').textContent = '▶';
+  } else {
+    document.getElementById('playBtn').textContent = '⏸';
+    replayInterval = setInterval(() => {
+      if (currentMoveIndex >= currentReplayData.moves.length - 1) {
+        clearInterval(replayInterval);
+        replayInterval = null;
+        document.getElementById('playBtn').textContent = '▶';
+      } else {
+        replayNext();
+      }
+    }, 1000);
+  }
+}
+
+function jumpToMove(index) {
+  currentMoveIndex = index;
+  updateReplayPosition();
+}
+
+function updateReplayPosition() {
+  document.getElementById('currentMove').textContent = currentMoveIndex + 1;
+  
+  if (currentMoveIndex >= 0 && currentMoveIndex < currentReplayData.moves.length) {
+    const move = currentReplayData.moves[currentMoveIndex];
+    renderReplayBoard(move.position_fen);
+  } else {
+    renderReplayBoard();
+  }
+  
+  renderMoveListReplay();
+}
+
+function showSection(section) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById(section + 'Section').classList.add('active');
+  
+  if (section === 'games') {
+    loadUserGames();
+  }
+}
+
+// Initialize
+checkAuth();
+</script>
+
+</body>
+</html>
