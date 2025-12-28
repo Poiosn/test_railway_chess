@@ -1369,6 +1369,8 @@ socket.on("connect",()=>{
   } else if (URL_MODE === 'bot') {
     socket.emit("create_room", { room: URL_ROOM, timeControl: URL_TIME, playerName: URL_NAME, bot: true });
   } else if (URL_MODE === 'global') {
+    // For global matchmaking, room already exists with players assigned
+    // Just join the room - backend will recognize and assign color
     socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME });
   } else if (URL_MODE === 'spectate') {
     socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME, spectate: true });
