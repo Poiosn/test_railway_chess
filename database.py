@@ -32,6 +32,8 @@ def init_db_pool():
                 conn = db_pool.getconn()
                 cur = conn.cursor()
                 
+                print("🔨 Creating/updating database tables...")
+                
                 # 1. Create Visitors Table
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS visitors (
@@ -39,6 +41,7 @@ def init_db_pool():
                         visit_count INTEGER DEFAULT 0
                     );
                 """)
+                print("  ✓ Visitors table ready")
                 
                 # 2. Create Users Table (NEW)
                 cur.execute("""
@@ -58,24 +61,64 @@ def init_db_pool():
                         last_login TIMESTAMP
                     );
                 """)
+                print("  ✓ Users table ready")
                 
-                # 3. Create Games Table (UPDATED with user references)
+                # 3. Create or Update Games Table
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS games (
                         id SERIAL PRIMARY KEY,
                         room_name VARCHAR(255),
                         white_player VARCHAR(255),
                         black_player VARCHAR(255),
-                        white_user_id INTEGER REFERENCES users(id),
-                        black_user_id INTEGER REFERENCES users(id),
                         winner VARCHAR(50),
                         win_reason VARCHAR(100),
                         start_time TIMESTAMP,
-                        end_time TIMESTAMP,
-                        time_control INTEGER,
-                        game_mode VARCHAR(50)
+                        end_time TIMESTAMP
                     );
                 """)
+                
+                # Add new columns to existing games table if they don't exist
+                # Check and add white_user_id column
+                cur.execute("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name='games' AND column_name='white_user_id';
+                """)
+                if not cur.fetchone():
+                    cur.execute("ALTER TABLE games ADD COLUMN white_user_id INTEGER REFERENCES users(id);")
+                    print("    + Added white_user_id column to games")
+                
+                # Check and add black_user_id column
+                cur.execute("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name='games' AND column_name='black_user_id';
+                """)
+                if not cur.fetchone():
+                    cur.execute("ALTER TABLE games ADD COLUMN black_user_id INTEGER REFERENCES users(id);")
+                    print("    + Added black_user_id column to games")
+                
+                # Check and add time_control column
+                cur.execute("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name='games' AND column_name='time_control';
+                """)
+                if not cur.fetchone():
+                    cur.execute("ALTER TABLE games ADD COLUMN time_control INTEGER;")
+                    print("    + Added time_control column to games")
+                
+                # Check and add game_mode column
+                cur.execute("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name='games' AND column_name='game_mode';
+                """)
+                if not cur.fetchone():
+                    cur.execute("ALTER TABLE games ADD COLUMN game_mode VARCHAR(50);")
+                    print("    + Added game_mode column to games")
+                
+                print("  ✓ Games table ready")
                 
                 # 4. Create Game Moves Table (NEW - for replays)
                 cur.execute("""
@@ -94,8 +137,9 @@ def init_db_pool():
                         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     );
                 """)
+                print("  ✓ Game_moves table ready")
                 
-                # 5. Create Indexes for Performance
+                # 5. Create Indexes for Performance (only after columns exist!)
                 cur.execute("""
                     CREATE INDEX IF NOT EXISTS idx_games_white_user ON games(white_user_id);
                 """)
@@ -105,12 +149,16 @@ def init_db_pool():
                 cur.execute("""
                     CREATE INDEX IF NOT EXISTS idx_game_moves_game_id ON game_moves(game_id);
                 """)
+                print("  ✓ Indexes created")
                 
                 conn.commit()
                 cur.close()
-                print("✅ Database tables checked/created.")
+                print("✅ Database tables ready!")
+                
             except Exception as e:
                 print(f"❌ Table creation error: {e}")
+                import traceback
+                traceback.print_exc()
                 if conn:
                     conn.rollback()
             finally:
