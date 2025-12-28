@@ -165,24 +165,21 @@
     }
 
     .auth-buttons {
-      position: absolute;
-      top: 20px;
-      right: 20px;
       display: flex;
       gap: 8px;
+      justify-content: center;
+      margin-bottom: 14px;
       flex-wrap: wrap;
-      justify-content: flex-end;
-      max-width: 250px;
     }
 
     .btn-auth {
-      padding: 8px 16px;
+      padding: 7px 14px;
       border: none;
       border-radius: 8px;
       color: white;
       font-weight: 700;
       cursor: pointer;
-      font-size: 12px;
+      font-size: 11px;
       transition: all 0.2s ease;
       white-space: nowrap;
     }
@@ -495,6 +492,9 @@
 
 <div class="container">
 
+    <h1>♔ Chess Master ♚</h1>
+    <p class="subtitle">⚡ Premium Edition — Real-time Multiplayer</p>
+
     <div class="auth-buttons">
       <button id="loginBtn" onclick="window.location.href='/profile'" class="btn-auth btn-login">
         🔐 Login
@@ -506,9 +506,6 @@
         🚪 Sign Out
       </button>
     </div>
-
-    <h1>♔ Chess Master ♚</h1>
-    <p class="subtitle">⚡ Premium Edition — Real-time Multiplayer</p>
 
     <div id="connectionStatus" class="connection-status">✅ Welcome to Chess Master</div>
 
