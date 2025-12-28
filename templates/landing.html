@@ -4,12 +4,13 @@
   <meta charset="UTF-8" />
   <title>Chess Master — Premium Edition</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
 
     body {
       font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', sans-serif;
-      background: #87CEEB; /* Sky Blue */
+      background: #87CEEB;
       min-height: 100vh;
       display: flex;
       justify-content: center;
@@ -19,9 +20,8 @@
       -webkit-user-select: none;
     }
 
-    /* GLASSMORPHISM CONTAINER */
     .container {
-      background: rgba(255, 255, 255, 0.35); /* Slightly more opaque for readability */
+      background: rgba(255, 255, 255, 0.35);
       backdrop-filter: blur(20px) saturate(180%);
       -webkit-backdrop-filter: blur(20px) saturate(180%);
       border: 1px solid rgba(255, 255, 255, 0.4);
@@ -29,16 +29,14 @@
         0 8px 32px 0 rgba(31, 38, 135, 0.2),
         inset 0 1px 0 0 rgba(255, 255, 255, 0.5);
       
-      /* RESPONSIVE DIMENSIONS */
       width: 95%;
-      max-width: 560px; /* Constrain width on desktop */
+      max-width: 560px;
       padding: 20px;
       border-radius: 16px;
       
-      /* FLUID HEIGHT (Fixes cropping) */
       height: auto;
-      max-height: 90vh; /* On desktop, limit height */
-      overflow-y: auto; /* Scroll if needed on desktop */
+      max-height: 90vh;
+      overflow-y: auto;
       
       display: flex;
       flex-direction: column;
@@ -51,14 +49,13 @@
       to { opacity: 1; transform: translateY(0); }
     }
 
-    /* TITLE STYLES */
     h1 {
       text-align: center;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
-      font-size: clamp(20px, 4vw, 29px); /* Responsive Font Size */
+      font-size: clamp(20px, 4vw, 29px);
       font-weight: 900;
       margin-bottom: 8px;
       letter-spacing: -1px;
@@ -73,7 +70,6 @@
       font-weight: 600;
     }
 
-    /* CONNECTION STATUS */
     .connection-status {
       width: 100%;
       text-align: center;
@@ -93,7 +89,6 @@
       50% { transform: scale(1.02); }
     }
 
-    /* GAME INFO CARD */
     .game-info {
       width: 100%;
       text-align: center;
@@ -106,7 +101,6 @@
     .game-info h3 { margin-bottom: 4px; color: #333; font-size: 14px; }
     .game-info p { font-size: 11px; color: #555; }
 
-    /* TIME CONTROL SECTION */
     .time-control-section {
       width: 100%;
       text-align: center;
@@ -124,13 +118,13 @@
     
     .time-options {
       display: flex;
-      flex-wrap: wrap; /* Allows wrapping */
+      flex-wrap: wrap;
       gap: 7px;
       justify-content: center;
     }
 
     .time-btn {
-      flex: 1 1 60px; /* Grow, shrink, min-width */
+      flex: 1 1 60px;
       padding: 8px 7px;
       background: white;
       border: 2px solid #00897b;
@@ -146,7 +140,6 @@
     .time-btn:hover { background: #00897b; color: white; transform: translateY(-2px); }
     .time-btn.selected { background: #00695c; color: white; border-color: #004d40; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
 
-    /* CONTROLS (Inputs & Buttons) */
     .room-controls {
       width: 100%;
       display: flex;
@@ -193,7 +186,58 @@
       margin-top: 10px;
     }
 
-    /* VISITOR COUNTER */
+    .btn-spectate {
+      width: 100%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      margin-top: 10px;
+    }
+
+    .btn-global {
+      width: 100%;
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      margin-top: 10px;
+      font-size: 13px;
+      padding: 12px 14px;
+    }
+
+    .game-item {
+      padding: 12px;
+      margin: 8px 0;
+      background: rgba(102, 126, 234, 0.1);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: 2px solid rgba(102, 126, 234, 0.2);
+    }
+
+    .game-item:hover {
+      background: rgba(102, 126, 234, 0.2);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .game-item-players {
+      font-weight: 700;
+      font-size: 14px;
+      color: #333;
+      margin-bottom: 4px;
+    }
+
+    .game-item-info {
+      font-size: 11px;
+      color: #666;
+    }
+
+    #spectateSearchInput {
+      user-select: text;
+      -webkit-user-select: text;
+    }
+
+    #spectateSearchInput:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
     #visitorCounter {
       position: fixed;
       bottom: 20px;
@@ -209,8 +253,7 @@
       z-index: 100;
     }
 
-    /* MODAL */
-    .name-modal {
+    .modal {
       position: fixed;
       top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(0,0,0,0.6);
@@ -219,11 +262,11 @@
       justify-content: center;
       align-items: center;
       z-index: 9999;
-      padding: 20px; /* Padding to prevent modal hitting screen edges */
+      padding: 20px;
     }
-    .name-modal.active { display: flex; }
+    .modal.active { display: flex; }
 
-    .name-content {
+    .modal-content {
       background: white;
       padding: 20px;
       border-radius: 14px;
@@ -240,18 +283,40 @@
     
     .btn-secondary { background: #7f8c8d; }
 
-    /* =========================================
-       MOBILE & RESPONSIVE FIXES 
-       ========================================= */
-    
-    /* TABLET & SMALLER DESKTOP (Width < 900px) */
+    .matchmaking-status {
+      margin-top: 15px;
+      padding: 12px;
+      background: rgba(102, 126, 234, 0.1);
+      border-radius: 10px;
+      display: none;
+    }
+
+    .matchmaking-status.active {
+      display: block;
+    }
+
+    .spinner {
+      border: 3px solid rgba(102, 126, 234, 0.3);
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin: 10px auto;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
     @media (max-width: 900px) {
       .container {
         width: 90%;
         max-height: 95vh;
       }
       .room-controls {
-        flex-direction: column; /* Stack input and buttons */
+        flex-direction: column;
       }
       input[type="text"], button {
         width: 100%;
@@ -259,12 +324,11 @@
       }
     }
 
-    /* MOBILE PHONES (Width < 600px) */
     @media (max-width: 600px) {
       body {
         padding: 0;
-        align-items: center; /* Center vertically */
-        background: #f0f8ff; /* Fallback flat color for performance */
+        align-items: center;
+        background: #f0f8ff;
         height: 100vh;
         overflow: hidden;
       }
@@ -273,12 +337,12 @@
         width: 100%;
         height: 100%;
         max-height: 100vh;
-        border-radius: 0; /* Remove corners */
+        border-radius: 0;
         border: none;
-        background: rgba(255, 255, 255, 0.85); /* More opaque */
+        background: rgba(255, 255, 255, 0.85);
         padding: 10px 16px;
         padding-bottom: 40px;
-        justify-content: center; /* Center content */
+        justify-content: center;
         padding-top: 10px;
         overflow-y: auto;
         margin-bottom: 0;
@@ -289,7 +353,7 @@
       .subtitle { margin-bottom: 10px; font-size: 12px; }
       
       .time-btn {
-        flex: 1 1 30%; /* 3 buttons per row */
+        flex: 1 1 30%;
         font-size: 12px;
         padding: 8px;
       }
@@ -313,7 +377,7 @@
       input[type="text"] { padding: 10px; }
       button { padding: 10px; }
       
-      .btn-bot {
+      .btn-bot, .btn-global {
         margin-bottom: 10px;
         margin-top: 0;
       }
@@ -339,7 +403,16 @@
 
     <div class="game-info">
       <h3>🎮 Game Lobby</h3>
-      <p>Create a room, join a friend, or practice against our bot.</p>
+      <p>Play globally, with friends, or practice against our bot.</p>
+    </div>
+
+    <button onclick="playGlobal()" class="btn-global">🌍 Play Global Matchmaking</button>
+
+    <div id="matchmakingStatus" class="matchmaking-status">
+      <div class="spinner"></div>
+      <div id="matchmakingText">🔍 Searching for opponent...</div>
+      <div id="matchmakingTimer" style="margin-top:8px; font-size:11px; color:#666;"></div>
+      <button onclick="cancelMatchmaking()" style="margin-top:10px; background:#eb3349;">❌ Cancel</button>
     </div>
 
     <div class="time-control-section">
@@ -361,10 +434,42 @@
 
     <button onclick="playBot()" class="btn-bot">🤖 Play vs Stockfish Bot</button>
 
+    <button onclick="showSpectateGames()" class="btn-spectate">👁️ Spectate Live Games</button>
+
 </div>
 
-<div class="name-modal" id="nameModal" aria-hidden="true">
-  <div class="name-content">
+<!-- Spectate Modal -->
+<div class="modal" id="spectateModal" aria-hidden="true">
+  <div class="modal-content" style="max-width: 400px;">
+    <h3>👁️ Live Games</h3>
+    <p style="color:#666;margin-top:8px; font-size:12px;">Choose a game to spectate or search by room name</p>
+    
+    <!-- Search Bar -->
+    <div style="margin-top:16px; display:flex; gap:8px;">
+      <input 
+        type="text" 
+        id="spectateSearchInput" 
+        placeholder="Search room name..." 
+        style="flex:1; padding:10px; border:2px solid rgba(102,126,234,0.3); border-radius:8px; font-size:12px; outline:none;"
+      />
+      <button onclick="spectateByRoomName()" style="padding:10px 16px; min-width:auto; background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+        🔍 Join
+      </button>
+    </div>
+    
+    <div style="margin:16px 0; border-top:1px solid #e0e0e0;"></div>
+    
+    <div id="activeGamesList" style="max-height:300px; overflow-y:auto;">
+      <div style="color:#999; padding:20px; text-align:center;">Loading games...</div>
+    </div>
+    <div style="margin-top:20px;">
+      <button onclick="closeSpectateModal()" class="btn-secondary">❌ Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="nameModal" aria-hidden="true">
+  <div class="modal-content">
     <h3>👤 Enter Your Name</h3>
     <p id="namePromptText" style="color:#666;margin-top:8px;">What should we call you?</p>
     <input 
@@ -386,7 +491,16 @@
 </div>
 
 <script>
+const socket = io({ 
+  transports: ["websocket", "polling"],
+  reconnection: true,
+  reconnectionDelay: 500,
+  reconnectionAttempts: 10
+});
+
 let pendingRoomAction = null;
+let matchmakingTimer = null;
+let matchmakingStartTime = null;
 
 function selectTime(sec){
   document.querySelectorAll(".time-btn").forEach(b=>{
@@ -419,6 +533,12 @@ function playBot(){
   showNameModal("bot", { room, timeControl });
 }
 
+function playGlobal(){
+  const timeBtn = document.querySelector(".time-btn.selected");
+  const timeControl = timeBtn ? parseInt(timeBtn.dataset.time) : 300;
+  showNameModal("global", { timeControl });
+}
+
 function showNameModal(actionType, actionData = {}) {
   const modal = document.getElementById("nameModal");
   const promptText = document.getElementById("namePromptText");
@@ -430,6 +550,7 @@ function showNameModal(actionType, actionData = {}) {
   if (actionType === "create") promptText.textContent = "Creating Room. Your name?";
   else if (actionType === "join") promptText.textContent = "Joining Room. Your name?";
   else if (actionType === "bot") promptText.textContent = "Playing vs Bot. Your name?";
+  else if (actionType === "global") promptText.textContent = "Global Matchmaking. Your name?";
 
   pendingRoomAction = { type: actionType, data: actionData };
   modal.classList.add("active");
@@ -451,13 +572,59 @@ function submitPlayerName() {
   
   if (pendingRoomAction) {
     const { type, data } = pendingRoomAction;
-    const params = new URLSearchParams({
-        room: data.room,
-        name: nameValue,
-        mode: type,
-        time: data.timeControl || 300
-    });
-    window.location.href = `/game?${params.toString()}`;
+    
+    if (type === "global") {
+      // Start matchmaking
+      startMatchmaking(nameValue, data.timeControl);
+    } else {
+      const params = new URLSearchParams({
+          room: data.room,
+          name: nameValue,
+          mode: type,
+          time: data.timeControl || 300
+      });
+      window.location.href = `/game?${params.toString()}`;
+    }
+  }
+}
+
+function startMatchmaking(playerName, timeControl) {
+  const statusDiv = document.getElementById("matchmakingStatus");
+  const textDiv = document.getElementById("matchmakingText");
+  const timerDiv = document.getElementById("matchmakingTimer");
+  
+  statusDiv.classList.add("active");
+  textDiv.textContent = "🔍 Searching for opponent...";
+  timerDiv.textContent = "";
+  
+  matchmakingStartTime = Date.now();
+  
+  // Send matchmaking request
+  socket.emit("join_matchmaking", {
+    playerName: playerName,
+    timeControl: timeControl
+  });
+  
+  // Start timer
+  matchmakingTimer = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - matchmakingStartTime) / 1000);
+    timerDiv.textContent = `Time: ${elapsed}s`;
+    
+    // After 30 seconds, show alternative options
+    if (elapsed >= 30) {
+      textDiv.innerHTML = "🕒 Taking longer than expected...<br>Try playing with bot or friends!";
+    }
+  }, 1000);
+}
+
+function cancelMatchmaking() {
+  socket.emit("cancel_matchmaking");
+  const statusDiv = document.getElementById("matchmakingStatus");
+  statusDiv.classList.remove("active");
+  
+  if (matchmakingTimer) {
+    clearInterval(matchmakingTimer);
+    matchmakingTimer = null;
   }
 }
 
@@ -465,6 +632,122 @@ function cancelNameModal() {
   document.getElementById("nameModal").classList.remove("active");
   pendingRoomAction = null;
 }
+
+// === SPECTATE MODE ===
+async function showSpectateGames() {
+  const modal = document.getElementById("spectateModal");
+  const gamesList = document.getElementById("activeGamesList");
+  
+  if (!modal || !gamesList) return;
+  
+  modal.classList.add("active");
+  gamesList.innerHTML = '<div style="color:#999; padding:20px; text-align:center;">Loading games...</div>';
+  
+  // Add Enter key listener to search input
+  const searchInput = document.getElementById("spectateSearchInput");
+  if (searchInput) {
+    searchInput.onkeydown = (e) => {
+      if (e.key === "Enter") {
+        spectateByRoomName();
+      }
+    };
+    // Focus on search input
+    setTimeout(() => searchInput.focus(), 100);
+  }
+  
+  try {
+    const response = await fetch('/api/active-games');
+    const games = await response.json();
+    
+    if (games.length === 0) {
+      gamesList.innerHTML = '<div style="color:#999; padding:20px; text-align:center;">No active games to spectate</div>';
+      return;
+    }
+    
+    gamesList.innerHTML = games.map(game => `
+      <div class="game-item" onclick="spectateGame('${game.room}')">
+        <div class="game-item-players">
+          ♔ ${game.whiteName} vs ♚ ${game.blackName}
+        </div>
+        <div class="game-item-info">
+          👥 ${game.spectators} spectator${game.spectators !== 1 ? 's' : ''} • ${game.gameMode === 'global' ? '🌍 Global' : '👥 Friend'} • 📍 ${game.room}
+        </div>
+      </div>
+    `).join('');
+  } catch (error) {
+    console.error('Failed to load games:', error);
+    gamesList.innerHTML = '<div style="color:#dc2626; padding:20px; text-align:center;">Failed to load games</div>';
+  }
+}
+
+function spectateGame(room) {
+  const params = new URLSearchParams({
+    room: room,
+    name: 'Spectator',
+    mode: 'spectate',
+    time: 300
+  });
+  window.location.href = `/game?${params.toString()}`;
+}
+
+function spectateByRoomName() {
+  const input = document.getElementById("spectateSearchInput");
+  const roomName = input ? input.value.trim() : "";
+  
+  if (!roomName) {
+    alert("Please enter a room name");
+    return;
+  }
+  
+  // Close modal and navigate to spectate
+  closeSpectateModal();
+  spectateGame(roomName);
+}
+
+function closeSpectateModal() {
+  const modal = document.getElementById("spectateModal");
+  if (modal) modal.classList.remove("active");
+  
+  // Clear search input
+  const input = document.getElementById("spectateSearchInput");
+  if (input) input.value = "";
+}
+
+// Socket events for matchmaking
+socket.on("matchmaking_status", (data) => {
+  if (data.status === "searching") {
+    console.log("In matchmaking queue...");
+  }
+});
+
+socket.on("matchmaking_found", (data) => {
+  if (matchmakingTimer) {
+    clearInterval(matchmakingTimer);
+    matchmakingTimer = null;
+  }
+  
+  const statusDiv = document.getElementById("matchmakingStatus");
+  statusDiv.classList.remove("active");
+  
+  // Navigate to game
+  const params = new URLSearchParams({
+    room: data.room,
+    name: "global",
+    mode: "global",
+    time: 300
+  });
+  window.location.href = `/game?${params.toString()}`;
+});
+
+socket.on("matchmaking_cancelled", () => {
+  const statusDiv = document.getElementById("matchmakingStatus");
+  statusDiv.classList.remove("active");
+  
+  if (matchmakingTimer) {
+    clearInterval(matchmakingTimer);
+    matchmakingTimer = null;
+  }
+});
 
 (async function() {
     try {
@@ -476,4 +759,4 @@ function cancelNameModal() {
 })();
 </script>
 </body>
-</html
+</html>
