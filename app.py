@@ -113,6 +113,10 @@ games = {}
 sid_to_room = {}
 DISCONNECT_TIMEOUT = 15.0 
 
+# ===== GLOBAL MATCHMAKING QUEUE =====
+matchmaking_queue = []
+matchmaking_lock = threading.Lock()
+
 # --- ROUTES ---
 @app.route("/")
 def index():
@@ -185,6 +189,21 @@ def leaderboard_api():
         finally: release_db_conn(conn)
     return jsonify([dict(row) for row in data])
 
+@app.route('/api/active-games')
+def active_games_api():
+    """Returns list of active games that can be spectated"""
+    active = []
+    for room, g in games.items():
+        if g.get("isActive") and not g["winner"] and not g.get("bot"):
+            active.append({
+                "room": room,
+                "whiteName": g.get("white_player", "White"),
+                "blackName": g.get("black_player", "Black"),
+                "spectators": len(g.get("spectators", set())),
+                "gameMode": g.get("game_mode", "friend")
+            })
+    return jsonify(active)
+
 # --- CHESS LOGIC ---
 def format_seconds(sec):
     total = int(max(0, round(sec)))
@@ -211,7 +230,6 @@ def get_legal_moves_map(board):
         moves[key].append({"row": r_to, "col": c_to})
     return moves
 
-# === FIXED: Added current_sid parameter to send correct opponentName ===
 def export_state(room, current_sid=None):
     g = games[room]
     state = {
@@ -227,10 +245,10 @@ def export_state(room, current_sid=None):
         "blackTimeFormatted": format_seconds(g["blackTime"]),
         "moves": get_legal_moves_map(g["board"]),
         "whiteName": g["white_player"],
-        "blackName": g["black_player"]
+        "blackName": g["black_player"],
+        "gameMode": g.get("game_mode", "friend")
     }
     
-    # === ADD OPPONENT NAME BASED ON CURRENT USER ===
     if current_sid:
         if current_sid == g.get("white_sid"):
             state["opponentName"] = g["black_player"]
@@ -297,7 +315,6 @@ def timeout_watcher():
                     update_time(g)
                     if g["winner"]:
                         save_game(r, g)
-                        # Fixed: Send state to all clients properly
                         for sid in g.get("clients", set()):
                             socketio.emit("game_update", {"state": export_state(r, sid)}, room=sid)
 
@@ -321,7 +338,6 @@ def handle_disconnect_timeout(room, color):
         else:
             return 
         save_game(room, g)
-        # Fixed: Send state to all clients properly
         for sid in g.get("clients", set()):
             socketio.emit("game_update", {"state": export_state(room, sid)}, room=sid)
 
@@ -339,7 +355,6 @@ def create(data):
     is_bot = data.get("bot", False)
     player_name = data.get("playerName", "White")
     
-    # Random starting color for creator (always white against bot)
     creator_color = random.choice(["white", "black"]) if not is_bot else "white"
     
     if room in games:
@@ -348,7 +363,6 @@ def create(data):
             emit("error", {"message": f"Room '{room}' is already taken!"})
             return
 
-    # Assign players based on random color
     white_player = player_name if creator_color == "white" else None
     black_player = player_name if creator_color == "black" else None
     
@@ -371,7 +385,8 @@ def create(data):
         "black_sid": request.sid if creator_color == "black" else None,
         "white_disconnect_timer": None,
         "black_disconnect_timer": None,
-        "clients": {request.sid}
+        "clients": {request.sid},
+        "game_mode": "bot" if is_bot else "friend"
     }
     
     sid_to_room[request.sid] = room
@@ -386,6 +401,7 @@ def create(data):
 def join(data):
     room = data["room"]
     player_name = data.get("playerName", "Black")
+    spectate = data.get("spectate", False)  # NEW: Check if joining as spectator
 
     if room not in games: 
         emit("error", {"message": "Room not found"})
@@ -395,7 +411,7 @@ def join(data):
     
     reconnected = False
     
-    # First check for reconnection by session ID
+    # Check for player reconnection
     if request.sid == g.get("white_sid"):
         reconnected = True
         cancel_timer(g, "white")
@@ -406,7 +422,6 @@ def join(data):
         cancel_timer(g, "black")
         socketio.emit("player_reconnected", {"color": "black"}, room=room)
 
-    # Then check for reconnection by name (only if sid is not set)
     elif player_name == g["white_player"] and g.get("white_sid") is None:
         g["white_sid"] = request.sid
         cancel_timer(g, "white")
@@ -419,7 +434,33 @@ def join(data):
         reconnected = True
         socketio.emit("player_reconnected", {"color": "black"}, room=room)
 
-    # Join as new player if slot is empty
+    # NEW: Handle spectator mode
+    elif spectate or (g["white_player"] and g["black_player"]):
+        # Join as spectator
+        if "spectators" not in g:
+            g["spectators"] = set()
+        g["spectators"].add(request.sid)
+        
+        if "clients" not in g: g["clients"] = set()
+        g["clients"].add(request.sid)
+        sid_to_room[request.sid] = room
+        join_room(room)
+        
+        # Notify other players about new spectator
+        spectator_count = len(g.get("spectators", set()))
+        socketio.emit("spectator_joined", {
+            "spectatorName": player_name,
+            "spectatorCount": spectator_count
+        }, room=room, skip_sid=request.sid)
+        
+        emit("room_joined", {
+            "color": "spectator", 
+            "state": export_state(room, request.sid), 
+            "room": room,
+            "spectatorCount": spectator_count
+        })
+        return
+
     elif not g["white_player"]:
         g["white_player"] = player_name
         g["white_sid"] = request.sid
@@ -444,19 +485,243 @@ def join(data):
     if request.sid != g.get("white_sid") and request.sid != g.get("black_sid"):
         my_color = "spectator"
 
+    spectator_count = len(g.get("spectators", set()))
     emit("room_joined", {
         "color": my_color, 
         "state": export_state(room, request.sid), 
-        "room": room
+        "room": room,
+        "spectatorCount": spectator_count
     })
     
     for sid in g.get("clients", set()):
         socketio.emit("game_start", {"state": export_state(room, sid)}, room=sid)
 
+# ===== GLOBAL MATCHMAKING =====
+@socketio.on("join_matchmaking")
+def join_matchmaking(data):
+    player_name = data.get("playerName", "Player")
+    time_control = data.get("timeControl", 300)
+    sid = request.sid
+    
+    with matchmaking_lock:
+        # Check if already in queue
+        if any(p["sid"] == sid for p in matchmaking_queue):
+            emit("matchmaking_status", {"status": "already_in_queue"})
+            return
+        
+        # Look for a match with same time control
+        match_found = None
+        for i, player in enumerate(matchmaking_queue):
+            if player["timeControl"] == time_control and player["sid"] != sid:
+                match_found = player
+                matchmaking_queue.pop(i)
+                break
+        
+        if match_found:
+            # Create game room
+            room = f"global-{secrets.token_hex(4)}"
+            
+            # Random color assignment
+            if random.choice([True, False]):
+                white_player = player_name
+                white_sid = sid
+                black_player = match_found["playerName"]
+                black_sid = match_found["sid"]
+            else:
+                white_player = match_found["playerName"]
+                white_sid = match_found["sid"]
+                black_player = player_name
+                black_sid = sid
+            
+            games[room] = {
+                "board": chess.Board(),
+                "whiteTime": float(time_control),
+                "blackTime": float(time_control),
+                "lastUpdate": time.time(),
+                "start_timestamp": datetime.utcnow(),
+                "isActive": True,
+                "winner": None,
+                "bot": False,
+                "lock": threading.Lock(),
+                "white_player": white_player,
+                "black_player": black_player,
+                "white_sid": white_sid,
+                "black_sid": black_sid,
+                "white_disconnect_timer": None,
+                "black_disconnect_timer": None,
+                "clients": {white_sid, black_sid},
+                "game_mode": "global"
+            }
+            
+            sid_to_room[white_sid] = room
+            sid_to_room[black_sid] = room
+            
+            # Notify both players
+            socketio.emit("matchmaking_found", {
+                "room": room,
+                "color": "white",
+                "state": export_state(room, white_sid)
+            }, room=white_sid)
+            
+            socketio.emit("matchmaking_found", {
+                "room": room,
+                "color": "black",
+                "state": export_state(room, black_sid)
+            }, room=black_sid)
+            
+            print(f"✅ Match found! Room: {room}, White: {white_player}, Black: {black_player}")
+        else:
+            # Add to queue
+            matchmaking_queue.append({
+                "sid": sid,
+                "playerName": player_name,
+                "timeControl": time_control,
+                "timestamp": time.time()
+            })
+            emit("matchmaking_status", {"status": "searching"})
+            print(f"🔍 Player {player_name} joined matchmaking queue (time: {time_control}s)")
+
+@socketio.on("cancel_matchmaking")
+def cancel_matchmaking():
+    sid = request.sid
+    with matchmaking_lock:
+        for i, player in enumerate(matchmaking_queue):
+            if player["sid"] == sid:
+                matchmaking_queue.pop(i)
+                emit("matchmaking_cancelled")
+                print(f"❌ Player cancelled matchmaking")
+                return
+
+# ===== REMATCH FUNCTIONALITY =====
+@socketio.on("request_rematch")
+def request_rematch(data):
+    room = data.get("room")
+    if room not in games:
+        emit("error", {"message": "Game not found"})
+        return
+    
+    g = games[room]
+    requester_sid = request.sid
+    
+    # Determine who is requesting
+    if requester_sid == g.get("white_sid"):
+        requester_color = "white"
+        opponent_sid = g.get("black_sid")
+    elif requester_sid == g.get("black_sid"):
+        requester_color = "black"
+        opponent_sid = g.get("white_sid")
+    else:
+        emit("error", {"message": "You are not a player in this game"})
+        return
+    
+    # If bot game, create instant rematch
+    if g.get("game_mode") == "bot":
+        new_room = f"bot-{secrets.token_hex(4)}"
+        time_control = g.get("whiteTime", 300) if g.get("whiteTime", 300) > 0 else 300
+        player_name = g.get("white_player") if requester_color == "white" else g.get("black_player")
+        
+        # Create new bot game
+        games[new_room] = {
+            "board": chess.Board(),
+            "whiteTime": float(time_control),
+            "blackTime": float(time_control),
+            "lastUpdate": time.time(),
+            "start_timestamp": datetime.utcnow(),
+            "isActive": True,
+            "winner": None,
+            "bot": True,
+            "lock": threading.Lock(),
+            "white_player": player_name,
+            "black_player": "Bot",
+            "white_sid": requester_sid,
+            "black_sid": None,
+            "white_disconnect_timer": None,
+            "black_disconnect_timer": None,
+            "clients": {requester_sid},
+            "game_mode": "bot"
+        }
+        
+        sid_to_room[requester_sid] = new_room
+        
+        emit("rematch_started", {
+            "room": new_room,
+            "color": "white",
+            "state": export_state(new_room, requester_sid)
+        })
+        print(f"🔄 Bot rematch created: {new_room}")
+    else:
+        # For multiplayer, need opponent acceptance
+        if "rematch_requests" not in g:
+            g["rematch_requests"] = set()
+        
+        g["rematch_requests"].add(requester_color)
+        
+        # Check if both players requested rematch
+        if len(g["rematch_requests"]) == 2:
+            # Create new game
+            new_room = f"{g.get('game_mode', 'friend')}-{secrets.token_hex(4)}"
+            time_control = g.get("whiteTime", 300) if g.get("whiteTime", 300) > 0 else 300
+            
+            white_sid = g.get("white_sid")
+            black_sid = g.get("black_sid")
+            white_player = g.get("white_player")
+            black_player = g.get("black_player")
+            
+            games[new_room] = {
+                "board": chess.Board(),
+                "whiteTime": float(time_control),
+                "blackTime": float(time_control),
+                "lastUpdate": time.time(),
+                "start_timestamp": datetime.utcnow(),
+                "isActive": True,
+                "winner": None,
+                "bot": False,
+                "lock": threading.Lock(),
+                "white_player": white_player,
+                "black_player": black_player,
+                "white_sid": white_sid,
+                "black_sid": black_sid,
+                "white_disconnect_timer": None,
+                "black_disconnect_timer": None,
+                "clients": {white_sid, black_sid},
+                "game_mode": g.get("game_mode", "friend")
+            }
+            
+            sid_to_room[white_sid] = new_room
+            sid_to_room[black_sid] = new_room
+            
+            # Notify both players
+            socketio.emit("rematch_started", {
+                "room": new_room,
+                "color": "white",
+                "state": export_state(new_room, white_sid)
+            }, room=white_sid)
+            
+            socketio.emit("rematch_started", {
+                "room": new_room,
+                "color": "black",
+                "state": export_state(new_room, black_sid)
+            }, room=black_sid)
+            
+            print(f"🔄 Rematch created: {new_room}")
+        else:
+            # Notify opponent of rematch request
+            if opponent_sid:
+                socketio.emit("rematch_requested", {
+                    "from": requester_color
+                }, room=opponent_sid)
+
 @socketio.on("disconnect")
 def on_disconnect():
     sid = request.sid
     room = sid_to_room.pop(sid, None)
+    
+    # Remove from matchmaking queue
+    with matchmaking_lock:
+        for i, player in enumerate(matchmaking_queue):
+            if player["sid"] == sid:
+                matchmaking_queue.pop(i)
+                break
     
     if room and room in games:
         g = games[room]
@@ -466,6 +731,13 @@ def on_disconnect():
             disconnected_color = "white"
         elif sid == g.get("black_sid"):
             disconnected_color = "black"
+        elif sid in g.get("spectators", set()):
+            # Handle spectator disconnect
+            g["spectators"].discard(sid)
+            spectator_count = len(g.get("spectators", set()))
+            socketio.emit("spectator_left", {
+                "spectatorCount": spectator_count
+            }, room=room)
 
         if "clients" in g:
             g["clients"].discard(sid)
@@ -516,7 +788,6 @@ def move(data):
                 else: g["reason"] = "checkmate"
                 save_game(room, g)
             
-            # Fixed: Send state to each client with their perspective
             for sid in g.get("clients", set()):
                 socketio.emit("game_update", {
                     "state": export_state(room, sid),
@@ -558,7 +829,6 @@ def bot_play(room):
                 g["reason"] = "checkmate"
                 save_game(room, g)
             
-            # Fixed: Send state to each client with their perspective
             for sid in g.get("clients", set()):
                 socketio.emit("game_update", {
                     "state": export_state(room, sid),
@@ -590,7 +860,6 @@ def respond_draw(data):
         g["winner"] = "draw"
         g["reason"] = "agreement"
         save_game(room, g)
-        # Fixed: Send state to each client with their perspective
         for sid in g.get("clients", set()):
             socketio.emit("game_update", {"state": export_state(room, sid)}, room=sid)
     else:
@@ -605,7 +874,6 @@ def resign(data):
     g["winner"] = "black" if data["color"] == "white" else "white"
     g["reason"] = "resign"
     save_game(room, g)
-    # Fixed: Send state to each client with their perspective
     for sid in g.get("clients", set()):
         socketio.emit("game_update", {"state": export_state(room, sid)}, room=sid)
 
