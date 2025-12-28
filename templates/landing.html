@@ -101,6 +101,101 @@
     .game-info h3 { margin-bottom: 4px; color: #333; font-size: 14px; }
     .game-info p { font-size: 11px; color: #555; }
 
+    /* Player Stats Section - shown when logged in */
+    .player-stats {
+      width: 100%;
+      text-align: center;
+      margin-bottom: 14px;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.7);
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      display: none;
+    }
+
+    .player-stats.active {
+      display: block;
+    }
+
+    .player-name-display {
+      font-size: 20px;
+      font-weight: 900;
+      color: #333;
+      margin-bottom: 6px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .player-elo-display {
+      font-size: 16px;
+      font-weight: 700;
+      color: #f5576c;
+      margin-bottom: 12px;
+    }
+
+    .stats-mini-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .stat-mini-box {
+      background: rgba(255, 255, 255, 0.9);
+      padding: 8px 4px;
+      border-radius: 8px;
+      border: 1px solid rgba(102, 126, 234, 0.2);
+    }
+
+    .stat-mini-value {
+      font-size: 18px;
+      font-weight: 900;
+      color: #667eea;
+      display: block;
+    }
+
+    .stat-mini-label {
+      font-size: 8px;
+      color: #666;
+      font-weight: 600;
+      margin-top: 2px;
+      display: block;
+      text-transform: uppercase;
+    }
+
+    .auth-buttons {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-auth {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-login {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+
+    .btn-signout {
+      background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+    }
+
+    .btn-auth:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
     .time-control-section {
       width: 100%;
       text-align: center;
@@ -396,9 +491,12 @@
 
 <div class="container">
 
-    <div style="position:absolute; top:20px; right:20px;">
-      <button onclick="window.location.href='/profile'" style="background:linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding:8px 16px; border:none; border-radius:8px; color:white; font-weight:700; cursor:pointer; font-size:12px;">
-        👤 Profile
+    <div class="auth-buttons">
+      <button id="loginBtn" onclick="window.location.href='/profile'" class="btn-auth btn-login">
+        🔐 Login
+      </button>
+      <button id="signoutBtn" onclick="signOut()" class="btn-auth btn-signout" style="display:none;">
+        🚪 Sign Out
       </button>
     </div>
 
@@ -407,7 +505,32 @@
 
     <div id="connectionStatus" class="connection-status">✅ Welcome to Chess Master</div>
 
-    <div class="game-info">
+    <!-- Player Stats (shown when logged in) -->
+    <div id="playerStats" class="player-stats">
+      <div class="player-name-display" id="playerNameDisplay">Player</div>
+      <div class="player-elo-display">⭐ <span id="playerEloDisplay">1200</span> ELO</div>
+      <div class="stats-mini-grid">
+        <div class="stat-mini-box">
+          <span class="stat-mini-value" id="statPlayedDisplay">0</span>
+          <span class="stat-mini-label">Played</span>
+        </div>
+        <div class="stat-mini-box">
+          <span class="stat-mini-value" id="statWinsDisplay">0</span>
+          <span class="stat-mini-label">Wins</span>
+        </div>
+        <div class="stat-mini-box">
+          <span class="stat-mini-value" id="statDrawsDisplay">0</span>
+          <span class="stat-mini-label">Draws</span>
+        </div>
+        <div class="stat-mini-box">
+          <span class="stat-mini-value" id="statLossesDisplay">0</span>
+          <span class="stat-mini-label">Losses</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Game Info (shown when not logged in) -->
+    <div id="gameInfo" class="game-info">
       <h3>🎮 Game Lobby</h3>
       <p>Play globally, with friends, or practice against our bot.</p>
     </div>
@@ -507,6 +630,83 @@ const socket = io({
 let pendingRoomAction = null;
 let matchmakingTimer = null;
 let matchmakingStartTime = null;
+let currentUser = null;
+
+// Check if user is logged in
+async function checkAuth() {
+  try {
+    const response = await fetch('/api/auth/me');
+    if (response.ok) {
+      const data = await response.json();
+      currentUser = data.user;
+      updateUIForLoggedInUser();
+      await loadUserStats();
+    } else {
+      updateUIForGuest();
+    }
+  } catch (error) {
+    console.error('Auth check failed:', error);
+    updateUIForGuest();
+  }
+}
+
+function updateUIForLoggedInUser() {
+  // Hide login button, show sign out button
+  document.getElementById('loginBtn').style.display = 'none';
+  document.getElementById('signoutBtn').style.display = 'inline-block';
+  
+  // Show player stats, hide game info
+  document.getElementById('playerStats').classList.add('active');
+  document.getElementById('gameInfo').style.display = 'none';
+}
+
+function updateUIForGuest() {
+  // Show login button, hide sign out button
+  document.getElementById('loginBtn').style.display = 'inline-block';
+  document.getElementById('signoutBtn').style.display = 'none';
+  
+  // Hide player stats, show game info
+  document.getElementById('playerStats').classList.remove('active');
+  document.getElementById('gameInfo').style.display = 'block';
+}
+
+async function loadUserStats() {
+  if (!currentUser) return;
+
+  try {
+    const response = await fetch(`/api/user/${currentUser.username}`);
+    const data = await response.json();
+
+    if (response.ok) {
+      const user = data.user;
+      document.getElementById('playerNameDisplay').textContent = user.display_name || user.username;
+      document.getElementById('playerEloDisplay').textContent = user.elo_rating;
+      document.getElementById('statPlayedDisplay').textContent = user.games_played;
+      document.getElementById('statWinsDisplay').textContent = user.games_won;
+      document.getElementById('statDrawsDisplay').textContent = user.games_drawn;
+      document.getElementById('statLossesDisplay').textContent = user.games_lost;
+    }
+  } catch (error) {
+    console.error('Failed to load stats:', error);
+  }
+}
+
+async function signOut() {
+  try {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    currentUser = null;
+    updateUIForGuest();
+  } catch (error) {
+    console.error('Sign out error:', error);
+  }
+}
+
+function getPlayerName() {
+  return currentUser ? (currentUser.displayName || currentUser.username) : '';
+}
+
+// Initialize on page load
+checkAuth();
 
 function selectTime(sec){
   document.querySelectorAll(".time-btn").forEach(b=>{
@@ -546,6 +746,14 @@ function playGlobal(){
 }
 
 function showNameModal(actionType, actionData = {}) {
+  // If user is logged in, skip name modal
+  if (currentUser) {
+    const playerName = currentUser.displayName || currentUser.username;
+    executeGameAction(actionType, actionData, playerName);
+    return;
+  }
+
+  // Show name modal for guests
   const modal = document.getElementById("nameModal");
   const promptText = document.getElementById("namePromptText");
   const input = document.getElementById("playerNameInput");
@@ -567,6 +775,19 @@ function showNameModal(actionType, actionData = {}) {
   };
 }
 
+function executeGameAction(type, data, playerName) {
+  if (type === "create") {
+    window.location.href = `/game?mode=friend&room=${encodeURIComponent(data.room)}&name=${encodeURIComponent(playerName)}&time=${data.timeControl}`;
+  } else if (type === "join") {
+    window.location.href = `/game?mode=friend&room=${encodeURIComponent(data.room)}&name=${encodeURIComponent(playerName)}`;
+  } else if (type === "bot") {
+    window.location.href = `/game?mode=bot&room=${encodeURIComponent(data.room)}&name=${encodeURIComponent(playerName)}&time=${data.timeControl}`;
+  } else if (type === "global") {
+    socket.emit("join_global_queue", { playerName, timeControl: data.timeControl });
+    startMatchmakingUI();
+  }
+}
+
 function submitPlayerName() {
   const input = document.getElementById("playerNameInput");
   const nameValue = input ? input.value.trim() : "";
@@ -578,23 +799,12 @@ function submitPlayerName() {
   
   if (pendingRoomAction) {
     const { type, data } = pendingRoomAction;
-    
-    if (type === "global") {
-      // Start matchmaking
-      startMatchmaking(nameValue, data.timeControl);
-    } else {
-      const params = new URLSearchParams({
-          room: data.room,
-          name: nameValue,
-          mode: type,
-          time: data.timeControl || 300
-      });
-      window.location.href = `/game?${params.toString()}`;
-    }
+    executeGameAction(type, data, nameValue);
+    pendingRoomAction = null;
   }
 }
 
-function startMatchmaking(playerName, timeControl) {
+function startMatchmakingUI() {
   const statusDiv = document.getElementById("matchmakingStatus");
   const textDiv = document.getElementById("matchmakingText");
   const timerDiv = document.getElementById("matchmakingTimer");
@@ -604,12 +814,6 @@ function startMatchmaking(playerName, timeControl) {
   timerDiv.textContent = "";
   
   matchmakingStartTime = Date.now();
-  
-  // Send matchmaking request
-  socket.emit("join_matchmaking", {
-    playerName: playerName,
-    timeControl: timeControl
-  });
   
   // Start timer
   matchmakingTimer = setInterval(() => {
