@@ -635,32 +635,6 @@
         <div class="stat-label">Losses</div>
       </div>
     </div>
-
-    <!-- Landing Page Game Options Added Here -->
-    <h2 style="text-align:center; margin: 30px 0 20px 0; color: #333;">🎮 Play Chess</h2>
-
-    <button onclick="startGlobalMatchmaking()" class="btn-game btn-global">🌍 GLOBAL MATCHMAKING</button>
-
-    <div class="time-control-section">
-      <h4>⏱️ Select Time Control</h4>
-      <div class="time-options">
-        <div class="time-btn" onclick="selectTime(60)">⚡ 1 min</div>
-        <div class="time-btn" onclick="selectTime(180)">🔥 3 min</div>
-        <div class="time-btn selected" onclick="selectTime(300)">♟️ 5 min</div>
-        <div class="time-btn" onclick="selectTime(600)">🎯 10 min</div>
-        <div class="time-btn" onclick="selectTime(900)">👑 15 min</div>
-      </div>
-    </div>
-
-    <div class="room-controls">
-      <input type="text" id="roomInput" placeholder="Enter room name (e.g. room1)" />
-      <button onclick="createRoom()">🚪 Create Room</button>
-      <button onclick="joinRoom()">➡️ Join Room</button>
-    </div>
-
-    <button onclick="playBot()" class="btn-game btn-bot">🤖 PLAY VS STOCKFISH BOT</button>
-    <button onclick="showSpectateModal()" class="btn-game btn-spectate">👁️ SPECTATE LIVE GAMES</button>
-
   </div>
 
   <!-- Games History Section -->
@@ -694,121 +668,11 @@
   </div>
 </div>
 
-<!-- Spectate Modal -->
-<div id="spectateModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-title">👁️ Live Games</div>
-    
-    <input type="text" id="spectateSearchInput" placeholder="Search room name..." style="width:100%; padding:12px; border:2px solid rgba(102,126,234,0.3); border-radius:8px; margin-bottom:10px;" />
-    <button onclick="spectateByRoomName()" class="btn-game btn-spectate" style="margin-top:0;">🔍 Join Room</button>
-    
-    <div style="margin:20px 0; border-top:1px solid #e0e0e0;"></div>
-    
-    <div id="spectateGamesList" style="max-height:300px; overflow-y:auto;">
-      <p style="text-align:center; color:#666;">Loading games...</p>
-    </div>
-    
-    <button onclick="closeSpectateModal()" style="width:100%; padding:12px; background:#7f8c8d; color:white; border:none; border-radius:8px; cursor:pointer; margin-top:15px;">Close</button>
-  </div>
-</div>
-
 <script>
 let currentUser = null;
 let currentReplayData = null;
 let currentMoveIndex = -1;
 let replayInterval = null;
-let selectedTime = 300;
-
-// Get username from current user or use default
-function getPlayerName() {
-  return currentUser ? currentUser.displayName || currentUser.username : 'Player';
-}
-
-// Time Control
-function selectTime(seconds) {
-  selectedTime = seconds;
-  document.querySelectorAll('.time-btn').forEach(btn => btn.classList.remove('selected'));
-  event.target.classList.add('selected');
-}
-
-// Game Functions
-function createRoom() {
-  const room = document.getElementById('roomInput').value.trim();
-  if (!room) {
-    alert('Please enter a room name!');
-    return;
-  }
-  const name = getPlayerName();
-  window.location.href = `/game?mode=friend&room=${encodeURIComponent(room)}&name=${encodeURIComponent(name)}&time=${selectedTime}`;
-}
-
-function joinRoom() {
-  const room = document.getElementById('roomInput').value.trim();
-  if (!room) {
-    alert('Please enter a room name to join!');
-    return;
-  }
-  const name = getPlayerName();
-  window.location.href = `/game?mode=friend&room=${encodeURIComponent(room)}&name=${encodeURIComponent(name)}&time=${selectedTime}`;
-}
-
-function playBot() {
-  const name = getPlayerName();
-  window.location.href = `/game?mode=bot&name=${encodeURIComponent(name)}&time=${selectedTime}`;
-}
-
-function startGlobalMatchmaking() {
-  const name = getPlayerName();
-  window.location.href = `/game?mode=global&name=${encodeURIComponent(name)}`;
-}
-
-// Spectate Modal Functions
-function showSpectateModal() {
-  document.getElementById('spectateModal').classList.add('active');
-  loadActiveGames();
-}
-
-function closeSpectateModal() {
-  document.getElementById('spectateModal').classList.remove('active');
-}
-
-async function loadActiveGames() {
-  const listEl = document.getElementById('spectateGamesList');
-  
-  try {
-    const response = await fetch('/api/active-games');
-    const games = await response.json();
-    
-    if (games.length === 0) {
-      listEl.innerHTML = '<p style="text-align:center; color:#666;">No active games found</p>';
-      return;
-    }
-    
-    listEl.innerHTML = games.map(game => `
-      <div class="game-item" onclick="spectateGame('${game.room}')">
-        <div class="game-item-players">♔ ${game.whiteName} vs ♚ ${game.blackName}</div>
-        <div class="game-item-info">👁️ ${game.spectators} viewers • ${game.gameMode} • Room: ${game.room}</div>
-      </div>
-    `).join('');
-  } catch (error) {
-    listEl.innerHTML = '<p style="text-align:center; color:#f00;">Error loading games</p>';
-  }
-}
-
-function spectateGame(room) {
-  window.location.href = `/game?mode=spectate&room=${encodeURIComponent(room)}&name=Spectator`;
-}
-
-function spectateByRoomName() {
-  const roomName = document.getElementById('spectateSearchInput').value.trim();
-  
-  if (!roomName) {
-    alert('Please enter a room name');
-    return;
-  }
-  
-  spectateGame(roomName);
-}
 
 // Close modal when clicking outside
 window.onclick = function(event) {
@@ -1010,30 +874,43 @@ async function loadReplay(gameId) {
     const data = await response.json();
 
     if (response.ok) {
+      if (!data.moves || data.moves.length === 0) {
+        alert('This game has no replay data. Only games played after the replay feature was added can be replayed.');
+        return;
+      }
       currentReplayData = data;
       currentMoveIndex = -1;
       showSection('replay');
       initReplay();
+    } else {
+      alert('Failed to load replay: ' + (data.error || 'Unknown error'));
     }
   } catch (error) {
     console.error('Failed to load replay:', error);
+    alert('Failed to load replay. Please try again.');
   }
 }
 
 function initReplay() {
-  if (!currentReplayData) return;
+  if (!currentReplayData || !currentReplayData.moves) {
+    console.error('No replay data available');
+    return;
+  }
 
   const game = currentReplayData.game;
   document.getElementById('replayTitle').textContent = 
     `${game.white_player} vs ${game.black_player}`;
   
   document.getElementById('totalMoves').textContent = currentReplayData.moves.length;
+  document.getElementById('currentMove').textContent = 0;
   
   renderMoveListReplay();
-  renderReplayBoard();
+  renderReplayBoard(); // Start with initial position
 }
 
 function renderMoveListReplay() {
+  if (!currentReplayData || !currentReplayData.moves) return;
+  
   const moves = currentReplayData.moves;
   const listEl = document.getElementById('moveListReplay');
 
@@ -1083,6 +960,7 @@ function renderReplayBoard(fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w 
 }
 
 function replayFirst() {
+  if (!currentReplayData) return;
   currentMoveIndex = -1;
   document.getElementById('currentMove').textContent = 0;
   renderReplayBoard();
@@ -1090,6 +968,7 @@ function replayFirst() {
 }
 
 function replayPrev() {
+  if (!currentReplayData) return;
   if (currentMoveIndex > -1) {
     currentMoveIndex--;
     updateReplayPosition();
@@ -1097,6 +976,7 @@ function replayPrev() {
 }
 
 function replayNext() {
+  if (!currentReplayData) return;
   if (currentMoveIndex < currentReplayData.moves.length - 1) {
     currentMoveIndex++;
     updateReplayPosition();
@@ -1104,11 +984,14 @@ function replayNext() {
 }
 
 function replayLast() {
+  if (!currentReplayData) return;
   currentMoveIndex = currentReplayData.moves.length - 1;
   updateReplayPosition();
 }
 
 function replayPlay() {
+  if (!currentReplayData) return;
+  
   if (replayInterval) {
     clearInterval(replayInterval);
     replayInterval = null;
@@ -1128,17 +1011,26 @@ function replayPlay() {
 }
 
 function jumpToMove(index) {
+  if (!currentReplayData) return;
   currentMoveIndex = index;
   updateReplayPosition();
 }
 
 function updateReplayPosition() {
+  if (!currentReplayData || !currentReplayData.moves) return;
+  
   document.getElementById('currentMove').textContent = currentMoveIndex + 1;
   
   if (currentMoveIndex >= 0 && currentMoveIndex < currentReplayData.moves.length) {
     const move = currentReplayData.moves[currentMoveIndex];
-    renderReplayBoard(move.position_fen);
+    if (move && move.position_fen) {
+      renderReplayBoard(move.position_fen);
+    } else {
+      console.error('Move data missing FEN position:', move);
+      renderReplayBoard();
+    }
   } else {
+    // Show starting position
     renderReplayBoard();
   }
   
