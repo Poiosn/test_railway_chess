@@ -7,14 +7,21 @@ import random
 import secrets
 import threading
 import os
-import psycopg2
-from psycopg2 import pool
-from psycopg2.extras import RealDictCursor
 from datetime import datetime
 import shutil
 import hashlib
 import hmac
 import json
+
+# Import database functions
+from database import (
+    init_db_pool, get_db_conn, release_db_conn,
+    increment_visitor_count, get_total_visitor_count,
+    get_leaderboard_data, save_game_record,
+    get_user_by_id, get_user_by_username, create_user,
+    update_last_login, get_user_profile, get_user_games,
+    get_game_replay
+)
 
 # ===== FLASK APP =====
 app = Flask(__name__)
@@ -38,157 +45,12 @@ def get_current_user():
     user_id = session.get('user_id')
     if not user_id:
         return None
-    
-    conn = get_db_conn()
-    if not conn:
-        return None
-    
-    try:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT id, username, email, display_name, elo_rating, games_played, games_won, games_drawn, games_lost FROM users WHERE id = %s", (user_id,))
-        user = cur.fetchone()
-        cur.close()
-        return dict(user) if user else None
-    except Exception as e:
-        print(f"Error fetching user: {e}")
-        return None
-    finally:
-        release_db_conn(conn)
+    return get_user_by_id(user_id)
 
-# ===== DATABASE CONFIGURATION =====
-db_pool = None
-
-def init_db_pool():
-    global db_pool
-    DATABASE_URL = os.environ.get('DATABASE_URL')
-    
-    if not DATABASE_URL:
-        print("⚠️ DATABASE_URL not set. Database features will be disabled.")
-        return
-
-    if DATABASE_URL.startswith('postgres://'):
-        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
-    
-    try:
-        db_pool = psycopg2.pool.SimpleConnectionPool(1, 4, dsn=DATABASE_URL)
-        print("✅ Database connection pool created!")
-        
-        conn = db_pool.getconn()
-        try:
-            cur = conn.cursor()
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS visitors (
-                    visit_date DATE PRIMARY KEY DEFAULT CURRENT_DATE,
-                    visit_count INTEGER DEFAULT 0
-                );
-            """)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id SERIAL PRIMARY KEY,
-                    username VARCHAR(50) UNIQUE NOT NULL,
-                    email VARCHAR(255) UNIQUE NOT NULL,
-                    password_hash VARCHAR(255) NOT NULL,
-                    display_name VARCHAR(100),
-                    avatar_url VARCHAR(500),
-                    elo_rating INTEGER DEFAULT 1200,
-                    games_played INTEGER DEFAULT 0,
-                    games_won INTEGER DEFAULT 0,
-                    games_drawn INTEGER DEFAULT 0,
-                    games_lost INTEGER DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_login TIMESTAMP
-                );
-            """)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS games (
-                    id SERIAL PRIMARY KEY,
-                    room_name VARCHAR(255),
-                    white_player VARCHAR(255),
-                    black_player VARCHAR(255),
-                    white_user_id INTEGER REFERENCES users(id),
-                    black_user_id INTEGER REFERENCES users(id),
-                    winner VARCHAR(50),
-                    win_reason VARCHAR(100),
-                    start_time TIMESTAMP,
-                    end_time TIMESTAMP,
-                    time_control INTEGER,
-                    game_mode VARCHAR(50)
-                );
-            """)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS game_moves (
-                    id SERIAL PRIMARY KEY,
-                    game_id INTEGER REFERENCES games(id) ON DELETE CASCADE,
-                    move_number INTEGER NOT NULL,
-                    move_notation VARCHAR(20) NOT NULL,
-                    from_square VARCHAR(2),
-                    to_square VARCHAR(2),
-                    piece VARCHAR(10),
-                    captured_piece VARCHAR(10),
-                    time_remaining_white REAL,
-                    time_remaining_black REAL,
-                    position_fen TEXT,
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-            cur.execute("""
-                CREATE INDEX IF NOT EXISTS idx_games_white_user ON games(white_user_id);
-            """)
-            cur.execute("""
-                CREATE INDEX IF NOT EXISTS idx_games_black_user ON games(black_user_id);
-            """)
-            cur.execute("""
-                CREATE INDEX IF NOT EXISTS idx_game_moves_game_id ON game_moves(game_id);
-            """)
-            conn.commit()
-            cur.close()
-            print("✅ Database tables ready.")
-        except Exception as e:
-            print(f"❌ Table creation error: {e}")
-            conn.rollback()
-        finally:
-            db_pool.putconn(conn)
-            
-    except Exception as e:
-        print(f"❌ Failed to create DB pool: {e}")
-
-def get_db_conn():
-    global db_pool
-    if not db_pool:
-        init_db_pool()
-    
-    if db_pool:
-        try:
-            conn = db_pool.getconn()
-            if conn:
-                if conn.closed:
-                    db_pool.putconn(conn, close=True)
-                    return db_pool.getconn()
-                try:
-                    with conn.cursor() as cur:
-                        cur.execute("SELECT 1")
-                    return conn
-                except (psycopg2.InterfaceError, psycopg2.OperationalError):
-                    try:
-                        db_pool.putconn(conn, close=True)
-                    except:
-                        pass
-                    return db_pool.getconn()
-        except Exception as e:
-            print(f"⚠️ DB Pool Exhausted or Error: {e}")
-            return None
-    return None
-
-def release_db_conn(conn):
-    global db_pool
-    if db_pool and conn:
-        try:
-            db_pool.putconn(conn)
-        except Exception:
-            pass 
-
+# Initialize database on startup
 init_db_pool()
 
+# ===== STOCKFISH SETUP =====
 STOCKFISH_PATH = shutil.which("stockfish") or "/usr/games/stockfish" or "/usr/bin/stockfish"
 print(f"♟️ Stockfish Engine Path: {STOCKFISH_PATH}")
 
@@ -215,66 +77,15 @@ def profile_page():
     return render_template("profile.html")
 
 # --- API ENDPOINTS ---
-def increment_visitor_count():
-    conn = get_db_conn()
-    if not conn: return
-    try:
-        cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO visitors (visit_date, visit_count) 
-            VALUES (CURRENT_DATE, 1)
-            ON CONFLICT (visit_date) 
-            DO UPDATE SET visit_count = visitors.visit_count + 1
-        """)
-        conn.commit()
-        cur.close()
-    except Exception as e:
-        print(f"Visitor count error: {e}")
-        conn.rollback()
-    finally:
-        release_db_conn(conn)
-
 @app.route('/api/visitor-count')
 def visitor_count_api():
-    conn = get_db_conn()
-    count = 0
-    if conn:
-        try:
-            cur = conn.cursor()
-            cur.execute("SELECT COALESCE(SUM(visit_count), 0) FROM visitors")
-            res = cur.fetchone()
-            count = res[0] if res else 0
-            cur.close()
-        except Exception as e:
-            print(f"Visitor API error: {e}")
-            conn.rollback()
-        finally: release_db_conn(conn)
+    count = get_total_visitor_count()
     return jsonify({'visitor_count': count})
 
 @app.route('/api/leaderboard')
 def leaderboard_api():
-    conn = get_db_conn()
-    data = []
-    if conn:
-        try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("""
-                SELECT player_name, COUNT(*) as total,
-                SUM(CASE WHEN winner = player_color THEN 1 ELSE 0 END) as wins,
-                ROUND((SUM(CASE WHEN winner = player_color THEN 1 ELSE 0 END)::DECIMAL / NULLIF(COUNT(*),0))*100, 1) as win_rate
-                FROM (
-                    SELECT white_player as player_name, 'white' as player_color, winner FROM games WHERE white_player IS NOT NULL AND white_player != 'Bot'
-                    UNION ALL
-                    SELECT black_player as player_name, 'black' as player_color, winner FROM games WHERE black_player IS NOT NULL AND black_player != 'Bot'
-                ) as sub GROUP BY player_name HAVING COUNT(*) > 0 ORDER BY wins DESC LIMIT 5
-            """)
-            data = cur.fetchall()
-            cur.close()
-        except Exception as e:
-            print(f"Leaderboard error: {e}")
-            conn.rollback()
-        finally: release_db_conn(conn)
-    return jsonify([dict(row) for row in data])
+    data = get_leaderboard_data(limit=5)
+    return jsonify(data)
 
 @app.route('/api/active-games')
 def active_games_api():
@@ -311,46 +122,26 @@ def register():
     if len(password) < 6:
         return jsonify({'error': 'Password must be at least 6 characters'}), 400
     
-    conn = get_db_conn()
-    if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+    # Check if user exists
+    existing_user = get_user_by_username(username)
+    if existing_user:
+        return jsonify({'error': 'Username or email already exists'}), 409
     
-    try:
-        cur = conn.cursor()
-        
-        # Check if username or email already exists
-        cur.execute("SELECT id FROM users WHERE username = %s OR email = %s", (username, email))
-        if cur.fetchone():
-            cur.close()
-            return jsonify({'error': 'Username or email already exists'}), 409
-        
-        # Create user
-        password_hash = hash_password(password)
-        cur.execute("""
-            INSERT INTO users (username, email, password_hash, display_name)
-            VALUES (%s, %s, %s, %s)
-            RETURNING id
-        """, (username, email, password_hash, display_name))
-        
-        user_id = cur.fetchone()[0]
-        conn.commit()
-        cur.close()
-        
-        # Log user in
-        session['user_id'] = user_id
-        session['username'] = username
-        
-        return jsonify({
-            'message': 'Registration successful',
-            'user': {'id': user_id, 'username': username, 'displayName': display_name}
-        }), 201
-        
-    except Exception as e:
-        print(f"Registration error: {e}")
-        conn.rollback()
+    # Create user
+    password_hash = hash_password(password)
+    user_id = create_user(username, email, password_hash, display_name)
+    
+    if not user_id:
         return jsonify({'error': 'Registration failed'}), 500
-    finally:
-        release_db_conn(conn)
+    
+    # Log user in
+    session['user_id'] = user_id
+    session['username'] = username
+    
+    return jsonify({
+        'message': 'Registration successful',
+        'user': {'id': user_id, 'username': username, 'displayName': display_name}
+    }), 201
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
@@ -362,54 +153,32 @@ def login():
     if not username or not password:
         return jsonify({'error': 'Missing username or password'}), 400
     
-    conn = get_db_conn()
-    if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
+    user = get_user_by_username(username)
     
-    try:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("""
-            SELECT id, username, email, password_hash, display_name, elo_rating, 
-                   games_played, games_won, games_drawn, games_lost
-            FROM users 
-            WHERE username = %s OR email = %s
-        """, (username, username))
-        
-        user = cur.fetchone()
-        
-        if not user or not verify_password(password, user['password_hash']):
-            cur.close()
-            return jsonify({'error': 'Invalid username or password'}), 401
-        
-        # Update last login
-        cur.execute("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = %s", (user['id'],))
-        conn.commit()
-        cur.close()
-        
-        # Set session
-        session['user_id'] = user['id']
-        session['username'] = user['username']
-        
-        return jsonify({
-            'message': 'Login successful',
-            'user': {
-                'id': user['id'],
-                'username': user['username'],
-                'email': user['email'],
-                'displayName': user['display_name'],
-                'eloRating': user['elo_rating'],
-                'gamesPlayed': user['games_played'],
-                'gamesWon': user['games_won'],
-                'gamesDrawn': user['games_drawn'],
-                'gamesLost': user['games_lost']
-            }
-        }), 200
-        
-    except Exception as e:
-        print(f"Login error: {e}")
-        return jsonify({'error': 'Login failed'}), 500
-    finally:
-        release_db_conn(conn)
+    if not user or not verify_password(password, user['password_hash']):
+        return jsonify({'error': 'Invalid username or password'}), 401
+    
+    # Update last login
+    update_last_login(user['id'])
+    
+    # Set session
+    session['user_id'] = user['id']
+    session['username'] = user['username']
+    
+    return jsonify({
+        'message': 'Login successful',
+        'user': {
+            'id': user['id'],
+            'username': user['username'],
+            'email': user['email'],
+            'displayName': user['display_name'],
+            'eloRating': user['elo_rating'],
+            'gamesPlayed': user['games_played'],
+            'gamesWon': user['games_won'],
+            'gamesDrawn': user['games_drawn'],
+            'gamesLost': user['games_lost']
+        }
+    }), 200
 
 @app.route('/api/auth/logout', methods=['POST'])
 def logout():
@@ -426,126 +195,28 @@ def get_me():
     return jsonify({'user': user}), 200
 
 @app.route('/api/user/<username>')
-def get_user_profile(username):
+def get_user_profile_api(username):
     """Get user profile by username"""
-    conn = get_db_conn()
-    if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
-    
-    try:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("""
-            SELECT username, display_name, elo_rating, games_played, 
-                   games_won, games_drawn, games_lost, created_at
-            FROM users 
-            WHERE username = %s
-        """, (username,))
-        
-        user = cur.fetchone()
-        cur.close()
-        
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
-        
-        return jsonify({'user': dict(user)}), 200
-        
-    except Exception as e:
-        print(f"Error fetching profile: {e}")
-        return jsonify({'error': 'Failed to fetch profile'}), 500
-    finally:
-        release_db_conn(conn)
+    user = get_user_profile(username)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    return jsonify({'user': user}), 200
 
 @app.route('/api/user/<username>/games')
-def get_user_games(username):
+def get_user_games_api(username):
     """Get user's game history"""
-    conn = get_db_conn()
-    if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
-    
-    try:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        # Get user ID
-        cur.execute("SELECT id FROM users WHERE username = %s", (username,))
-        user_result = cur.fetchone()
-        if not user_result:
-            cur.close()
-            return jsonify({'error': 'User not found'}), 404
-        
-        user_id = user_result['id']
-        
-        # Get games
-        cur.execute("""
-            SELECT g.id, g.room_name, g.white_player, g.black_player, 
-                   g.winner, g.win_reason, g.start_time, g.end_time,
-                   g.time_control, g.game_mode,
-                   w.username as white_username, b.username as black_username
-            FROM games g
-            LEFT JOIN users w ON g.white_user_id = w.id
-            LEFT JOIN users b ON g.black_user_id = b.id
-            WHERE g.white_user_id = %s OR g.black_user_id = %s
-            ORDER BY g.end_time DESC
-            LIMIT 50
-        """, (user_id, user_id))
-        
-        games = cur.fetchall()
-        cur.close()
-        
-        return jsonify({'games': [dict(g) for g in games]}), 200
-        
-    except Exception as e:
-        print(f"Error fetching games: {e}")
-        return jsonify({'error': 'Failed to fetch games'}), 500
-    finally:
-        release_db_conn(conn)
+    games = get_user_games(username)
+    if games is None:
+        return jsonify({'error': 'User not found'}), 404
+    return jsonify({'games': games}), 200
 
 @app.route('/api/game/<int:game_id>/replay')
-def get_game_replay(game_id):
+def get_game_replay_api(game_id):
     """Get game moves for replay"""
-    conn = get_db_conn()
-    if not conn:
-        return jsonify({'error': 'Database connection failed'}), 500
-    
-    try:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        # Get game info
-        cur.execute("""
-            SELECT g.*, w.username as white_username, b.username as black_username
-            FROM games g
-            LEFT JOIN users w ON g.white_user_id = w.id
-            LEFT JOIN users b ON g.black_user_id = b.id
-            WHERE g.id = %s
-        """, (game_id,))
-        
-        game = cur.fetchone()
-        if not game:
-            cur.close()
-            return jsonify({'error': 'Game not found'}), 404
-        
-        # Get moves
-        cur.execute("""
-            SELECT move_number, move_notation, from_square, to_square, 
-                   piece, captured_piece, time_remaining_white, 
-                   time_remaining_black, position_fen, timestamp
-            FROM game_moves
-            WHERE game_id = %s
-            ORDER BY move_number
-        """, (game_id,))
-        
-        moves = cur.fetchall()
-        cur.close()
-        
-        return jsonify({
-            'game': dict(game),
-            'moves': [dict(m) for m in moves]
-        }), 200
-        
-    except Exception as e:
-        print(f"Error fetching replay: {e}")
-        return jsonify({'error': 'Failed to fetch replay'}), 500
-    finally:
-        release_db_conn(conn)
+    replay_data = get_game_replay(game_id)
+    if not replay_data:
+        return jsonify({'error': 'Game not found'}), 404
+    return jsonify(replay_data), 200
 
 # --- CHESS LOGIC ---
 def format_seconds(sec):
@@ -618,106 +289,17 @@ def update_time(g):
             g["reason"] = "timeout"
 
 def save_game(room, g):
-    if g.get("saved"): return
-    conn = get_db_conn()
-    if conn:
-        try:
-            end_time = datetime.utcnow()
-            start_time = g.get("start_timestamp", end_time)
-            win_reason = g.get("reason", "unknown")
-            
-            # Get user IDs if available
-            white_user_id = g.get("white_user_id")
-            black_user_id = g.get("black_user_id")
-
-            cur = conn.cursor()
-            cur.execute("""
-                INSERT INTO games 
-                (room_name, white_player, black_player, white_user_id, black_user_id,
-                 winner, win_reason, start_time, end_time, time_control, game_mode) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-            """, (
-                room, 
-                g["white_player"], 
-                g["black_player"],
-                white_user_id,
-                black_user_id,
-                g["winner"], 
-                win_reason, 
-                start_time, 
-                end_time,
-                int(g.get("whiteTime", 300)),
-                g.get("game_mode", "friend")
-            ))
-            
-            game_id = cur.fetchone()[0]
-            
-            # Save moves if available
-            if "move_history" in g and g["move_history"]:
-                for idx, move_data in enumerate(g["move_history"]):
-                    cur.execute("""
-                        INSERT INTO game_moves 
-                        (game_id, move_number, move_notation, from_square, to_square,
-                         time_remaining_white, time_remaining_black, position_fen)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (
-                        game_id,
-                        idx + 1,
-                        move_data.get("notation", ""),
-                        move_data.get("from_square", ""),
-                        move_data.get("to_square", ""),
-                        move_data.get("white_time", 0),
-                        move_data.get("black_time", 0),
-                        move_data.get("fen", "")
-                    ))
-            
-            # Update user stats if users are linked
-            if white_user_id:
-                update_user_stats(cur, white_user_id, g["winner"], "white")
-            if black_user_id:
-                update_user_stats(cur, black_user_id, g["winner"], "black")
-            
-            conn.commit()
-            cur.close()
-            g["saved"] = True
-            print(f"✅ Game {room} saved to DB with ID {game_id}.")
-        except Exception as e:
-            print(f"❌ Save game error: {e}")
-            conn.rollback()
-        finally: release_db_conn(conn)
-
-def update_user_stats(cur, user_id, winner, player_color):
-    """Update user statistics after game"""
-    try:
-        # Determine result
-        if winner == "draw":
-            cur.execute("""
-                UPDATE users 
-                SET games_played = games_played + 1,
-                    games_drawn = games_drawn + 1
-                WHERE id = %s
-            """, (user_id,))
-        elif winner == player_color:
-            # Won
-            cur.execute("""
-                UPDATE users 
-                SET games_played = games_played + 1,
-                    games_won = games_won + 1,
-                    elo_rating = elo_rating + 25
-                WHERE id = %s
-            """, (user_id,))
-        else:
-            # Lost
-            cur.execute("""
-                UPDATE users 
-                SET games_played = games_played + 1,
-                    games_lost = games_lost + 1,
-                    elo_rating = GREATEST(elo_rating - 20, 100)
-                WHERE id = %s
-            """, (user_id,))
-    except Exception as e:
-        print(f"Error updating user stats: {e}")
+    """Save game using database.py function"""
+    if g.get("saved"): 
+        return
+    
+    end_time = datetime.utcnow()
+    start_time = g.get("start_timestamp", end_time)
+    win_reason = g.get("reason", "unknown")
+    
+    success = save_game_record(room, g, start_time, end_time, win_reason)
+    if success:
+        g["saved"] = True
 
 def timeout_watcher():
     while True:
