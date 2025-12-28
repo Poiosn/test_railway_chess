@@ -25,10 +25,11 @@ def init_db_pool():
         db_pool = psycopg2.pool.SimpleConnectionPool(1, 4, dsn=DATABASE_URL)
         print("✅ Database connection pool created!")
         
-        # Initialize Tables
-        conn = get_db_conn()
-        if conn:
+        # Initialize Tables - Get connection directly from pool
+        if db_pool:
+            conn = None
             try:
+                conn = db_pool.getconn()
                 cur = conn.cursor()
                 
                 # 1. Create Visitors Table
@@ -110,9 +111,11 @@ def init_db_pool():
                 print("✅ Database tables checked/created.")
             except Exception as e:
                 print(f"❌ Table creation error: {e}")
-                conn.rollback()
+                if conn:
+                    conn.rollback()
             finally:
-                release_db_conn(conn)
+                if conn:
+                    db_pool.putconn(conn)
             
     except Exception as e:
         print(f"❌ Failed to create DB pool: {e}")
@@ -121,32 +124,31 @@ def get_db_conn():
     """Get a fresh, live connection from the pool."""
     global db_pool
     if not db_pool:
-        init_db_pool()
+        return None
     
-    if db_pool:
-        try:
-            conn = db_pool.getconn()
-            # Liveness Check: Verify connection is active
-            if conn:
-                if conn.closed:
-                    db_pool.putconn(conn, close=True)
-                    return db_pool.getconn()
-                
-                # Double check with a simple query
+    try:
+        conn = db_pool.getconn()
+        # Liveness Check: Verify connection is active
+        if conn:
+            if conn.closed:
+                db_pool.putconn(conn, close=True)
+                return db_pool.getconn()
+            
+            # Double check with a simple query
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                return conn
+            except (psycopg2.InterfaceError, psycopg2.OperationalError):
+                # Connection is dead, get a new one
                 try:
-                    with conn.cursor() as cur:
-                        cur.execute("SELECT 1")
-                    return conn
-                except (psycopg2.InterfaceError, psycopg2.OperationalError):
-                    # Connection is dead, get a new one
-                    try:
-                        db_pool.putconn(conn, close=True)
-                    except:
-                        pass
-                    return db_pool.getconn()
-        except Exception as e:
-            print(f"⚠️ DB Pool Exhausted or Error: {e}")
-            return None
+                    db_pool.putconn(conn, close=True)
+                except:
+                    pass
+                return db_pool.getconn()
+    except Exception as e:
+        print(f"⚠️ DB Pool Exhausted or Error: {e}")
+        return None
     return None
 
 def release_db_conn(conn):
