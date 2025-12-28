@@ -618,6 +618,14 @@
     .btn-bot {
       background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
     }
+    .btn-rematch {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      grid-column: 1 / -1;
+      display: none;
+    }
+    .btn-rematch.active {
+      display: block;
+    }
 
     /* MODALS */
     .modal {
@@ -805,6 +813,10 @@
       .button-group button:first-child {
         grid-column: 1 / -1;
       }
+
+      .btn-rematch.active {
+        grid-column: 1 / -1;
+      }
     }
 
     /* SMALL MOBILE */
@@ -929,6 +941,7 @@
             <button onclick="goHome()" class="btn-home">🏠 Home</button>
             <button onclick="offerDraw()" class="btn-draw">🤝 Draw</button>
             <button onclick="resignGame()" class="btn-resign">🏳️ Resign</button>
+            <button id="rematchBtn" onclick="requestRematch()" class="btn-rematch">🔄 Rematch</button>
           </div>
         </div>
 
@@ -997,6 +1010,18 @@
   </div>
 </div>
 
+<!-- REMATCH MODAL -->
+<div class="modal" id="rematchModal">
+  <div class="modal-content">
+    <h3>🔄 Rematch Request</h3>
+    <p id="rematchMessage" style="color:#666;margin-top:12px;font-size:clamp(12px,2.3vw,15px);">Opponent wants a rematch!</p>
+    <div class="modal-buttons">
+      <button onclick="acceptRematch()" class="btn-bot">✅ Accept</button>
+      <button onclick="declineRematch()" class="btn-secondary">❌ Decline</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const socket = io({ 
   transports: ["websocket", "polling"],
@@ -1035,6 +1060,7 @@ let moveSequence = 0;
 let disconnectInterval = null;
 let isDragging = false;
 let pendingUpdate = null;
+let gameMode = URL_MODE || "friend";
 
 function timeStringToSeconds(str) {
   if (!str || typeof str !== "string" || !str.includes(":")) return 0;
@@ -1342,6 +1368,10 @@ socket.on("connect",()=>{
     socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME });
   } else if (URL_MODE === 'bot') {
     socket.emit("create_room", { room: URL_ROOM, timeControl: URL_TIME, playerName: URL_NAME, bot: true });
+  } else if (URL_MODE === 'global') {
+    socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME });
+  } else if (URL_MODE === 'spectate') {
+    socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME, spectate: true });
   }
 });
 
@@ -1366,7 +1396,13 @@ function startGame(data){
   updatePlayerNames(gameState);
 
   const roomName = document.getElementById("roomName");
-  if (roomName) roomName.textContent = currentRoom;
+  if (roomName) {
+    if (playerColor === "spectator") {
+      roomName.textContent = currentRoom + " (Spectating)";
+    } else {
+      roomName.textContent = currentRoom;
+    }
+  }
 
   const defaultSeconds = URL_TIME || 300;
   whiteSeconds = gameState.whiteTimeFormatted ? timeStringToSeconds(gameState.whiteTimeFormatted) : defaultSeconds;
@@ -1384,6 +1420,17 @@ function startGame(data){
   renderBoard(gameState);
   updateStatus(gameState);
   updateTurnIndicator(gameState);
+  
+  // Hide control buttons for spectators
+  if (playerColor === "spectator") {
+    const buttons = document.querySelectorAll('.btn-draw, .btn-resign, #rematchBtn');
+    buttons.forEach(btn => btn.style.display = 'none');
+  }
+  
+  // Update spectator count if provided
+  if (data.spectatorCount !== undefined) {
+    updateSpectatorCount(data.spectatorCount);
+  }
 }
 
 socket.on("game_start", d=>{
@@ -1549,6 +1596,92 @@ socket.on("invalid_move", data => {
   if (messages) messages.textContent = "❌ Invalid move!";
 });
 
+// ===== REMATCH FUNCTIONALITY =====
+function requestRematch() {
+    if (!currentRoom) return;
+    socket.emit("request_rematch", { room: currentRoom });
+    
+    const rematchBtn = document.getElementById("rematchBtn");
+    if (rematchBtn) {
+        rematchBtn.textContent = "⏳ Waiting for opponent...";
+        rematchBtn.disabled = true;
+    }
+}
+
+function acceptRematch() {
+    const modal = document.getElementById("rematchModal");
+    if (modal) modal.classList.remove("active");
+}
+
+function declineRematch() {
+    const modal = document.getElementById("rematchModal");
+    if (modal) modal.classList.remove("active");
+}
+
+socket.on("rematch_requested", (data) => {
+    const modal = document.getElementById("rematchModal");
+    const message = document.getElementById("rematchMessage");
+    
+    if (modal && message) {
+        message.textContent = `${data.from.toUpperCase()} wants a rematch!`;
+        modal.classList.add("active");
+    }
+});
+
+socket.on("rematch_started", (data) => {
+    currentRoom = data.room;
+    playerColor = data.color;
+    gameState = data.state;
+    
+    moveHistory = [];
+    selectedSquare = null;
+    possibleMoves = [];
+    
+    const rematchBtn = document.getElementById("rematchBtn");
+    if (rematchBtn) {
+        rematchBtn.classList.remove("active");
+        rematchBtn.disabled = false;
+        rematchBtn.textContent = "🔄 Rematch";
+    }
+    
+    const roomName = document.getElementById("roomName");
+    if (roomName) roomName.textContent = currentRoom;
+    
+    updatePlayerNames(gameState);
+    renderBoard(gameState);
+    updateStatus(gameState);
+    updateTurnIndicator(gameState);
+    renderMoveHistory();
+    
+    whiteSeconds = gameState.whiteTimeFormatted ? timeStringToSeconds(gameState.whiteTimeFormatted) : 300;
+    blackSeconds = gameState.blackTimeFormatted ? timeStringToSeconds(gameState.blackTimeFormatted) : 300;
+    updateDisplayedTimers();
+    startLocalTimer();
+    
+    playSound("notify");
+});
+
+// === SPECTATOR MODE ===
+function updateSpectatorCount(count) {
+  const roomName = document.getElementById("roomName");
+  if (roomName && playerColor === "spectator") {
+    const baseRoom = currentRoom.replace(" (Spectating)", "");
+    roomName.textContent = `${baseRoom} (Spectating) • 👁️ ${count} viewer${count !== 1 ? 's' : ''}`;
+  }
+}
+
+socket.on("spectator_joined", (data) => {
+  if (data.spectatorCount !== undefined) {
+    updateSpectatorCount(data.spectatorCount);
+  }
+});
+
+socket.on("spectator_left", (data) => {
+  if (data.spectatorCount !== undefined) {
+    updateSpectatorCount(data.spectatorCount);
+  }
+});
+
 document.addEventListener("DOMContentLoaded", function() {
   initializeEmojiPanel();
   const chatInputEl = document.getElementById("chatInput");
@@ -1612,7 +1745,9 @@ function renderBoard(state, lastMove=null){
         pDiv.className="piece";
         const isWhitePiece = piece === piece.toUpperCase();
         const color = isWhitePiece ? "white" : "black";
-        if(color === state.turn && color === playerColor){
+        
+        // Only allow dragging for the player's own pieces, not for spectators
+        if(color === state.turn && color === playerColor && playerColor !== "spectator"){
           pDiv.draggable=true;
         }
         pDiv.dataset.row=r;
@@ -1625,10 +1760,8 @@ function renderBoard(state, lastMove=null){
           const key = `${r},${c}`;
           possibleMoves = (state.moves && state.moves[key]) ? state.moves[key] : [];
 
-          // Hide the original piece during drag
           e.target.style.opacity = '0';
           
-          // Create drag image with proper sizing
           const dragImg = e.target.cloneNode(true);
           dragImg.style.opacity = '1';
           dragImg.style.position = 'absolute';
@@ -1684,7 +1817,6 @@ function renderBoard(state, lastMove=null){
         const to={row:r,col:c};
         const valid = possibleMoves.some(m=>m.row===r && m.col===c);
         
-        // Clear highlights immediately
         selectedSquare = null;
         possibleMoves = [];
         
@@ -1712,6 +1844,14 @@ function renderBoard(state, lastMove=null){
 
 function handleSquareClick(row, col, state){
   if(state.winner) return;
+  
+  // Prevent spectators from making moves
+  if (playerColor === "spectator") {
+    const messages = document.getElementById("messages");
+    if (messages) messages.textContent = "👁️ You are spectating";
+    return;
+  }
+  
   if (state.isActive === false) {
     const messages = document.getElementById("messages");
     if (messages) messages.textContent = "⏳ Waiting for opponent...";
@@ -1766,7 +1906,6 @@ function makeMove(from, to, promotion=null, isDrop=false){
   const moveId = ++moveSequence;
   const previousState = JSON.parse(JSON.stringify(gameState));
   
-  // Clear selections immediately
   selectedSquare = null;
   possibleMoves = [];
   pendingPromotion = null;
@@ -1868,8 +2007,16 @@ function updateTurnIndicator(state){
 
 function updateStatus(state){
   const s=document.getElementById("status");
+  const rematchBtn = document.getElementById("rematchBtn");
+  
   if (!s) return;
+  
   if(state.winner){
+    if (rematchBtn) {
+        rematchBtn.classList.add("active");
+        rematchBtn.disabled = false;
+    }
+    
     if(state.winner==="draw"){
       s.textContent="🤝 Game Draw!";
       s.style.background="linear-gradient(135deg, #f7971e 0%, #ffd200 100%)";
@@ -1887,6 +2034,11 @@ function updateStatus(state){
     }
     return;
   }
+  
+  if (rematchBtn) {
+      rematchBtn.classList.remove("active");
+  }
+  
   if(state.check){
     const t = state.turn==="white"?"♔ WHITE":"♚ BLACK";
     s.textContent=`⚠️ CHECK! ${t}'s turn`;
