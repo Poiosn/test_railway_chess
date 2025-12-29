@@ -429,12 +429,28 @@ def join(data):
         g["white_sid"] = request.sid
         cancel_timer(g, "white")
         reconnected = True
+        # Link user if authenticated
+        user = get_current_user()
+        if user:
+            g["white_user_id"] = user['id']
+        # Check if both players are now connected (for global matchmaking)
+        if g.get("black_sid") is not None:
+            g["isActive"] = True
+            g["lastUpdate"] = time.time()
         socketio.emit("player_reconnected", {"color": "white"}, room=room)
-        
+
     elif g["black_player"] and player_name == g["black_player"] and g.get("black_sid") is None:
         g["black_sid"] = request.sid
         cancel_timer(g, "black")
         reconnected = True
+        # Link user if authenticated
+        user = get_current_user()
+        if user:
+            g["black_user_id"] = user['id']
+        # Check if both players are now connected (for global matchmaking)
+        if g.get("white_sid") is not None:
+            g["isActive"] = True
+            g["lastUpdate"] = time.time()
         socketio.emit("player_reconnected", {"color": "black"}, room=room)
 
     # NEW: Handle spectator mode
@@ -729,6 +745,36 @@ def request_rematch(data):
                     "from": requester_color
                 }, room=opponent_sid)
 
+@socketio.on("decline_rematch")
+def decline_rematch(data):
+    room = data.get("room")
+    if room not in games:
+        return
+
+    g = games[room]
+    decliner_sid = request.sid
+
+    # Determine who is declining
+    if decliner_sid == g.get("white_sid"):
+        decliner_color = "white"
+        opponent_sid = g.get("black_sid")
+    elif decliner_sid == g.get("black_sid"):
+        decliner_color = "black"
+        opponent_sid = g.get("white_sid")
+    else:
+        return
+
+    # Clear rematch requests
+    if "rematch_requests" in g:
+        g["rematch_requests"].clear()
+
+    # Notify opponent that rematch was declined
+    if opponent_sid:
+        socketio.emit("rematch_declined", {
+            "from": decliner_color
+        }, room=opponent_sid)
+        print(f"❌ {decliner_color.upper()} declined rematch in room {room}")
+
 @socketio.on("disconnect")
 def on_disconnect():
     sid = request.sid
@@ -826,7 +872,7 @@ def move(data):
                     "moveNotation": san
                 }, room=sid)
 
-            if g["bot"] and not g["winner"]:
+            if g["bot"] and not g["winner"]: 
                 socketio.start_background_task(bot_play, room)
 
 def bot_play(room):
@@ -854,28 +900,62 @@ def bot_play(room):
         if best_move:
             san = board.san(best_move)
             board.push(best_move)
-            
+
+            # Record bot move for replay (same as player moves)
+            if "move_history" not in g:
+                g["move_history"] = []
+
+            g["move_history"].append({
+                "notation": san,
+                "from_square": chess.square_name(best_move.from_square),
+                "to_square": chess.square_name(best_move.to_square),
+                "white_time": g["whiteTime"],
+                "black_time": g["blackTime"],
+                "fen": board.fen()
+            })
+
             if board.is_game_over():
                 g["winner"] = "black"
                 g["reason"] = "checkmate"
                 save_game(room, g)
-            
+
             for sid in g.get("clients", set()):
                 socketio.emit("game_update", {
                     "state": export_state(room, sid),
-                    "lastMove": {"from": {"row": 7-chess.square_rank(best_move.from_square), "col": chess.square_file(best_move.from_square)}, 
+                    "lastMove": {"from": {"row": 7-chess.square_rank(best_move.from_square), "col": chess.square_file(best_move.from_square)},
                                  "to": {"row": 7-chess.square_rank(best_move.to_square), "col": chess.square_file(best_move.to_square)}},
                     "moveNotation": san
                 }, room=sid)
 
 @socketio.on("send_message")
-def msg(data): socketio.emit("chat_message", data, room=data["room"])
+def msg(data):
+    room = data.get("room")
+    sender = data.get("sender")
+
+    # Block spectators from sending messages
+    if sender == "spectator":
+        return
+
+    # Check if sender is actually a player in the game
+    if room in games:
+        g = games[room]
+        if request.sid not in [g.get("white_sid"), g.get("black_sid")]:
+            return
+
+    socketio.emit("chat_message", data, room=room)
+
 @socketio.on("typing")
 def on_typing(data):
+    # Block spectators from showing typing indicator
+    if data.get("sender") == "spectator":
+        return
     socketio.emit("user_typing", data, room=data["room"], skip_sid=request.sid)
 
 @socketio.on("stop_typing")
 def on_stop_typing(data):
+    # Block spectators from showing typing indicator
+    if data.get("sender") == "spectator":
+        return
     socketio.emit("user_stop_typing", data, room=data["room"], skip_sid=request.sid)
 
 @socketio.on("offer_draw")
@@ -914,4 +994,4 @@ def on_leave(data):
     if room: leave_room(room)
 
 if __name__ == "__main__":
-    socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 5001)), allow_unsafe_werkzeug=True)
