@@ -1340,25 +1340,61 @@ function initializeEmojiPanel() {
 function updatePlayerNames(state) {
   const whiteNameEl = document.getElementById("whiteName");
   const blackNameEl = document.getElementById("blackName");
+  const whitePlayerCard = document.getElementById("whitePlayerCard");
+  const blackPlayerCard = document.getElementById("blackPlayerCard");
 
   if (!whiteNameEl || !blackNameEl || !state) return;
 
   let whiteName = "";
   let blackName = "";
+  let topName = "";
+  let bottomName = "";
 
   if (playerColor === "white") {
     whiteName = playerName;
     blackName = state.opponentName || "Opponent";
+    topName = blackName;
+    bottomName = whiteName;
+
+    // Top card should be black (opponent), bottom should be white (you)
+    if (blackPlayerCard) {
+      blackPlayerCard.className = "player-card black";
+    }
+    if (whitePlayerCard) {
+      whitePlayerCard.className = "player-card white";
+    }
   } else if (playerColor === "black") {
     blackName = playerName;
     whiteName = state.opponentName || "Opponent";
+    topName = whiteName;
+    bottomName = blackName;
+
+    // Top card should be white (opponent), bottom should be black (you)
+    if (blackPlayerCard) {
+      blackPlayerCard.className = "player-card white";
+    }
+    if (whitePlayerCard) {
+      whitePlayerCard.className = "player-card black";
+    }
   } else {
+    // Spectator mode - keep default
     whiteName = state.whiteName || "White";
     blackName = state.blackName || "Black";
+    topName = blackName;
+    bottomName = whiteName;
+
+    if (blackPlayerCard) {
+      blackPlayerCard.className = "player-card black";
+    }
+    if (whitePlayerCard) {
+      whitePlayerCard.className = "player-card white";
+    }
   }
 
-  whiteNameEl.textContent = whiteName;
-  blackNameEl.textContent = blackName;
+  // In the HTML, blackName is at the top and whiteName is at the bottom
+  // When playing as black, we need to swap them so the player's name appears at the bottom
+  blackNameEl.textContent = topName;
+  whiteNameEl.textContent = bottomName;
 }
 
 socket.on("connect",()=>{
@@ -1427,6 +1463,12 @@ function startGame(data){
   if (playerColor === "spectator") {
     const buttons = document.querySelectorAll('.btn-draw, .btn-resign, #rematchBtn');
     buttons.forEach(btn => btn.style.display = 'none');
+
+    // Completely hide chat section for spectators
+    const chatCard = document.querySelector('.card:has(#chatMessages)');
+    if (chatCard) {
+      chatCard.style.display = 'none';
+    }
   }
   
   // Update spectator count if provided
@@ -1613,21 +1655,63 @@ function requestRematch() {
 function acceptRematch() {
     const modal = document.getElementById("rematchModal");
     if (modal) modal.classList.remove("active");
+
+    // When accepting, also request rematch (this will trigger rematch_started when both accept)
+    socket.emit("request_rematch", { room: currentRoom });
+
+    const rematchBtn = document.getElementById("rematchBtn");
+    if (rematchBtn) {
+        rematchBtn.textContent = "⏳ Starting rematch...";
+        rematchBtn.disabled = true;
+    }
 }
 
 function declineRematch() {
     const modal = document.getElementById("rematchModal");
     if (modal) modal.classList.remove("active");
+
+    // Notify server and opponent that rematch was declined
+    socket.emit("decline_rematch", { room: currentRoom });
 }
 
 socket.on("rematch_requested", (data) => {
     const modal = document.getElementById("rematchModal");
     const message = document.getElementById("rematchMessage");
-    
+
     if (modal && message) {
         message.textContent = `${data.from.toUpperCase()} wants a rematch!`;
         modal.classList.add("active");
     }
+});
+
+socket.on("rematch_declined", (data) => {
+    const messages = document.getElementById("messages");
+    const status = document.getElementById("status");
+
+    // Reset rematch button
+    const rematchBtn = document.getElementById("rematchBtn");
+    if (rematchBtn) {
+        rematchBtn.textContent = "🔄 Rematch";
+        rematchBtn.disabled = false;
+    }
+
+    // Show notification
+    if (messages) {
+        messages.textContent = "❌ Opponent declined the rematch.";
+        messages.style.color = "#ff4444";
+        messages.style.fontWeight = "bold";
+
+        // Clear message after 5 seconds
+        setTimeout(() => {
+            if (messages.textContent === "❌ Opponent declined the rematch.") {
+                messages.textContent = "";
+                messages.style.color = "";
+                messages.style.fontWeight = "";
+            }
+        }, 5000);
+    }
+
+    playSound("notify");
 });
 
 socket.on("rematch_started", (data) => {
@@ -2010,15 +2094,29 @@ function updateTurnIndicator(state){
 function updateStatus(state){
   const s=document.getElementById("status");
   const rematchBtn = document.getElementById("rematchBtn");
-  
+  const drawBtn = document.querySelector(".btn-draw");
+  const resignBtn = document.querySelector(".btn-resign");
+
   if (!s) return;
-  
+
   if(state.winner){
     if (rematchBtn) {
         rematchBtn.classList.add("active");
         rematchBtn.disabled = false;
     }
-    
+
+    // Disable Draw and Resign buttons when game is over
+    if (drawBtn) {
+        drawBtn.disabled = true;
+        drawBtn.style.opacity = "0.5";
+        drawBtn.style.cursor = "not-allowed";
+    }
+    if (resignBtn) {
+        resignBtn.disabled = true;
+        resignBtn.style.opacity = "0.5";
+        resignBtn.style.cursor = "not-allowed";
+    }
+
     if(state.winner==="draw"){
       s.textContent="🤝 Game Draw!";
       s.style.background="linear-gradient(135deg, #f7971e 0%, #ffd200 100%)";
@@ -2028,7 +2126,7 @@ function updateStatus(state){
       const r =
         state.reason==="checkmate" ? "by Checkmate" :
         state.reason==="resign" ? "by Resignation" :
-        state.reason==="timeout" ? "by Timeout" : 
+        state.reason==="timeout" ? "by Timeout" :
         state.reason==="abandonment" ? "by Abandonment" : "";
       s.textContent=`👑 ${w} Wins ${r}!`;
       s.style.background="linear-gradient(135deg, #11998e 0%, #38ef7d 100%)";
@@ -2036,11 +2134,23 @@ function updateStatus(state){
     }
     return;
   }
-  
+
   if (rematchBtn) {
       rematchBtn.classList.remove("active");
   }
-  
+
+  // Re-enable Draw and Resign buttons when game is active
+  if (drawBtn) {
+      drawBtn.disabled = false;
+      drawBtn.style.opacity = "1";
+      drawBtn.style.cursor = "pointer";
+  }
+  if (resignBtn) {
+      resignBtn.disabled = false;
+      resignBtn.style.opacity = "1";
+      resignBtn.style.cursor = "pointer";
+  }
+
   if(state.check){
     const t = state.turn==="white"?"♔ WHITE":"♚ BLACK";
     s.textContent=`⚠️ CHECK! ${t}'s turn`;
