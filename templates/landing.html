@@ -783,9 +783,9 @@ function showNameModal(actionType, actionData = {}) {
 
 function executeGameAction(type, data, playerName) {
   if (type === "create") {
-    window.location.href = `/game?mode=friend&room=${encodeURIComponent(data.room)}&name=${encodeURIComponent(playerName)}&time=${data.timeControl}`;
+    window.location.href = `/game?mode=create&room=${encodeURIComponent(data.room)}&name=${encodeURIComponent(playerName)}&time=${data.timeControl}`;
   } else if (type === "join") {
-    window.location.href = `/game?mode=friend&room=${encodeURIComponent(data.room)}&name=${encodeURIComponent(playerName)}`;
+    window.location.href = `/game?mode=join&room=${encodeURIComponent(data.room)}&name=${encodeURIComponent(playerName)}`;
   } else if (type === "bot") {
     window.location.href = `/game?mode=bot&room=${encodeURIComponent(data.room)}&name=${encodeURIComponent(playerName)}&time=${data.timeControl}`;
   } else if (type === "global") {
