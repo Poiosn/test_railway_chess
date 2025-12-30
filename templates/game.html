@@ -1,2206 +1,997 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Chess Master — Premium Edition</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-  <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
+from flask import Flask, render_template, request, jsonify, session
+from flask_socketio import SocketIO, emit, join_room, leave_room
+import chess
+import chess.engine
+import time
+import random
+import secrets
+import threading
+import os
+from datetime import datetime
+import shutil
+import hashlib
+import hmac
+import json
 
-    body {
-      font-family:'Inter','Segoe UI','Helvetica Neue',sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height:100vh;
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      padding:10px;
-      position:relative;
-      overflow-x:hidden;
-      user-select: none;
-      -webkit-user-select: none;
-    }
+# Import database functions
+from database import (
+    init_db_pool, get_db_conn, release_db_conn,
+    increment_visitor_count, get_total_visitor_count,
+    get_leaderboard_data, save_game_record,
+    get_user_by_id, get_user_by_username, create_user,
+    update_last_login, get_user_profile, get_user_games,
+    get_game_replay
+)
 
-    /* GLASSMORPHISM CONTAINER */
-    .container {
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(20px) saturate(180%);
-      -webkit-backdrop-filter: blur(20px) saturate(180%);
-      border-radius: 20px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-      padding: 20px;
-      width: 100%;
-      max-width: 1400px;
-      position: relative;
-      animation: containerFadeIn 0.6s ease;
-    }
+# ===== FLASK APP =====
+app = Flask(__name__)
+app.config["SECRET_KEY"] = secrets.token_hex(16)
+app.config["SESSION_COOKIE_SECURE"] = False  # Set to True in production with HTTPS
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
-    @keyframes containerFadeIn {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
+# ===== AUTHENTICATION HELPERS =====
+def hash_password(password):
+    """Hash password using SHA256"""
+    return hashlib.sha256(password.encode()).hexdigest()
 
-    /* HEADER */
-    .header {
-      text-align: center;
-      margin-bottom: 15px;
-      position: relative;
-    }
+def verify_password(password, password_hash):
+    """Verify password against hash"""
+    return hmac.compare_digest(hash_password(password), password_hash)
 
-    h1 {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
-      background-size: 200% auto;
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      font-size: clamp(24px, 5vw, 36px);
-      font-weight: 900;
-      margin-bottom: 5px;
-      letter-spacing: -1px;
-      animation: titleShine 3s linear infinite;
-    }
+def get_current_user():
+    """Get current logged in user from session"""
+    user_id = session.get('user_id')
+    if not user_id:
+        return None
+    return get_user_by_id(user_id)
 
-    @keyframes titleShine {
-      to { background-position: 200% center; }
-    }
+# Initialize database on startup
+init_db_pool()
 
-    .subtitle {
-      color: #666;
-      font-size: clamp(11px, 2vw, 13px);
-      font-weight: 600;
-      letter-spacing: 0.5px;
-    }
+# ===== STOCKFISH SETUP =====
+STOCKFISH_PATH = shutil.which("stockfish") or "/usr/games/stockfish" or "/usr/bin/stockfish"
+print(f"♟️ Stockfish Engine Path: {STOCKFISH_PATH}")
 
-    .sound-toggle {
-      position: absolute;
-      top: 0;
-      right: 0;
-      width: 40px;
-      height: 40px;
-      background: rgba(102, 126, 234, 0.1);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      border: 2px solid rgba(102, 126, 234, 0.2);
-    }
-    .sound-toggle:hover {
-      transform: scale(1.1);
-      background: rgba(102, 126, 234, 0.2);
-    }
-    .sound-toggle.muted {
-      opacity: 0.5;
-      background: rgba(220, 38, 38, 0.1);
-    }
+games = {}
+sid_to_room = {}
+DISCONNECT_TIMEOUT = 15.0 
 
-    /* LOADING */
-    #loadingMessage {
-      text-align: center;
-      padding: 60px 20px;
-      font-weight: bold;
-      color: #333;
-      font-size: clamp(14px, 2.5vw, 18px);
-    }
+# ===== GLOBAL MATCHMAKING QUEUE =====
+matchmaking_queue = []
+matchmaking_lock = threading.Lock()
 
-    /* GAME INFO BAR */
-    .game-info-bar {
-      background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-      padding: 12px 16px;
-      border-radius: 12px;
-      margin-bottom: 15px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 10px;
-      border: 2px solid rgba(102, 126, 234, 0.2);
-    }
+# --- ROUTES ---
+@app.route("/")
+def index():
+    increment_visitor_count()
+    return render_template("landing.html")
 
-    .game-info-bar h3 {
-      font-size: clamp(13px, 2.5vw, 16px);
-      color: #333;
-      font-weight: 800;
-    }
+@app.route("/game")
+def game_page():
+    return render_template("game.html")
 
-    /* MAIN LAYOUT */
-    .game-layout {
-      display: grid;
-      grid-template-columns: 1fr 350px;
-      gap: 20px;
-      align-items: start;
-    }
+@app.route("/profile")
+def profile_page():
+    return render_template("profile.html")
 
-    /* BOARD SECTION */
-    .board-section {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
+# --- API ENDPOINTS ---
+@app.route('/api/visitor-count')
+def visitor_count_api():
+    count = get_total_visitor_count()
+    return jsonify({'visitor_count': count})
 
-    /* PLAYER INFO CARDS */
-    .player-card {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 15px;
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.8);
-      border: 2px solid #e0e0e0;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      min-height: 50px;
-    }
+@app.route('/api/leaderboard')
+def leaderboard_api():
+    data = get_leaderboard_data(limit=5)
+    return jsonify(data)
 
-    .player-card.black {
-      background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-      border-color: #2c3e50;
-    }
+@app.route('/api/active-games')
+def active_games_api():
+    """Returns list of active games that can be spectated"""
+    active = []
+    for room, g in games.items():
+        if g.get("isActive") and not g["winner"] and not g.get("bot"):
+            active.append({
+                "room": room,
+                "whiteName": g.get("white_player", "White"),
+                "blackName": g.get("black_player", "Black"),
+                "spectators": len(g.get("spectators", set())),
+                "gameMode": g.get("game_mode", "friend")
+            })
+    return jsonify(active)
 
-    .player-info {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
+# ===== AUTHENTICATION ENDPOINTS =====
 
-    .player-avatar {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      background: rgba(102, 126, 234, 0.2);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      border: 2px solid rgba(102, 126, 234, 0.3);
-    }
-
-    .player-card.black .player-avatar {
-      background: rgba(255, 255, 255, 0.2);
-      border-color: rgba(255, 255, 255, 0.3);
-    }
-
-    .player-name-text {
-      font-size: clamp(12px, 2vw, 14px);
-      font-weight: 700;
-      color: #333;
-      max-width: 150px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .player-card.black .player-name-text {
-      color: #fff;
-    }
-
-    .timer {
-      padding: 6px 14px;
-      border-radius: 8px;
-      font-size: clamp(13px, 2.2vw, 16px);
-      font-weight: 800;
-      background: rgba(102, 126, 234, 0.1);
-      color: #333;
-      border: 2px solid rgba(102, 126, 234, 0.2);
-      min-width: 65px;
-      text-align: center;
-      transition: all 0.3s ease;
-    }
-
-    .player-card.black .timer {
-      background: rgba(255, 255, 255, 0.15);
-      color: #fff;
-      border-color: rgba(255, 255, 255, 0.3);
-    }
-
-    .timer.active {
-      animation: timerPulse 1.5s ease-in-out infinite;
-      box-shadow: 0 0 20px rgba(102, 126, 234, 0.5);
-      background: rgba(102, 126, 234, 0.2);
-    }
-
-    .player-card.black .timer.active {
-      box-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
-      background: rgba(255, 255, 255, 0.25);
-    }
-
-    @keyframes timerPulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.05); }
-    }
-
-    /* TURN INDICATOR */
-    .turn-indicator {
-      text-align: center;
-      padding: 8px;
-      border-radius: 10px;
-      font-size: clamp(12px, 2.2vw, 14px);
-      font-weight: 800;
-      background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-      color: #333;
-      border: 2px solid rgba(102, 126, 234, 0.2);
-    }
-
-    /* CHESSBOARD */
-    .board-wrapper {
-      position: relative;
-      width: 100%;
-      max-width: 600px;
-      margin: 0 auto;
-    }
-
-    .chessboard {
-      display: grid;
-      grid-template-columns: repeat(8, 1fr);
-      width: 100%;
-      aspect-ratio: 1 / 1;
-      border: 4px solid #2c3e50;
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-      background: #fff;
-    }
-
-    .waiting-overlay, .disconnect-overlay {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      backdrop-filter: blur(5px);
-      z-index: 100;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      border-radius: 12px;
-      color: white;
-      font-weight: bold;
-      animation: fadeIn 0.3s;
-      font-size: clamp(12px, 2.5vw, 16px);
-      padding: 20px;
-      text-align: center;
-    }
-
-    .waiting-overlay {
-      background: rgba(0, 0, 0, 0.7);
-    }
-
-    .disconnect-overlay {
-      background: rgba(220, 38, 38, 0.85);
-      display: none;
-    }
-    .disconnect-overlay.active {
-      display: flex;
-    }
+@app.route('/api/auth/register', methods=['POST'])
+def register():
+    """Register a new user"""
+    data = request.get_json()
+    username = data.get('username', '').strip()
+    email = data.get('email', '').strip().lower()
+    password = data.get('password', '')
+    display_name = data.get('displayName', username).strip()
     
-    .waiting-spinner {
-      border: 4px solid rgba(255, 255, 255, 0.3);
-      border-top: 4px solid #fff;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      animation: spin 1s linear infinite;
-      margin-bottom: 15px;
-    }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-    .square-coord {
-      position: absolute;
-      font-size: clamp(8px, 1.3vw, 11px);
-      font-weight: 800;
-      pointer-events: none;
-      user-select: none;
-      opacity: 0.7;
-      z-index: 5;
-    }
-    .square-coord.file {
-      bottom: 2px;
-      right: 3px;
-    }
-    .square-coord.rank {
-      top: 2px;
-      left: 3px;
-    }
-    .square.light .square-coord { color: #b58863; }
-    .square.dark .square-coord { color: #f0d9b5; }
-
-    .square {
-      aspect-ratio: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      position: relative;
-    }
-    .square.light {
-      background: linear-gradient(135deg, #f5e6d3 0%, #f0d9b5 100%);
-    }
-    .square.dark {
-      background: linear-gradient(135deg, #c9a882 0%, #b58863 100%);
-    }
-    .square.selected {
-      background: radial-gradient(circle, #baca44 0%, #a8b834 100%) !important;
-      box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.3);
-    }
-    .square.possible-move::after {
-      content: '';
-      position: absolute;
-      width: 30%;
-      height: 30%;
-      background: radial-gradient(circle, rgba(34, 197, 94, 0.7), rgba(34, 197, 94, 0.4));
-      border-radius: 50%;
-      animation: moveIndicator 1.5s ease-in-out infinite;
-    }
-    @keyframes moveIndicator {
-      0%, 100% { transform: scale(1); opacity: 0.8; }
-      50% { transform: scale(1.2); opacity: 1; }
-    }
-    .square.last-move {
-      background: radial-gradient(circle, #ffd93d 0%, #cdd26a 100%) !important;
-    }
-
-    .piece {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: grab;
-    }
-    .piece:active {
-      cursor: grabbing;
-    }
-    .piece img {
-      width: 85%;
-      height: 85%;
-      object-fit: contain;
-      pointer-events: none;
-      filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
-    }
-
-    /* STATUS */
-    .status {
-      min-height: 24px;
-      text-align: center;
-      padding: 8px;
-      margin-top: 10px;
-      border-radius: 10px;
-      font-size: clamp(12px, 2.2vw, 14px);
-      font-weight: 800;
-      background: rgba(102, 126, 234, 0.1);
-      color: #333;
-      border: 2px solid rgba(102, 126, 234, 0.2);
-    }
-
-    #messages {
-      text-align: center;
-      color: #dc2626;
-      margin-top: 8px;
-      min-height: 20px;
-      font-weight: 700;
-      font-size: clamp(11px, 2vw, 13px);
-    }
-
-    /* SIDEBAR */
-    .sidebar {
-      display: flex;
-      flex-direction: column;
-      gap: 15px;
-    }
-
-    .card {
-      background: rgba(255, 255, 255, 0.8);
-      backdrop-filter: blur(10px);
-      border-radius: 12px;
-      padding: 15px;
-      border: 2px solid rgba(102, 126, 234, 0.2);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    }
-
-    .card h4 {
-      color: #2c3e50;
-      margin-bottom: 10px;
-      font-size: clamp(13px, 2.3vw, 15px);
-      font-weight: 800;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    /* MOVE HISTORY */
-    .move-list {
-      display: grid;
-      grid-template-columns: 35px minmax(0, 1fr) minmax(0, 1fr);
-      gap: 6px;
-      font-size: clamp(11px, 1.9vw, 13px);
-      max-height: 200px;
-      overflow-y: auto;
-    }
-    .move-number {
-      color: #666;
-      font-weight: 800;
-      text-align: right;
-      padding-right: 6px;
-    }
-    .move-item {
-      background: rgba(248, 249, 250, 0.9);
-      padding: 5px 8px;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      font-weight: 600;
-      text-align: center;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .move-item:hover {
-      background: rgba(102, 126, 234, 0.15);
-      transform: translateX(2px);
-    }
-    .move-item.white {
-      border-left: 3px solid #e0e0e0;
-    }
-    .move-item.black {
-      border-left: 3px solid #2c3e50;
-    }
-
-    /* CHAT */
-    .chat-messages {
-      height: 200px;
-      overflow-y: auto;
-      padding: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      background: rgba(248, 249, 250, 0.5);
-      border-radius: 8px;
-      margin-bottom: 10px;
-    }
-    .chat-line {
-      padding: 8px 12px;
-      border-radius: 10px;
-      max-width: 85%;
-      word-break: break-word;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-      font-size: clamp(11px, 1.9vw, 13px);
-      font-weight: 500;
-      user-select: text;
-      -webkit-user-select: text;
-    }
-    .chat-line.you {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      align-self: flex-end;
-      border-bottom-right-radius: 3px;
-    }
-    .chat-line.opponent {
-      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-      color: white;
-      align-self: flex-start;
-      border-bottom-left-radius: 3px;
-    }
+    if not username or not email or not password:
+        return jsonify({'error': 'Missing required fields'}), 400
     
-    .typing-indicator {
-      height: 18px;
-      font-size: clamp(10px, 1.7vw, 12px);
-      color: #666;
-      margin-bottom: 5px;
-      font-style: italic;
-    }
-
-    .chat-input {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-    .chat-input input {
-      flex: 1;
-      padding: 10px 12px;
-      border-radius: 10px;
-      border: 2px solid rgba(102, 126, 234, 0.3);
-      background: rgba(255, 255, 255, 0.9);
-      font-size: clamp(11px, 1.9vw, 13px);
-      outline: none;
-      transition: all 0.3s ease;
-    }
-    .chat-input input:focus {
-      border-color: #667eea;
-      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-    }
-
-    .emoji-picker-wrap {
-      position: relative;
-    }
-
-    .emoji-btn {
-      cursor: pointer;
-      padding: 8px;
-      font-size: 18px;
-      border-radius: 8px;
-      transition: all 0.2s ease;
-      background: rgba(102, 126, 234, 0.1);
-      border: none;
-      width: 40px;
-      height: 40px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .emoji-btn:hover {
-      background: rgba(102, 126, 234, 0.2);
-      transform: scale(1.1);
-    }
-
-    .emoji-panel {
-      position: absolute;
-      bottom: 50px;
-      left: 0;
-      background: rgba(255, 255, 255, 0.98);
-      backdrop-filter: blur(15px);
-      border: 2px solid rgba(102, 126, 234, 0.3);
-      border-radius: 12px;
-      padding: 10px;
-      display: flex;
-      gap: 5px;
-      flex-wrap: wrap;
-      width: 200px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-      z-index: 100;
-    }
-
-    /* BUTTONS */
-    .button-group {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-top: 15px;
-    }
-
-    button {
-      padding: 12px 16px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      font-weight: 700;
-      font-size: clamp(12px, 2vw, 14px);
-      transition: all 0.3s ease;
-      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-      white-space: nowrap;
-    }
-    button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-    }
-    button:active {
-      transform: translateY(0);
-    }
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-      transform: none !important;
-    }
-
-    .btn-home {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-    .btn-draw {
-      background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
-    }
-    .btn-resign {
-      background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
-    }
-    .btn-secondary {
-      background: linear-gradient(135deg, #bdc3c7 0%, #2c3e50 100%);
-    }
-    .btn-bot {
-      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-    }
-    .btn-rematch {
-      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-      grid-column: 1 / -1;
-      display: none;
-    }
-    .btn-rematch.active {
-      display: block;
-    }
-
-    /* MODALS */
-    .modal {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0, 0, 0, 0.75);
-      backdrop-filter: blur(8px);
-      z-index: 9999;
-      padding: 20px;
-    }
-    .modal.active {
-      display: flex;
-    }
-
-    .modal-content {
-      background: white;
-      backdrop-filter: blur(20px);
-      padding: 25px;
-      border-radius: 16px;
-      text-align: center;
-      min-width: 280px;
-      max-width: 90vw;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
-      animation: modalSlideUp 0.3s ease;
-    }
-
-    @keyframes modalSlideUp {
-      from { transform: translateY(30px); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
-    }
-
-    .modal-content h3 {
-      font-size: clamp(16px, 3.5vw, 22px);
-      font-weight: 900;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin-bottom: 15px;
-    }
-
-    .promotion-pieces {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 10px;
-      margin: 15px 0;
-      flex-wrap: wrap;
-    }
-
-    .promotion-pieces img {
-      width: clamp(50px, 13vw, 70px);
-      height: clamp(50px, 13vw, 70px);
-      cursor: pointer;
-      transition: all 0.3s ease;
-      filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.2));
-      border-radius: 8px;
-      padding: 5px;
-      background: rgba(102, 126, 234, 0.05);
-    }
-    .promotion-pieces img:hover {
-      transform: scale(1.15) translateY(-5px);
-      background: rgba(102, 126, 234, 0.15);
-    }
-
-    .modal-buttons {
-      display: flex;
-      gap: 10px;
-      justify-content: center;
-      margin-top: 15px;
-      flex-wrap: wrap;
-    }
-
-    /* SCROLLBAR */
-    ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
-    }
-    ::-webkit-scrollbar-track {
-      background: rgba(0, 0, 0, 0.05);
-      border-radius: 10px;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border-radius: 10px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-    }
-
-    /* RESPONSIVE DESIGN */
+    if len(username) < 3 or len(username) > 50:
+        return jsonify({'error': 'Username must be 3-50 characters'}), 400
     
-    /* TABLET */
-    @media (max-width: 1024px) {
-      .game-layout {
-        grid-template-columns: 1fr;
-        gap: 15px;
-      }
-
-      .sidebar {
-        max-width: 600px;
-        margin: 0 auto;
-        width: 100%;
-      }
-
-      .button-group {
-        max-width: 600px;
-        margin: 15px auto 0;
-      }
-    }
-
-    /* MOBILE */
-    @media (max-width: 768px) {
-      body {
-        padding: 5px;
-      }
-
-      .container {
-        padding: 12px;
-        border-radius: 15px;
-      }
-
-      .header {
-        margin-bottom: 10px;
-      }
-
-      .sound-toggle {
-        width: 35px;
-        height: 35px;
-        font-size: 18px;
-      }
-
-      .game-info-bar {
-        padding: 10px 12px;
-        margin-bottom: 10px;
-      }
-
-      .game-layout {
-        gap: 12px;
-      }
-
-      .board-section {
-        gap: 8px;
-      }
-
-      .player-card {
-        padding: 8px 12px;
-        min-height: 45px;
-      }
-
-      .player-avatar {
-        width: 28px;
-        height: 28px;
-        font-size: 16px;
-      }
-
-      .card {
-        padding: 12px;
-      }
-
-      .card h4 {
-        margin-bottom: 8px;
-      }
-
-      .move-list {
-        max-height: 150px;
-        grid-template-columns: 30px minmax(0, 1fr) minmax(0, 1fr);
-      }
-
-      .chat-messages {
-        height: 150px;
-      }
-
-      .button-group {
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-        margin-top: 10px;
-      }
-
-      .button-group button:first-child {
-        grid-column: 1 / -1;
-      }
-
-      .btn-rematch.active {
-        grid-column: 1 / -1;
-      }
-    }
-
-    /* SMALL MOBILE */
-    @media (max-width: 400px) {
-      .container {
-        padding: 10px;
-      }
-
-      h1 {
-        font-size: 22px;
-      }
-
-      .subtitle {
-        font-size: 10px;
-      }
-
-      .player-card {
-        padding: 6px 10px;
-        min-height: 40px;
-      }
-
-      .timer {
-        padding: 5px 10px;
-        min-width: 55px;
-        font-size: 12px;
-      }
-
-      .chat-messages {
-        height: 130px;
-      }
-
-      .move-list {
-        max-height: 120px;
-      }
-    }
-
-    /* LANDSCAPE MOBILE */
-    @media (max-height: 600px) and (orientation: landscape) {
-      .container {
-        max-height: none;
-      }
-
-      .board-wrapper {
-        max-width: 350px;
-      }
-
-      .chat-messages {
-        height: 120px;
-      }
-
-      .move-list {
-        max-height: 100px;
-      }
-    }
-  </style>
-</head>
-
-<body>
-
-<div class="container">
-    <!-- HEADER -->
-    <div class="header">
-      <div id="soundToggle" class="sound-toggle" onclick="toggleSound()" title="Toggle Sound">🔊</div>
-      <h1>♔ Chess Master ♚</h1>
-      <p class="subtitle">⚡ Premium Edition — Real-time Multiplayer</p>
-    </div>
+    if len(password) < 6:
+        return jsonify({'error': 'Password must be at least 6 characters'}), 400
     
-    <!-- LOADING -->
-    <div id="loadingMessage">
-        <div style="font-size:clamp(24px, 5vw, 32px); margin-bottom:15px;">🔌</div>
-        Connecting to server...
-    </div>
-
-    <!-- GAME -->
-    <div id="game" style="display:none;">
-      <!-- GAME INFO BAR -->
-      <div class="game-info-bar">
-        <h3>👥 Room: <span id="roomName"></span></h3>
-      </div>
-
-      <!-- MAIN LAYOUT -->
-      <div class="game-layout">
-        <!-- BOARD SECTION -->
-        <div class="board-section">
-          <!-- BLACK PLAYER -->
-          <div class="player-card black" id="blackPlayerCard">
-            <div class="player-info">
-              <div class="player-avatar">♚</div>
-              <div class="player-name-text" id="blackName">Black</div>
-            </div>
-            <div class="timer" id="blackTimer">5:00</div>
-          </div>
-
-          <!-- TURN INDICATOR -->
-          <div class="turn-indicator" id="turnIndicator">♔ White to move</div>
-
-          <!-- CHESSBOARD -->
-          <div class="board-wrapper" id="boardWrapper">
-            <div class="chessboard" id="chessboard"></div>
-            <div id="disconnectOverlay" class="disconnect-overlay">
-                <div class="waiting-spinner"></div>
-                <div style="font-size:clamp(14px, 2.8vw, 18px); margin-bottom:8px; font-weight:900;">⚠️ Opponent Disconnected</div>
-                <div style="font-size:clamp(12px, 2.2vw, 14px); font-weight:normal;">Claiming win in <span id="disconnectTimer">15</span>s...</div>
-            </div>
-          </div>
-
-          <!-- WHITE PLAYER -->
-          <div class="player-card white" id="whitePlayerCard">
-            <div class="player-info">
-              <div class="player-avatar">♔</div>
-              <div class="player-name-text" id="whiteName">White</div>
-            </div>
-            <div class="timer" id="whiteTimer">5:00</div>
-          </div>
-
-          <!-- STATUS & MESSAGES -->
-          <div class="status" id="status"></div>
-          <div id="messages"></div>
-
-          <!-- BUTTONS -->
-          <div class="button-group">
-            <button onclick="goHome()" class="btn-home">🏠 Home</button>
-            <button onclick="offerDraw()" class="btn-draw">🤝 Draw</button>
-            <button onclick="resignGame()" class="btn-resign">🏳️ Resign</button>
-            <button id="rematchBtn" onclick="requestRematch()" class="btn-rematch">🔄 Rematch</button>
-          </div>
-        </div>
-
-        <!-- SIDEBAR -->
-        <div class="sidebar">
-          <!-- MOVE HISTORY -->
-          <div class="card">
-            <h4>📜 Move History</h4>
-            <div class="move-list" id="moveList"></div>
-          </div>
-
-          <!-- CHAT -->
-          <div class="card">
-            <h4>💬 Live Chat</h4>
-            <div class="chat-messages" id="chatMessages"></div>
-            <div class="typing-indicator" id="typingIndicator"></div>
-
-            <div class="chat-input">
-              <div class="emoji-picker-wrap" id="emojiPickerWrap">
-                <button id="emojiToggle" class="emoji-btn" title="Add Emoji">😊</button>
-                <div id="emojiPanel" class="emoji-panel" style="display:none;">
-                  <div class="emoji-btn" onclick="insertEmoji('😀')">😀</div>
-                  <div class="emoji-btn" onclick="insertEmoji('😄')">😄</div>
-                  <div class="emoji-btn" onclick="insertEmoji('😂')">😂</div>
-                  <div class="emoji-btn" onclick="insertEmoji('😍')">😍</div>
-                  <div class="emoji-btn" onclick="insertEmoji('👍')">👍</div>
-                  <div class="emoji-btn" onclick="insertEmoji('🤝')">🤝</div>
-                  <div class="emoji-btn" onclick="insertEmoji('🎉')">🎉</div>
-                  <div class="emoji-btn" onclick="insertEmoji('😅')">😅</div>
-                  <div class="emoji-btn" onclick="insertEmoji('♟️')">♟️</div>
-                  <div class="emoji-btn" onclick="insertEmoji('❤️')">❤️</div>
-                  <div class="emoji-btn" onclick="insertEmoji('🔥')">🔥</div>
-                  <div class="emoji-btn" onclick="insertEmoji('⚡')">⚡</div>
-                </div>
-              </div>
-              <input id="chatInput" type="text" placeholder="Type message..." style="user-select:text;-webkit-user-select:text;" />
-              <button onclick="sendChat()">Send</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-</div>
-
-<!-- PROMOTION MODAL -->
-<div class="modal" id="promotionModal">
-  <div class="modal-content">
-    <h3>👑 Promote Pawn</h3>
-    <p style="color:#666;margin-top:8px;font-size:clamp(11px,2vw,13px);">Choose your piece:</p>
-    <div class="promotion-pieces" id="promotionPieces"></div>
-    <div class="modal-buttons">
-      <button onclick="cancelPromotion()" class="btn-secondary">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- DRAW MODAL -->
-<div class="modal" id="drawModal">
-  <div class="modal-content">
-    <h3>🤝 Draw Offer</h3>
-    <p id="drawMessage" style="color:#666;margin-top:12px;font-size:clamp(12px,2.3vw,15px);"></p>
-    <div class="modal-buttons">
-      <button onclick="respondToDraw(true)" class="btn-bot">✅ Accept</button>
-      <button onclick="respondToDraw(false)" class="btn-resign">❌ Decline</button>
-    </div>
-  </div>
-</div>
-
-<!-- REMATCH MODAL -->
-<div class="modal" id="rematchModal">
-  <div class="modal-content">
-    <h3>🔄 Rematch Request</h3>
-    <p id="rematchMessage" style="color:#666;margin-top:12px;font-size:clamp(12px,2.3vw,15px);">Opponent wants a rematch!</p>
-    <div class="modal-buttons">
-      <button onclick="acceptRematch()" class="btn-bot">✅ Accept</button>
-      <button onclick="declineRematch()" class="btn-secondary">❌ Decline</button>
-    </div>
-  </div>
-</div>
-
-<script>
-const socket = io({ 
-  transports: ["websocket", "polling"],
-  reconnection: true,
-  reconnectionDelay: 500,
-  reconnectionAttempts: 10
-});
-
-const params = new URLSearchParams(window.location.search);
-const URL_ROOM = params.get('room');
-const URL_NAME = params.get('name');
-const URL_MODE = params.get('mode');
-const URL_TIME = params.get('time');
-
-if (!URL_ROOM || !URL_NAME) {
-    alert("Invalid game parameters. Redirecting to home.");
-    window.location.href = "/";
-}
-
-let currentRoom = URL_ROOM;
-let playerColor = null;
-let playerName = URL_NAME;
-let gameState = null;
-let selectedSquare = null;
-let possibleMoves = [];
-let pendingPromotion = null;
-let moveHistory = [];
-let soundEnabled = true;
-let lastMoveWasMine = false;
-let lastMoveTime = 0;
-let whiteSeconds = 0;
-let blackSeconds = 0;
-let timerInterval = null;
-let pendingMoves = new Map();
-let moveSequence = 0;
-let disconnectInterval = null;
-let isDragging = false;
-let pendingUpdate = null;
-let gameMode = URL_MODE || "friend";
-
-function timeStringToSeconds(str) {
-  if (!str || typeof str !== "string" || !str.includes(":")) return 0;
-  const [m, s] = str.split(":").map(Number);
-  return m * 60 + s;
-}
-
-function formatSeconds(sec) {
-  sec = Math.max(0, Math.floor(sec));
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-function updateDisplayedTimers() {
-  const whiteTimer = document.getElementById("whiteTimer");
-  const blackTimer = document.getElementById("blackTimer");
-  
-  if (whiteTimer) whiteTimer.textContent = formatSeconds(whiteSeconds);
-  if (blackTimer) blackTimer.textContent = formatSeconds(blackSeconds);
-  
-  if (gameState && !gameState.winner) {
-    const activeColor = gameState.turn;
-    if (whiteTimer) whiteTimer.classList.toggle("active", activeColor === "white");
-    if (blackTimer) blackTimer.classList.toggle("active", activeColor === "black");
-  } else {
-    if (whiteTimer) whiteTimer.classList.remove("active");
-    if (blackTimer) blackTimer.classList.remove("active");
-  }
-}
-
-function startLocalTimer() {
-  if (timerInterval) clearInterval(timerInterval);
-
-  timerInterval = setInterval(() => {
-    if (!gameState || gameState.winner || (gameState.isActive === false)) {
-      clearInterval(timerInterval);
-      return;
-    }
-    if (gameState.turn === "white" && whiteSeconds > 0) {
-      whiteSeconds = Math.max(0, whiteSeconds - 1);
-    } else if (gameState.turn === "black" && blackSeconds > 0) {
-      blackSeconds = Math.max(0, blackSeconds - 1);
-    }
-    updateDisplayedTimers();
-    if (whiteSeconds === 0 || blackSeconds === 0) {
-      clearInterval(timerInterval);
-    }
-  }, 1000);
-}
-
-const sounds = {
-  move: { freq: 400, duration: 0.1 },
-  capture: { freq: 300, duration: 0.15 },
-  check: { freq: 600, duration: 0.2 },
-  win: { freq: 800, duration: 0.3 },
-  notify: { freq: 500, duration: 0.1 }
-};
-
-let audioCtx = null;
-
-function initAudio() {
-  if (typeof window.AudioContext === 'undefined' && typeof window.webkitAudioContext === 'undefined') return;
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
-  }
-}
-
-function playSound(type) {
-  if (!soundEnabled) return;
-  try {
-    initAudio();
-    if (!audioCtx) return;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain); 
-    gain.connect(audioCtx.destination);
-    osc.frequency.value = sounds[type].freq;
-    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + sounds[type].duration);
-    osc.start(audioCtx.currentTime);
-    osc.stop(audioCtx.currentTime + sounds[type].duration);
-  } catch (e) { console.error("Sound error:", e); }
-}
-
-function toggleSound(){
-  soundEnabled = !soundEnabled;
-  const btn = document.getElementById("soundToggle");
-  if (btn) {
-    btn.textContent = soundEnabled ? "🔊" : "🔇";
-    btn.classList.toggle("muted", !soundEnabled);
-  }
-}
-
-function animateMove(from, to, renderFn) {
-  const fromSq = document.querySelector(`.square[data-row="${from.row}"][data-col="${from.col}"]`);
-  const toSq = document.querySelector(`.square[data-row="${to.row}"][data-col="${to.col}"]`);
-  
-  const piece = fromSq ? fromSq.querySelector('.piece') : null;
-  const captured = toSq ? toSq.querySelector('.piece') : null;
-  
-  const startRect = piece ? piece.getBoundingClientRect() : null;
-  const capturedRect = captured ? captured.getBoundingClientRect() : null;
-
-  renderFn();
-
-  if (capturedRect) {
-    const ghost = captured.cloneNode(true);
-    ghost.style.position = 'fixed';
-    ghost.style.left = `${capturedRect.left}px`;
-    ghost.style.top = `${capturedRect.top}px`;
-    ghost.style.width = `${capturedRect.width}px`;
-    ghost.style.height = `${capturedRect.height}px`;
-    ghost.style.zIndex = '90';
-    ghost.style.pointerEvents = 'none';
-    ghost.style.transition = 'all 0.3s ease-out';
-    ghost.style.opacity = '1';
-    ghost.style.transform = 'scale(1)';
+    # Check if user exists
+    existing_user = get_user_by_username(username)
+    if existing_user:
+        return jsonify({'error': 'Username or email already exists'}), 409
     
-    document.body.appendChild(ghost);
+    # Create user
+    password_hash = hash_password(password)
+    user_id = create_user(username, email, password_hash, display_name)
     
-    requestAnimationFrame(() => {
-      ghost.style.opacity = '0';
-      ghost.style.transform = 'scale(0.8)';
-    });
+    if not user_id:
+        return jsonify({'error': 'Registration failed'}), 500
     
-    setTimeout(() => ghost.remove(), 300);
-  }
-
-  if (startRect) {
-    const newToSq = document.querySelector(`.square[data-row="${to.row}"][data-col="${to.col}"]`);
-    const newPiece = newToSq ? newToSq.querySelector('.piece') : null;
+    # Log user in
+    session['user_id'] = user_id
+    session['username'] = username
     
-    if (newPiece) {
-      const endRect = newPiece.getBoundingClientRect();
-      const dx = startRect.left - endRect.left;
-      const dy = startRect.top - endRect.top;
-      
-      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    return jsonify({
+        'message': 'Registration successful',
+        'user': {'id': user_id, 'username': username, 'displayName': display_name}
+    }), 201
 
-      newPiece.style.transition = 'none';
-      newPiece.style.transform = `translate(${dx}px, ${dy}px)`;
-      newPiece.style.zIndex = '100';
-      
-      void newPiece.offsetWidth;
-      
-      newPiece.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)';
-      newPiece.style.transform = 'translate(0, 0)';
-      
-      setTimeout(() => {
-        newPiece.style.zIndex = '';
-        newPiece.style.transition = '';
-        newPiece.style.transform = '';
-      }, 260);
-    }
-  }
-}
-
-function applyOptimisticMove(from, to, promotion = null) {
-  if (!gameState) return null;
-  const optimisticState = JSON.parse(JSON.stringify(gameState));
-  const piece = optimisticState.board[from.row][from.col];
-  optimisticState.board[to.row][to.col] = piece;
-  optimisticState.board[from.row][from.col] = ".";
-  if (promotion) {
-    const promotedPiece = playerColor === "white" ? promotion.toUpperCase() : promotion.toLowerCase();
-    optimisticState.board[to.row][to.col] = promotedPiece;
-  }
-  optimisticState.turn = optimisticState.turn === "white" ? "black" : "white";
-  return optimisticState;
-}
-
-function revertOptimisticMove(moveId) {
-  if (pendingMoves.has(moveId)) {
-    const moveData = pendingMoves.get(moveId);
-    if (moveData.previousState) {
-      gameState = moveData.previousState;
-      renderBoard(gameState);
-      updateStatus(gameState);
-      updateTurnIndicator(gameState);
-    }
-    pendingMoves.delete(moveId);
-  }
-}
-
-function sendChat(){
-  const input = document.getElementById("chatInput");
-  const text = input ? input.value.trim() : "";
-  if(!text || !currentRoom) return;
-  socket.emit("send_message", {
-    room: currentRoom,
-    sender: playerColor || "spectator",
-    message: text,
-    senderName: playerName
-  });
-  input.value = "";
-  stopTypingNow();
-  hideEmojiPanel();
-}
-
-function appendChat(data, isLocal){
-  const box = document.getElementById("chatMessages");
-  if (!box) return;
-  const div = document.createElement("div");
-  div.className = "chat-line " + (isLocal ? "you" : "opponent");
-  let displayName = data.senderName;
-  if (!displayName) {
-    if (data.sender === "white") displayName = "White";
-    else if (data.sender === "black") displayName = "Black";
-    else displayName = "User";
-  }
-  div.innerText = `${displayName}: ${data.message}`;
-  box.appendChild(div);
-  box.scrollTop = box.scrollHeight;
-}
-
-let typingTimeout = null;
-let isTyping = false;
-
-function handleTypingInput(){
-  if(!currentRoom || !playerColor) return;
-  if(!isTyping){
-    isTyping = true;
-    socket.emit("typing", { room: currentRoom, sender: playerColor, senderName: playerName });
-  }
-  if(typingTimeout) clearTimeout(typingTimeout);
-  typingTimeout = setTimeout(() => { stopTypingNow(); }, 1400);
-}
-
-function stopTypingNow(){
-  if(!isTyping) return;
-  isTyping = false;
-  if (currentRoom && playerColor) {
-    socket.emit("stop_typing", { room: currentRoom, sender: playerColor, senderName: playerName });
-  }
-}
-
-function insertEmoji(emoji) {
-  const input = document.getElementById("chatInput");
-  if (!input) return;
-  const start = input.selectionStart;
-  const end = input.selectionEnd;
-  const text = input.value;
-  input.value = text.slice(0, start) + emoji + text.slice(end);
-  input.selectionStart = input.selectionEnd = start + emoji.length;
-  input.focus();
-  handleTypingInput();
-}
-
-function hideEmojiPanel(){
-  const panel = document.getElementById("emojiPanel");
-  if(panel) panel.style.display = "none";
-}
-
-function initializeEmojiPanel() {
-  const emojiToggle = document.getElementById("emojiToggle");
-  const emojiPanel = document.getElementById("emojiPanel");
-  const emojiWrap = document.getElementById("emojiPickerWrap");
-  if (emojiToggle && emojiPanel) {
-    emojiToggle.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const visible = window.getComputedStyle(emojiPanel).display !== "none";
-      emojiPanel.style.display = visible ? "none" : "flex";
-    });
-    emojiPanel.addEventListener("click", (e) => { e.stopPropagation(); });
-  }
-  document.addEventListener("click", (e) => {
-    if (emojiWrap && !emojiWrap.contains(e.target)) {
-      hideEmojiPanel();
-    }
-  });
-}
-
-function updatePlayerNames(state) {
-  const whiteNameEl = document.getElementById("whiteName");
-  const blackNameEl = document.getElementById("blackName");
-  const whitePlayerCard = document.getElementById("whitePlayerCard");
-  const blackPlayerCard = document.getElementById("blackPlayerCard");
-
-  if (!whiteNameEl || !blackNameEl || !state) return;
-
-  let whiteName = "";
-  let blackName = "";
-  let topName = "";
-  let bottomName = "";
-
-  if (playerColor === "white") {
-    whiteName = playerName;
-    blackName = state.opponentName || "Opponent";
-    topName = blackName;
-    bottomName = whiteName;
-
-    // Top card should be black (opponent), bottom should be white (you)
-    if (blackPlayerCard) {
-      blackPlayerCard.className = "player-card black";
-    }
-    if (whitePlayerCard) {
-      whitePlayerCard.className = "player-card white";
-    }
-  } else if (playerColor === "black") {
-    blackName = playerName;
-    whiteName = state.opponentName || "Opponent";
-    topName = whiteName;
-    bottomName = blackName;
-
-    // Top card should be white (opponent), bottom should be black (you)
-    if (blackPlayerCard) {
-      blackPlayerCard.className = "player-card white";
-    }
-    if (whitePlayerCard) {
-      whitePlayerCard.className = "player-card black";
-    }
-  } else {
-    // Spectator mode - keep default
-    whiteName = state.whiteName || "White";
-    blackName = state.blackName || "Black";
-    topName = blackName;
-    bottomName = whiteName;
-
-    if (blackPlayerCard) {
-      blackPlayerCard.className = "player-card black";
-    }
-    if (whitePlayerCard) {
-      whitePlayerCard.className = "player-card white";
-    }
-  }
-
-  // In the HTML, blackName is at the top and whiteName is at the bottom
-  // When playing as black, we need to swap them so the player's name appears at the bottom
-  blackNameEl.textContent = topName;
-  whiteNameEl.textContent = bottomName;
-}
-
-socket.on("connect",()=>{
-  if (URL_MODE === 'create') {
-    socket.emit("create_room", { room: URL_ROOM, timeControl: URL_TIME, playerName: URL_NAME, bot: false });
-  } else if (URL_MODE === 'join') {
-    socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME });
-  } else if (URL_MODE === 'bot') {
-    socket.emit("create_room", { room: URL_ROOM, timeControl: URL_TIME, playerName: URL_NAME, bot: true });
-  } else if (URL_MODE === 'global') {
-    // For global matchmaking, room already exists with players assigned
-    // Just join the room - backend will recognize and assign color
-    socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME });
-  } else if (URL_MODE === 'spectate') {
-    socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME, spectate: true });
-  }
-});
-
-socket.on("disconnect",()=>{});
-
-socket.on("room_created", startGame);
-socket.on("room_joined", startGame);
-
-socket.on("error", (data) => {
-    alert(data.message);
-    window.location.href = "/";
-});
-
-function startGame(data){
-  document.getElementById("loadingMessage").style.display = "none";
-  document.getElementById("game").style.display = "block";
-
-  currentRoom = data.room;
-  playerColor = data.color;
-  gameState = data.state;
-
-  updatePlayerNames(gameState);
-
-  const roomName = document.getElementById("roomName");
-  if (roomName) {
-    if (playerColor === "spectator") {
-      roomName.textContent = currentRoom + " (Spectating)";
-    } else {
-      roomName.textContent = currentRoom;
-    }
-  }
-
-  const defaultSeconds = URL_TIME || 300;
-  whiteSeconds = gameState.whiteTimeFormatted ? timeStringToSeconds(gameState.whiteTimeFormatted) : defaultSeconds;
-  blackSeconds = gameState.blackTimeFormatted ? timeStringToSeconds(gameState.blackTimeFormatted) : defaultSeconds;
-
-  updateDisplayedTimers();
-
-  const isWaiting = (gameState.isActive === false);
-  updateWaitingOverlay(isWaiting);
-
-  if (!isWaiting) {
-      startLocalTimer();
-  }
-
-  renderBoard(gameState);
-  updateStatus(gameState);
-  updateTurnIndicator(gameState);
-  
-  // Hide control buttons for spectators
-  if (playerColor === "spectator") {
-    const buttons = document.querySelectorAll('.btn-draw, .btn-resign, #rematchBtn');
-    buttons.forEach(btn => btn.style.display = 'none');
-
-    // Completely hide chat section for spectators
-    const chatCard = document.querySelector('.card:has(#chatMessages)');
-    if (chatCard) {
-      chatCard.style.display = 'none';
-    }
-  }
-  
-  // Update spectator count if provided
-  if (data.spectatorCount !== undefined) {
-    updateSpectatorCount(data.spectatorCount);
-  }
-}
-
-socket.on("game_start", d=>{
-  gameState = d.state;
-  updateWaitingOverlay(false);
-  updatePlayerNames(gameState);
-  startLocalTimer();
-  renderBoard(gameState);
-  updateStatus(gameState);
-  updateTurnIndicator(gameState);
-  playSound("notify");
-});
-
-function updateWaitingOverlay(show) {
-    const wrapper = document.getElementById("boardWrapper");
-    let overlay = document.getElementById("waitingOverlay");
-    if (show) {
-        if (!overlay) {
-            overlay = document.createElement("div");
-            overlay.id = "waitingOverlay";
-            overlay.className = "waiting-overlay";
-            overlay.innerHTML = `
-                <div class="waiting-spinner"></div>
-                <div style="font-size:1.2em; margin-bottom:5px; font-weight:900;">Waiting for opponent...</div>
-                <div style="font-size:0.85em; color:#ddd;">Room: ${currentRoom}</div>
-            `;
-            wrapper.appendChild(overlay);
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    """Login user"""
+    data = request.get_json()
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+    
+    if not username or not password:
+        return jsonify({'error': 'Missing username or password'}), 400
+    
+    user = get_user_by_username(username)
+    
+    if not user or not verify_password(password, user['password_hash']):
+        return jsonify({'error': 'Invalid username or password'}), 401
+    
+    # Update last login
+    update_last_login(user['id'])
+    
+    # Set session
+    session['user_id'] = user['id']
+    session['username'] = user['username']
+    
+    return jsonify({
+        'message': 'Login successful',
+        'user': {
+            'id': user['id'],
+            'username': user['username'],
+            'email': user['email'],
+            'displayName': user['display_name'],
+            'eloRating': user['elo_rating'],
+            'gamesPlayed': user['games_played'],
+            'gamesWon': user['games_won'],
+            'gamesDrawn': user['games_drawn'],
+            'gamesLost': user['games_lost']
         }
-    } else {
-        if (overlay) overlay.remove();
-    }
-}
+    }), 200
 
-socket.on("player_disconnected", (data) => {
-    if (data.color !== playerColor) {
-        const overlay = document.getElementById("disconnectOverlay");
-        const timerSpan = document.getElementById("disconnectTimer");
-        let timeLeft = data.timeout || 15;
+@app.route('/api/auth/logout', methods=['POST'])
+def logout():
+    """Logout user"""
+    session.clear()
+    return jsonify({'message': 'Logged out successfully'}), 200
+
+@app.route('/api/auth/me')
+def get_me():
+    """Get current user info"""
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Not authenticated'}), 401
+    return jsonify({'user': user}), 200
+
+@app.route('/api/user/<username>')
+def get_user_profile_api(username):
+    """Get user profile by username"""
+    user = get_user_profile(username)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    return jsonify({'user': user}), 200
+
+@app.route('/api/user/<username>/games')
+def get_user_games_api(username):
+    """Get user's game history"""
+    games = get_user_games(username)
+    if games is None:
+        return jsonify({'error': 'User not found'}), 404
+    return jsonify({'games': games}), 200
+
+@app.route('/api/game/<int:game_id>/replay')
+def get_game_replay_api(game_id):
+    """Get game moves for replay"""
+    replay_data = get_game_replay(game_id)
+    if not replay_data:
+        return jsonify({'error': 'Game not found'}), 404
+    return jsonify(replay_data), 200
+
+# --- CHESS LOGIC ---
+def format_seconds(sec):
+    total = int(max(0, round(sec)))
+    return f"{total//60}:{total%60:02d}"
+
+def board_to_matrix(board):
+    grid = [["." for _ in range(8)] for _ in range(8)]
+    for sq, piece in board.piece_map().items():
+        grid[7 - chess.square_rank(sq)][chess.square_file(sq)] = piece.symbol()
+    return grid
+
+def get_legal_moves_map(board):
+    """Pre-calculates all legal moves mapped by starting square (row,col)"""
+    moves = {}
+    for move in board.legal_moves:
+        r_from = 7 - chess.square_rank(move.from_square)
+        c_from = chess.square_file(move.from_square)
+        r_to = 7 - chess.square_rank(move.to_square)
+        c_to = chess.square_file(move.to_square)
         
-        if (overlay && timerSpan) {
-            overlay.classList.add("active");
-            timerSpan.textContent = timeLeft;
+        key = f"{r_from},{c_from}"
+        if key not in moves:
+            moves[key] = []
+        moves[key].append({"row": r_to, "col": c_to})
+    return moves
+
+def export_state(room, current_sid=None):
+    g = games[room]
+    state = {
+        "board": board_to_matrix(g["board"]),
+        "turn": "white" if g["board"].turn else "black",
+        "check": g["board"].is_check(),
+        "winner": g["winner"],
+        "reason": g.get("reason"),
+        "isActive": g.get("isActive", False),
+        "whiteTime": g["whiteTime"], 
+        "blackTime": g["blackTime"],
+        "whiteTimeFormatted": format_seconds(g["whiteTime"]),
+        "blackTimeFormatted": format_seconds(g["blackTime"]),
+        "moves": get_legal_moves_map(g["board"]),
+        "whiteName": g["white_player"],
+        "blackName": g["black_player"],
+        "gameMode": g.get("game_mode", "friend")
+    }
+    
+    if current_sid:
+        if current_sid == g.get("white_sid"):
+            state["opponentName"] = g["black_player"]
+        elif current_sid == g.get("black_sid"):
+            state["opponentName"] = g["white_player"]
+    
+    return state
+
+def update_time(g):
+    if not g.get("isActive") or g["winner"]: return
+    now = time.time()
+    elapsed = now - g["lastUpdate"]
+    g["lastUpdate"] = now
+    
+    if g["board"].turn:
+        g["whiteTime"] = max(0, g["whiteTime"] - elapsed)
+        if g["whiteTime"] <= 0: 
+            g["winner"] = "black"
+            g["reason"] = "timeout"
+    else:
+        g["blackTime"] = max(0, g["blackTime"] - elapsed)
+        if g["blackTime"] <= 0: 
+            g["winner"] = "white"
+            g["reason"] = "timeout"
+
+def save_game(room, g):
+    """Save game using database.py function"""
+    if g.get("saved"): 
+        return
+    
+    end_time = datetime.utcnow()
+    start_time = g.get("start_timestamp", end_time)
+    win_reason = g.get("reason", "unknown")
+    
+    success = save_game_record(room, g, start_time, end_time, win_reason)
+    if success:
+        g["saved"] = True
+
+def timeout_watcher():
+    while True:
+        time.sleep(1)
+        for r, g in list(games.items()):
+            if g.get("isActive") and not g["winner"]:
+                with g["lock"]:
+                    update_time(g)
+                    if g["winner"]:
+                        save_game(r, g)
+                        for sid in g.get("clients", set()):
+                            socketio.emit("game_update", {"state": export_state(r, sid)}, room=sid)
+
+timeout_thread = threading.Thread(target=timeout_watcher, daemon=True)
+timeout_thread.start()
+
+def handle_disconnect_timeout(room, color):
+    if room not in games: return
+    g = games[room]
+    
+    with g["lock"]:
+        if g["winner"]: return
+        if color == "white" and g.get("white_disconnect_timer"):
+            g["winner"] = "black"
+            g["reason"] = "abandonment"
+            g["white_disconnect_timer"] = None
+        elif color == "black" and g.get("black_disconnect_timer"):
+            g["winner"] = "white"
+            g["reason"] = "abandonment"
+            g["black_disconnect_timer"] = None
+        else:
+            return 
+        save_game(room, g)
+        for sid in g.get("clients", set()):
+            socketio.emit("game_update", {"state": export_state(room, sid)}, room=sid)
+
+def cancel_timer(g, color):
+    if color == "white" and g.get("white_disconnect_timer"):
+        g["white_disconnect_timer"].cancel()
+        g["white_disconnect_timer"] = None
+    elif color == "black" and g.get("black_disconnect_timer"):
+        g["black_disconnect_timer"].cancel()
+        g["black_disconnect_timer"] = None
+
+@socketio.on("create_room")
+def create(data):
+    room = data["room"]
+    is_bot = data.get("bot", False)
+    player_name = data.get("playerName", "White")
+    
+    creator_color = random.choice(["white", "black"]) if not is_bot else "white"
+    
+    if room in games:
+        g = games[room]
+        if g.get("winner") is None: 
+            emit("error", {"message": f"Room '{room}' is already taken!"})
+            return
+
+    white_player = player_name if creator_color == "white" else None
+    black_player = player_name if creator_color == "black" else None
+    
+    if is_bot:
+        black_player = "Bot"
+    
+    # Get user ID if authenticated
+    user = get_current_user()
+    white_user_id = user['id'] if user and creator_color == "white" else None
+    black_user_id = user['id'] if user and creator_color == "black" else None
+
+    games[room] = {
+        "board": chess.Board(),
+        "whiteTime": float(data.get("timeControl", 300)),
+        "blackTime": float(data.get("timeControl", 300)),
+        "lastUpdate": time.time(),
+        "start_timestamp": datetime.utcnow(),
+        "isActive": True if is_bot else False,
+        "winner": None,
+        "bot": is_bot,
+        "lock": threading.Lock(),
+        "white_player": white_player,
+        "black_player": black_player,
+        "white_sid": request.sid if creator_color == "white" else None,
+        "black_sid": request.sid if creator_color == "black" else None,
+        "white_user_id": white_user_id,
+        "black_user_id": black_user_id,
+        "white_disconnect_timer": None,
+        "black_disconnect_timer": None,
+        "clients": {request.sid},
+        "game_mode": "bot" if is_bot else "friend",
+        "move_history": []
+    }
+    
+    sid_to_room[request.sid] = room
+    join_room(room)
+    emit("room_created", {
+        "color": creator_color, 
+        "state": export_state(room, request.sid), 
+        "room": room
+    })
+
+@socketio.on("join_room")
+def join(data):
+    room = data["room"]
+    player_name = data.get("playerName", "Black")
+    spectate = data.get("spectate", False)  # NEW: Check if joining as spectator
+
+    if room not in games: 
+        emit("error", {"message": "Room not found"})
+        return
+        
+    g = games[room]
+    
+    reconnected = False
+    
+    # Check for player reconnection
+    if request.sid == g.get("white_sid"):
+        reconnected = True
+        cancel_timer(g, "white")
+        socketio.emit("player_reconnected", {"color": "white"}, room=room)
+        
+    elif request.sid == g.get("black_sid"):
+        reconnected = True
+        cancel_timer(g, "black")
+        socketio.emit("player_reconnected", {"color": "black"}, room=room)
+
+    elif player_name == g["white_player"] and g.get("white_sid") is None:
+        g["white_sid"] = request.sid
+        cancel_timer(g, "white")
+        reconnected = True
+        # Link user if authenticated
+        user = get_current_user()
+        if user:
+            g["white_user_id"] = user['id']
+        # Check if both players are now connected (for global matchmaking)
+        if g.get("black_sid") is not None:
+            g["isActive"] = True
+            g["lastUpdate"] = time.time()
+        socketio.emit("player_reconnected", {"color": "white"}, room=room)
+
+    elif g["black_player"] and player_name == g["black_player"] and g.get("black_sid") is None:
+        g["black_sid"] = request.sid
+        cancel_timer(g, "black")
+        reconnected = True
+        # Link user if authenticated
+        user = get_current_user()
+        if user:
+            g["black_user_id"] = user['id']
+        # Check if both players are now connected (for global matchmaking)
+        if g.get("white_sid") is not None:
+            g["isActive"] = True
+            g["lastUpdate"] = time.time()
+        socketio.emit("player_reconnected", {"color": "black"}, room=room)
+
+    # NEW: Handle spectator mode
+    elif spectate or (g["white_player"] and g["black_player"]):
+        # Join as spectator
+        if "spectators" not in g:
+            g["spectators"] = set()
+        g["spectators"].add(request.sid)
+        
+        if "clients" not in g: g["clients"] = set()
+        g["clients"].add(request.sid)
+        sid_to_room[request.sid] = room
+        join_room(room)
+        
+        # Notify other players about new spectator
+        spectator_count = len(g.get("spectators", set()))
+        socketio.emit("spectator_joined", {
+            "spectatorName": player_name,
+            "spectatorCount": spectator_count
+        }, room=room, skip_sid=request.sid)
+        
+        emit("room_joined", {
+            "color": "spectator", 
+            "state": export_state(room, request.sid), 
+            "room": room,
+            "spectatorCount": spectator_count
+        })
+        return
+
+    elif not g["white_player"]:
+        g["white_player"] = player_name
+        g["white_sid"] = request.sid
+        g["isActive"] = True
+        g["lastUpdate"] = time.time()
+        # Link user if authenticated
+        user = get_current_user()
+        if user:
+            g["white_user_id"] = user['id']
+    elif not g["black_player"]:
+        g["black_player"] = player_name
+        g["black_sid"] = request.sid
+        g["isActive"] = True
+        g["lastUpdate"] = time.time()
+        # Link user if authenticated
+        user = get_current_user()
+        if user:
+            g["black_user_id"] = user['id']
+    else:
+        if not reconnected:
+            emit("error", {"message": "Room is full"})
+            return
+
+    if "clients" not in g: g["clients"] = set()
+    g["clients"].add(request.sid)
+    sid_to_room[request.sid] = room
+    join_room(room)
+    
+    my_color = "white" if request.sid == g.get("white_sid") else "black"
+    if request.sid != g.get("white_sid") and request.sid != g.get("black_sid"):
+        my_color = "spectator"
+
+    spectator_count = len(g.get("spectators", set()))
+    emit("room_joined", {
+        "color": my_color, 
+        "state": export_state(room, request.sid), 
+        "room": room,
+        "spectatorCount": spectator_count
+    })
+    
+    for sid in g.get("clients", set()):
+        socketio.emit("game_start", {"state": export_state(room, sid)}, room=sid)
+
+# ===== GLOBAL MATCHMAKING =====
+@socketio.on("join_matchmaking")
+def join_matchmaking(data):
+    player_name = data.get("playerName", "Player")
+    time_control = data.get("timeControl", 300)
+    sid = request.sid
+    
+    with matchmaking_lock:
+        # Check if already in queue
+        if any(p["sid"] == sid for p in matchmaking_queue):
+            emit("matchmaking_status", {"status": "already_in_queue"})
+            return
+        
+        # Look for a match with same time control
+        match_found = None
+        for i, player in enumerate(matchmaking_queue):
+            if player["timeControl"] == time_control and player["sid"] != sid:
+                match_found = player
+                matchmaking_queue.pop(i)
+                break
+        
+        if match_found:
+            # Create game room
+            room = f"global-{secrets.token_hex(4)}"
             
-            if (disconnectInterval) clearInterval(disconnectInterval);
-            disconnectInterval = setInterval(() => {
-                timeLeft--;
-                timerSpan.textContent = timeLeft;
-                if (timeLeft <= 0) {
-                    clearInterval(disconnectInterval);
-                }
-            }, 1000);
-        }
-    }
-});
-
-socket.on("player_reconnected", (data) => {
-    const overlay = document.getElementById("disconnectOverlay");
-    if (overlay) overlay.classList.remove("active");
-    if (disconnectInterval) clearInterval(disconnectInterval);
-});
-
-socket.on("game_update", d => {
-  if (isDragging) {
-    pendingUpdate = d;
-    return;
-  }
-  const now = Date.now();
-  if (d.lastMove && lastMoveWasMine && (now - lastMoveTime < 260)) {
-    setTimeout(() => processGameUpdate(d), 260 - (now - lastMoveTime));
-    return;
-  }
-  processGameUpdate(d);
-});
-
-function processGameUpdate(d) {
-  const prev = gameState;
-  const isMyMoveConfirmation = d.lastMove && lastMoveWasMine;
-  
-  const performUpdate = () => {
-    const boardChanged = JSON.stringify(prev.board) !== JSON.stringify(d.state.board);
-    gameState = d.state;
-
-    updatePlayerNames(gameState);
-
-    pendingMoves.clear();
-    const SERVER_SYNC_THRESHOLD = 2;
-    if (gameState.whiteTimeFormatted !== undefined) {
-      const srv = timeStringToSeconds(gameState.whiteTimeFormatted);
-      if (srv > 0 && Math.abs(srv - whiteSeconds) > SERVER_SYNC_THRESHOLD) {
-        whiteSeconds = srv;
-      }
-    }
-    if (gameState.blackTimeFormatted !== undefined) {
-      const srv = timeStringToSeconds(gameState.blackTimeFormatted);
-      if (srv > 0 && Math.abs(srv - blackSeconds) > SERVER_SYNC_THRESHOLD) {
-        blackSeconds = srv;
-      }
-    }
-
-    updateDisplayedTimers();
-    
-    if (gameState.winner) {
-        const overlay = document.getElementById("disconnectOverlay");
-        if (overlay) overlay.classList.remove("active");
-        if (disconnectInterval) clearInterval(disconnectInterval);
-    }
-
-    if (boardChanged || !isMyMoveConfirmation) {
-      if (d.lastMove) addMoveToHistory(d.lastMove, d.moveNotation);
-      renderBoard(gameState, d.lastMove);
-    } else {
-      if (d.lastMove) addMoveToHistory(d.lastMove, d.moveNotation);
-    }
-    updateStatus(gameState);
-    updateTurnIndicator(gameState);
-  };
-
-  if (d.lastMove && !isMyMoveConfirmation) {
-    animateMove(d.lastMove.from, d.lastMove.to, performUpdate);
-  } else {
-    performUpdate();
-  }
-
-  if (prev) {
-    if (isMyMoveConfirmation) {
-      lastMoveWasMine = false;
-    }
-
-    if (gameState.winner) playSound("win");
-    else if (gameState.check) playSound("check");
-    else if (d.lastMove && !isMyMoveConfirmation) {
-      const tr = d.lastMove.to.row;
-      const tc = d.lastMove.to.col;
-      const wasCapture = prev.board[tr][tc] !== ".";
-      playSound(wasCapture ? "capture" : "move");
-    }
-  }
-}
-
-socket.on("user_typing", data=>{
-  if(data.sender===playerColor) return;
-  const dest = document.getElementById("typingIndicator");
-  const displayName = data.senderName || (data.sender === "white" ? "White" : "Black");
-  if (dest) dest.innerText = `${displayName} is typing...`;
-});
-
-socket.on("user_stop_typing", data=>{
-  if(data.sender===playerColor) return;
-  const dest = document.getElementById("typingIndicator");
-  if (dest) dest.innerText = "";
-});
-
-socket.on("chat_message", data => {
-  appendChat(data, data.sender === playerColor);
-  if (data.sender !== playerColor) playSound("notify");
-});
-
-socket.on("invalid_move", data => {
-  lastMoveWasMine = false;
-  console.warn("Server rejected move:", data);
-  if (data.moveId) revertOptimisticMove(data.moveId);
-  const messages = document.getElementById("messages");
-  if (messages) messages.textContent = "❌ Invalid move!";
-});
-
-// ===== REMATCH FUNCTIONALITY =====
-function requestRematch() {
-    if (!currentRoom) return;
-    socket.emit("request_rematch", { room: currentRoom });
-    
-    const rematchBtn = document.getElementById("rematchBtn");
-    if (rematchBtn) {
-        rematchBtn.textContent = "⏳ Waiting for opponent...";
-        rematchBtn.disabled = true;
-    }
-}
-
-function acceptRematch() {
-    const modal = document.getElementById("rematchModal");
-    if (modal) modal.classList.remove("active");
-
-    // When accepting, also request rematch (this will trigger rematch_started when both accept)
-    socket.emit("request_rematch", { room: currentRoom });
-
-    const rematchBtn = document.getElementById("rematchBtn");
-    if (rematchBtn) {
-        rematchBtn.textContent = "⏳ Starting rematch...";
-        rematchBtn.disabled = true;
-    }
-}
-
-function declineRematch() {
-    const modal = document.getElementById("rematchModal");
-    if (modal) modal.classList.remove("active");
-
-    // Notify server and opponent that rematch was declined
-    socket.emit("decline_rematch", { room: currentRoom });
-}
-
-socket.on("rematch_requested", (data) => {
-    const modal = document.getElementById("rematchModal");
-    const message = document.getElementById("rematchMessage");
-
-    if (modal && message) {
-        message.textContent = `${data.from.toUpperCase()} wants a rematch!`;
-        modal.classList.add("active");
-    }
-});
-
-socket.on("rematch_declined", (data) => {
-    const messages = document.getElementById("messages");
-    const status = document.getElementById("status");
-
-    // Reset rematch button
-    const rematchBtn = document.getElementById("rematchBtn");
-    if (rematchBtn) {
-        rematchBtn.textContent = "🔄 Rematch";
-        rematchBtn.disabled = false;
-    }
-
-    // Show notification
-    if (messages) {
-        messages.textContent = "❌ Opponent declined the rematch.";
-        messages.style.color = "#ff4444";
-        messages.style.fontWeight = "bold";
-
-        // Clear message after 5 seconds
-        setTimeout(() => {
-            if (messages.textContent === "❌ Opponent declined the rematch.") {
-                messages.textContent = "";
-                messages.style.color = "";
-                messages.style.fontWeight = "";
+            # Random color assignment
+            if random.choice([True, False]):
+                white_player = player_name
+                white_sid = sid
+                black_player = match_found["playerName"]
+                black_sid = match_found["sid"]
+            else:
+                white_player = match_found["playerName"]
+                white_sid = match_found["sid"]
+                black_player = player_name
+                black_sid = sid
+            
+            # Get user IDs if authenticated (check both possible players)
+            user = get_current_user()
+            # We can't determine user_ids yet since players will connect with new sids
+            # Set them to None and let join_room handle user linking
+            
+            games[room] = {
+                "board": chess.Board(),
+                "whiteTime": float(time_control),
+                "blackTime": float(time_control),
+                "lastUpdate": time.time(),
+                "start_timestamp": datetime.utcnow(),
+                "isActive": False,  # Will become True when both players join
+                "winner": None,
+                "bot": False,
+                "lock": threading.Lock(),
+                "white_player": white_player,
+                "black_player": black_player,
+                "white_sid": None,  # Will be set when player joins
+                "black_sid": None,  # Will be set when player joins
+                "white_user_id": None,  # Will be set when player joins
+                "black_user_id": None,  # Will be set when player joins
+                "white_disconnect_timer": None,
+                "black_disconnect_timer": None,
+                "clients": set(),
+                "game_mode": "global",
+                "move_history": []
             }
-        }, 5000);
-    }
+            
+            # Don't add to sid_to_room yet - will be done in join_room
+            
+            # Notify both players with their assigned names
+            socketio.emit("matchmaking_found", {
+                "room": room,
+                "playerName": white_player,
+                "color": "white"
+            }, room=white_sid)
+            
+            socketio.emit("matchmaking_found", {
+                "room": room,
+                "playerName": black_player,
+                "color": "black"
+            }, room=black_sid)
+            
+            print(f"✅ Match found! Room: {room}, White: {white_player}, Black: {black_player}")
+        else:
+            # Add to queue
+            matchmaking_queue.append({
+                "sid": sid,
+                "playerName": player_name,
+                "timeControl": time_control,
+                "timestamp": time.time()
+            })
+            emit("matchmaking_status", {"status": "searching"})
+            print(f"🔍 Player {player_name} joined matchmaking queue (time: {time_control}s)")
 
-    playSound("notify");
-});
+@socketio.on("cancel_matchmaking")
+def cancel_matchmaking():
+    sid = request.sid
+    with matchmaking_lock:
+        for i, player in enumerate(matchmaking_queue):
+            if player["sid"] == sid:
+                matchmaking_queue.pop(i)
+                emit("matchmaking_cancelled")
+                print(f"❌ Player cancelled matchmaking")
+                return
 
-socket.on("rematch_started", (data) => {
-    currentRoom = data.room;
-    playerColor = data.color;
-    gameState = data.state;
+# ===== REMATCH FUNCTIONALITY =====
+@socketio.on("request_rematch")
+def request_rematch(data):
+    room = data.get("room")
+    if room not in games:
+        emit("error", {"message": "Game not found"})
+        return
     
-    moveHistory = [];
-    selectedSquare = null;
-    possibleMoves = [];
+    g = games[room]
+    requester_sid = request.sid
     
-    const rematchBtn = document.getElementById("rematchBtn");
-    if (rematchBtn) {
-        rematchBtn.classList.remove("active");
-        rematchBtn.disabled = false;
-        rematchBtn.textContent = "🔄 Rematch";
-    }
+    # Determine who is requesting
+    if requester_sid == g.get("white_sid"):
+        requester_color = "white"
+        opponent_sid = g.get("black_sid")
+    elif requester_sid == g.get("black_sid"):
+        requester_color = "black"
+        opponent_sid = g.get("white_sid")
+    else:
+        emit("error", {"message": "You are not a player in this game"})
+        return
     
-    const roomName = document.getElementById("roomName");
-    if (roomName) roomName.textContent = currentRoom;
-    
-    updatePlayerNames(gameState);
-    renderBoard(gameState);
-    updateStatus(gameState);
-    updateTurnIndicator(gameState);
-    renderMoveHistory();
-    
-    whiteSeconds = gameState.whiteTimeFormatted ? timeStringToSeconds(gameState.whiteTimeFormatted) : 300;
-    blackSeconds = gameState.blackTimeFormatted ? timeStringToSeconds(gameState.blackTimeFormatted) : 300;
-    updateDisplayedTimers();
-    startLocalTimer();
-    
-    playSound("notify");
-});
-
-// === SPECTATOR MODE ===
-function updateSpectatorCount(count) {
-  const roomName = document.getElementById("roomName");
-  if (roomName && playerColor === "spectator") {
-    const baseRoom = currentRoom.replace(" (Spectating)", "");
-    roomName.textContent = `${baseRoom} (Spectating) • 👁️ ${count} viewer${count !== 1 ? 's' : ''}`;
-  }
-}
-
-socket.on("spectator_joined", (data) => {
-  if (data.spectatorCount !== undefined) {
-    updateSpectatorCount(data.spectatorCount);
-  }
-});
-
-socket.on("spectator_left", (data) => {
-  if (data.spectatorCount !== undefined) {
-    updateSpectatorCount(data.spectatorCount);
-  }
-});
-
-document.addEventListener("DOMContentLoaded", function() {
-  initializeEmojiPanel();
-  const chatInputEl = document.getElementById("chatInput");
-  if (chatInputEl) {
-    chatInputEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        sendChat();
-      }
-    });
-    chatInputEl.addEventListener("input", handleTypingInput);
-  }
-  document.body.addEventListener('click', initAudio, { once: true });
-});
-
-function renderBoard(state, lastMove=null){
-  const board=document.getElementById("chessboard");
-  if (!board) return;
-  board.innerHTML="";
-  const flipped = (playerColor === "black");
-  const rows = flipped ? [...Array(8).keys()].reverse() : [...Array(8).keys()];
-  const cols = flipped ? [...Array(8).keys()].reverse() : [...Array(8).keys()];
-  for (let r of rows){
-    for (let c of cols){
-      const sq=document.createElement("div");
-      sq.className=`square ${(r+c)%2===0?"light":"dark"}`;
-      sq.dataset.row=r;
-      sq.dataset.col=c;
-
-      const isBottom = (playerColor === "black") ? (r === 0) : (r === 7);
-      const isLeft = (playerColor === "black") ? (c === 7) : (c === 0);
-
-      if (isBottom) {
-          const fileLabel = document.createElement("div");
-          fileLabel.className = "square-coord file";
-          fileLabel.textContent = String.fromCharCode(97 + c);
-          sq.appendChild(fileLabel);
-      }
-      if (isLeft) {
-          const rankLabel = document.createElement("div");
-          rankLabel.className = "square-coord rank";
-          rankLabel.textContent = (8 - r).toString();
-          sq.appendChild(rankLabel);
-      }
-
-      if(lastMove){
-        const fm=lastMove.from, to=lastMove.to;
-        if((fm.row===r && fm.col===c)||(to.row===r && to.col===c)){
-          sq.classList.add("last-move");
-        }
-      }
-      if(selectedSquare && selectedSquare.row===r && selectedSquare.col===c){
-        sq.classList.add("selected");
-      }
-      if(possibleMoves.some(m=>m.row===r && m.col===c)){
-        sq.classList.add("possible-move");
-      }
-      const piece = state.board[r][c];
-      if(piece !== "."){
-        const pDiv=document.createElement("div");
-        pDiv.className="piece";
-        const isWhitePiece = piece === piece.toUpperCase();
-        const color = isWhitePiece ? "white" : "black";
+    # If bot game, create instant rematch
+    if g.get("game_mode") == "bot":
+        new_room = f"bot-{secrets.token_hex(4)}"
+        time_control = g.get("whiteTime", 300) if g.get("whiteTime", 300) > 0 else 300
+        player_name = g.get("white_player") if requester_color == "white" else g.get("black_player")
         
-        // Only allow dragging for the player's own pieces, not for spectators
-        if(color === state.turn && color === playerColor && playerColor !== "spectator"){
-          pDiv.draggable=true;
+        # Create new bot game
+        games[new_room] = {
+            "board": chess.Board(),
+            "whiteTime": float(time_control),
+            "blackTime": float(time_control),
+            "lastUpdate": time.time(),
+            "start_timestamp": datetime.utcnow(),
+            "isActive": True,
+            "winner": None,
+            "bot": True,
+            "lock": threading.Lock(),
+            "white_player": player_name,
+            "black_player": "Bot",
+            "white_sid": requester_sid,
+            "black_sid": None,
+            "white_disconnect_timer": None,
+            "black_disconnect_timer": None,
+            "clients": {requester_sid},
+            "game_mode": "bot"
         }
-        pDiv.dataset.row=r;
-        pDiv.dataset.col=c;
         
-        pDiv.addEventListener("dragstart", e=>{
-          isDragging = true;
-          selectedSquare = { row:r, col:c };
-          
-          const key = `${r},${c}`;
-          possibleMoves = (state.moves && state.moves[key]) ? state.moves[key] : [];
-
-          e.target.style.opacity = '0';
-          
-          const dragImg = e.target.cloneNode(true);
-          dragImg.style.opacity = '1';
-          dragImg.style.position = 'absolute';
-          dragImg.style.top = '-1000px';
-          dragImg.style.width = e.target.offsetWidth + 'px';
-          dragImg.style.height = e.target.offsetHeight + 'px';
-          document.body.appendChild(dragImg);
-          const offsetX = e.target.offsetWidth / 2;
-          const offsetY = e.target.offsetHeight / 2;
-          e.dataTransfer.setDragImage(dragImg, offsetX, offsetY);
-          setTimeout(() => dragImg.remove(), 0);
-
-          document.querySelectorAll('.square').forEach(s => {
-             s.classList.remove('selected', 'possible-move');
-          });
-
-          possibleMoves.forEach(m => {
-             const targetSq = document.querySelector(`.square[data-row="${m.row}"][data-col="${m.col}"]`);
-             if(targetSq) targetSq.classList.add('possible-move');
-          });
-          
-          e.dataTransfer.setData("fromRow", r);
-          e.dataTransfer.setData("fromCol", c);
-        });
-
-        pDiv.addEventListener("dragend", (e) => {
-             e.target.style.opacity = '1';
-             isDragging = false;
-             selectedSquare = null;
-             possibleMoves = [];
-             if (pendingUpdate) {
-               processGameUpdate(pendingUpdate);
-               pendingUpdate = null;
-             } else {
-               renderBoard(gameState, lastMove);
-             }
-        });
-
-        const img=document.createElement("img");
-        const clr = isWhitePiece ? "w" : "b";
-        const type = piece.toLowerCase();
-        img.src=`https://images.chesscomfiles.com/chess-themes/pieces/neo/150/${clr}${type}.png`;
-        pDiv.appendChild(img);
-        sq.appendChild(pDiv);
-      }
-      sq.addEventListener("click", ()=> handleSquareClick(r,c,state));
-      sq.addEventListener("dragover", e=> e.preventDefault());
-      sq.addEventListener("drop", e=>{
-        e.preventDefault();
-        const fr=parseInt(e.dataTransfer.getData("fromRow"));
-        const fc=parseInt(e.dataTransfer.getData("fromCol"));
-        const from={row:fr,col:fc};
-        const to={row:r,col:c};
-        const valid = possibleMoves.some(m=>m.row===r && m.col===c);
+        sid_to_room[requester_sid] = new_room
         
-        selectedSquare = null;
-        possibleMoves = [];
+        emit("rematch_started", {
+            "room": new_room,
+            "color": "white",
+            "state": export_state(new_room, requester_sid)
+        })
+        print(f"🔄 Bot rematch created: {new_room}")
+    else:
+        # For multiplayer, need opponent acceptance
+        if "rematch_requests" not in g:
+            g["rematch_requests"] = set()
         
-        if(!valid){
-          const messages = document.getElementById("messages");
-          if (messages) messages.textContent="❌ Invalid move!";
-          renderBoard(gameState, lastMove);
-          return;
-        }
-        const movingPiece = state.board[fr][fc];
-        const isPawn = movingPiece.toLowerCase()==="p";
-        const isPromoRank = (playerColor==="white" && r===0) ||
-                            (playerColor==="black" && r===7);
-        if(isPawn && isPromoRank){
-          pendingPromotion = { from, to };
-          showPromotionModal(playerColor);
-        } else {
-          makeMove(from,to,null,true);
-        }
-      });
-      board.appendChild(sq);
-    }
-  }
-}
+        g["rematch_requests"].add(requester_color)
+        
+        # Check if both players requested rematch
+        if len(g["rematch_requests"]) == 2:
+            # Create new game
+            new_room = f"{g.get('game_mode', 'friend')}-{secrets.token_hex(4)}"
+            time_control = g.get("whiteTime", 300) if g.get("whiteTime", 300) > 0 else 300
+            
+            white_sid = g.get("white_sid")
+            black_sid = g.get("black_sid")
+            white_player = g.get("white_player")
+            black_player = g.get("black_player")
+            
+            games[new_room] = {
+                "board": chess.Board(),
+                "whiteTime": float(time_control),
+                "blackTime": float(time_control),
+                "lastUpdate": time.time(),
+                "start_timestamp": datetime.utcnow(),
+                "isActive": True,
+                "winner": None,
+                "bot": False,
+                "lock": threading.Lock(),
+                "white_player": white_player,
+                "black_player": black_player,
+                "white_sid": white_sid,
+                "black_sid": black_sid,
+                "white_disconnect_timer": None,
+                "black_disconnect_timer": None,
+                "clients": {white_sid, black_sid},
+                "game_mode": g.get("game_mode", "friend")
+            }
+            
+            sid_to_room[white_sid] = new_room
+            sid_to_room[black_sid] = new_room
+            
+            # Notify both players
+            socketio.emit("rematch_started", {
+                "room": new_room,
+                "color": "white",
+                "state": export_state(new_room, white_sid)
+            }, room=white_sid)
+            
+            socketio.emit("rematch_started", {
+                "room": new_room,
+                "color": "black",
+                "state": export_state(new_room, black_sid)
+            }, room=black_sid)
+            
+            print(f"🔄 Rematch created: {new_room}")
+        else:
+            # Notify opponent of rematch request
+            if opponent_sid:
+                socketio.emit("rematch_requested", {
+                    "from": requester_color
+                }, room=opponent_sid)
 
-function handleSquareClick(row, col, state){
-  if(state.winner) return;
-  
-  // Prevent spectators from making moves
-  if (playerColor === "spectator") {
-    const messages = document.getElementById("messages");
-    if (messages) messages.textContent = "👁️ You are spectating";
-    return;
-  }
-  
-  if (state.isActive === false) {
-    const messages = document.getElementById("messages");
-    if (messages) messages.textContent = "⏳ Waiting for opponent...";
-    return;
-  }
-  if(state.turn !== playerColor){
-    const messages = document.getElementById("messages");
-    if (messages) messages.textContent = "⏳ Wait for your turn!";
-    return;
-  }
-  const piece = state.board[row][col];
-  const isWhite = piece !== "." && piece === piece.toUpperCase();
-  const isMine = piece !== "." && (
-    (playerColor==="white" && isWhite) ||
-    (playerColor==="black" && !isWhite)
-  );
-  
-  if(isMine){
-    selectedSquare = { row,col };
-    const key = `${row},${col}`;
-    possibleMoves = (state.moves && state.moves[key]) ? state.moves[key] : [];
+@socketio.on("decline_rematch")
+def decline_rematch(data):
+    room = data.get("room")
+    if room not in games:
+        return
+
+    g = games[room]
+    decliner_sid = request.sid
+
+    # Determine who is declining
+    if decliner_sid == g.get("white_sid"):
+        decliner_color = "white"
+        opponent_sid = g.get("black_sid")
+    elif decliner_sid == g.get("black_sid"):
+        decliner_color = "black"
+        opponent_sid = g.get("white_sid")
+    else:
+        return
+
+    # Clear rematch requests
+    if "rematch_requests" in g:
+        g["rematch_requests"].clear()
+
+    # Notify opponent that rematch was declined
+    if opponent_sid:
+        socketio.emit("rematch_declined", {
+            "from": decliner_color
+        }, room=opponent_sid)
+        print(f"❌ {decliner_color.upper()} declined rematch in room {room}")
+
+@socketio.on("disconnect")
+def on_disconnect():
+    sid = request.sid
+    room = sid_to_room.pop(sid, None)
     
-    renderBoard(state);
+    # Remove from matchmaking queue
+    with matchmaking_lock:
+        for i, player in enumerate(matchmaking_queue):
+            if player["sid"] == sid:
+                matchmaking_queue.pop(i)
+                break
     
-    const messages = document.getElementById("messages");
-    if (messages) messages.textContent="";
-    return;
-  }
+    if room and room in games:
+        g = games[room]
+        
+        disconnected_color = None
+        if sid == g.get("white_sid"):
+            disconnected_color = "white"
+        elif sid == g.get("black_sid"):
+            disconnected_color = "black"
+        elif sid in g.get("spectators", set()):
+            # Handle spectator disconnect
+            g["spectators"].discard(sid)
+            spectator_count = len(g.get("spectators", set()))
+            socketio.emit("spectator_left", {
+                "spectatorCount": spectator_count
+            }, room=room)
 
-  if(!selectedSquare) return;
-  const isValid = possibleMoves.some(m=>m.row===row && m.col===col);
-  if(!isValid){
-    const messages = document.getElementById("messages");
-    if (messages) messages.textContent = "❌ Invalid move!";
-    return;
-  }
-  const movingPiece = state.board[selectedSquare.row][selectedSquare.col];
-  const isPawn = movingPiece.toLowerCase()==="p";
-  const isPromoRank = (playerColor==="white" && row===0) ||
-                      (playerColor==="black" && row===7);
-  if(isPawn && isPromoRank){
-    pendingPromotion = { from:selectedSquare, to:{row,col} };
-    showPromotionModal(playerColor);
-  } else {
-    makeMove(selectedSquare, {row,col}, null);
-  }
-}
+        if "clients" in g:
+            g["clients"].discard(sid)
 
-function makeMove(from, to, promotion=null, isDrop=false){
-  lastMoveWasMine = true;
-  lastMoveTime = Date.now();
-  const moveId = ++moveSequence;
-  const previousState = JSON.parse(JSON.stringify(gameState));
-  
-  selectedSquare = null;
-  possibleMoves = [];
-  pendingPromotion = null;
-  
-  const performMove = () => {
-    const optimisticState = applyOptimisticMove(from, to, promotion);
-    if (optimisticState) {
-      gameState = optimisticState;
-      renderBoard(gameState, { from, to });
-      updateTurnIndicator(gameState);
-      const wasCapture = previousState.board[to.row][to.col] !== ".";
-      playSound(wasCapture ? "capture" : "move");
-      pendingMoves.set(moveId, {
-        from, to, promotion, previousState, timestamp: Date.now()
-      });
-    }
-  };
+        if disconnected_color and g.get("isActive") and not g["winner"]:
+            print(f"⚠️ {disconnected_color} disconnected from {room}. Starting {DISCONNECT_TIMEOUT}s timer.")
+            socketio.emit("player_disconnected", {"color": disconnected_color, "timeout": DISCONNECT_TIMEOUT}, room=room)
+            t = threading.Timer(DISCONNECT_TIMEOUT, handle_disconnect_timeout, [room, disconnected_color])
+            t.start()
+            if disconnected_color == "white":
+                g["white_disconnect_timer"] = t
+            else:
+                g["black_disconnect_timer"] = t
 
-  if (!isDrop) {
-    animateMove(from, to, performMove);
-  } else {
-    performMove();
-  }
+        if len(g["clients"]) == 0 and not g.get("white_disconnect_timer") and not g.get("black_disconnect_timer"):
+            print(f"🧹 Room '{room}' is empty and idle. Deleting game.")
+            del games[room]
 
-  socket.emit("move", { room: currentRoom, from, to, promotion, moveId });
-  const messages = document.getElementById("messages");
-  if (messages) messages.textContent = "";
-}
+@socketio.on("move")
+def move(data):
+    room = data["room"]
+    if room not in games: return
+    g = games[room]
+    
+    if not g.get("isActive"): 
+        emit("error", {"message": "Waiting for opponent..."})
+        return
+    
+    with g["lock"]:
+        update_time(g)
+        if g["winner"]: return
+        
+        board = g["board"]
+        f = chess.square(data["from"]["col"], 7-data["from"]["row"])
+        t = chess.square(data["to"]["col"], 7-data["to"]["row"])
+        mv = chess.Move(f, t, chess.QUEEN if data.get("promotion") else None)
+        
+        if mv not in board.legal_moves and not data.get("promotion"):
+            mv = chess.Move(f, t, chess.QUEEN)
 
-function showPromotionModal(color){
-  const modal=document.getElementById("promotionModal");
-  const pcs=document.getElementById("promotionPieces");
-  if (!modal || !pcs) return;
-  pcs.innerHTML="";
-  const opt=['q','r','b','n'];
-  const pre = (color==="white") ? "w" : "b";
-  opt.forEach(t=>{
-    const img=document.createElement("img");
-    img.src=`https://images.chesscomfiles.com/chess-themes/pieces/neo/150/${pre}${t}.png`;
-    img.onclick = ()=>{
-      makeMove(pendingPromotion.from, pendingPromotion.to, t);
-      modal.classList.remove("active");
-    };
-    pcs.appendChild(img);
-  });
-  modal.classList.add("active");
-}
+        if mv in board.legal_moves:
+            san = board.san(mv)
+            board.push(mv)
+            
+            # Record move for replay
+            if "move_history" not in g:
+                g["move_history"] = []
+            
+            g["move_history"].append({
+                "notation": san,
+                "from_square": chess.square_name(mv.from_square),
+                "to_square": chess.square_name(mv.to_square),
+                "white_time": g["whiteTime"],
+                "black_time": g["blackTime"],
+                "fen": board.fen()
+            })
+            
+            if board.is_game_over():
+                g["winner"] = "white" if not board.turn else "black"
+                if board.is_stalemate(): g["winner"] = "draw"
+                else: g["reason"] = "checkmate"
+                save_game(room, g)
+            
+            for sid in g.get("clients", set()):
+                socketio.emit("game_update", {
+                    "state": export_state(room, sid),
+                    "lastMove": data,
+                    "moveNotation": san
+                }, room=sid)
 
-function cancelPromotion(){
-  pendingPromotion=null;
-  const modal = document.getElementById("promotionModal");
-  if (modal) modal.classList.remove("active");
-}
+            if g["bot"] and not g["winner"]: 
+                socketio.start_background_task(bot_play, room)
 
-function addMoveToHistory(lastMove,notation){
-  moveHistory.push({ from:lastMove.from, to:lastMove.to, notation: notation });
-  renderMoveHistory();
-}
+def bot_play(room):
+    time.sleep(0.5) 
+    if room not in games: return
+    g = games[room]
+    
+    with g["lock"]:
+        board = g["board"]
+        if board.is_game_over(): return
 
-function renderMoveHistory(){
-  const list=document.getElementById("moveList");
-  if (!list) return;
-  list.innerHTML="";
-  for(let i=0;i<moveHistory.length;i+=2){
-    const num=document.createElement("div");
-    num.className="move-number";
-    num.textContent=(i/2+1)+".";
-    list.appendChild(num);
-    const w=document.createElement("div");
-    w.className="move-item white";
-    w.textContent=moveHistory[i].notation;
-    list.appendChild(w);
-    if(i+1 < moveHistory.length){
-      const b=document.createElement("div");
-      b.className="move-item black";
-      b.textContent=moveHistory[i+1].notation;
-      list.appendChild(b);
-    } else {
-      list.appendChild(document.createElement("div"));
-    }
-  }
-  const parent = list.parentElement;
-  if (parent) parent.scrollTop = parent.scrollHeight;
-}
+        best_move = None
+        if STOCKFISH_PATH:
+            try:
+                engine = chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH)
+                result = engine.play(board, chess.engine.Limit(time=0.5))
+                best_move = result.move
+                engine.quit()
+            except Exception as e:
+                print(f"❌ Stockfish Error: {e}")
+                best_move = random.choice(list(board.legal_moves))
+        else:
+            best_move = random.choice(list(board.legal_moves))
 
-function updateTurnIndicator(state){
-  const ind=document.getElementById("turnIndicator");
-  if (!ind) return;
-  if(state.winner){
-    ind.textContent="🏁 Game Over";
-    ind.style.background="linear-gradient(135deg, #11998e 0%, #38ef7d 100%)";
-    ind.style.color="#fff";
-    return;
-  }
-  ind.textContent = (state.turn==="white") ? "♔ White to move" : "♚ Black to move";
-  ind.style.background = "";
-  ind.style.color = "";
-}
+        if best_move:
+            san = board.san(best_move)
+            board.push(best_move)
 
-function updateStatus(state){
-  const s=document.getElementById("status");
-  const rematchBtn = document.getElementById("rematchBtn");
-  const drawBtn = document.querySelector(".btn-draw");
-  const resignBtn = document.querySelector(".btn-resign");
+            # Record bot move for replay (same as player moves)
+            if "move_history" not in g:
+                g["move_history"] = []
 
-  if (!s) return;
+            g["move_history"].append({
+                "notation": san,
+                "from_square": chess.square_name(best_move.from_square),
+                "to_square": chess.square_name(best_move.to_square),
+                "white_time": g["whiteTime"],
+                "black_time": g["blackTime"],
+                "fen": board.fen()
+            })
 
-  if(state.winner){
-    if (rematchBtn) {
-        rematchBtn.classList.add("active");
-        rematchBtn.disabled = false;
-    }
+            if board.is_game_over():
+                g["winner"] = "black"
+                g["reason"] = "checkmate"
+                save_game(room, g)
 
-    // Disable Draw and Resign buttons when game is over
-    if (drawBtn) {
-        drawBtn.disabled = true;
-        drawBtn.style.opacity = "0.5";
-        drawBtn.style.cursor = "not-allowed";
-    }
-    if (resignBtn) {
-        resignBtn.disabled = true;
-        resignBtn.style.opacity = "0.5";
-        resignBtn.style.cursor = "not-allowed";
-    }
+            for sid in g.get("clients", set()):
+                socketio.emit("game_update", {
+                    "state": export_state(room, sid),
+                    "lastMove": {"from": {"row": 7-chess.square_rank(best_move.from_square), "col": chess.square_file(best_move.from_square)},
+                                 "to": {"row": 7-chess.square_rank(best_move.to_square), "col": chess.square_file(best_move.to_square)}},
+                    "moveNotation": san
+                }, room=sid)
 
-    if(state.winner==="draw"){
-      s.textContent="🤝 Game Draw!";
-      s.style.background="linear-gradient(135deg, #f7971e 0%, #ffd200 100%)";
-      s.style.color="#fff";
-    } else {
-      const w = state.winner==="white" ? "♔ WHITE" : "♚ BLACK";
-      const r =
-        state.reason==="checkmate" ? "by Checkmate" :
-        state.reason==="resign" ? "by Resignation" :
-        state.reason==="timeout" ? "by Timeout" :
-        state.reason==="abandonment" ? "by Abandonment" : "";
-      s.textContent=`👑 ${w} Wins ${r}!`;
-      s.style.background="linear-gradient(135deg, #11998e 0%, #38ef7d 100%)";
-      s.style.color="#fff";
-    }
-    return;
-  }
+@socketio.on("send_message")
+def msg(data):
+    room = data.get("room")
+    sender = data.get("sender")
 
-  if (rematchBtn) {
-      rematchBtn.classList.remove("active");
-  }
+    # Block spectators from sending messages
+    if sender == "spectator":
+        return
 
-  // Re-enable Draw and Resign buttons when game is active
-  if (drawBtn) {
-      drawBtn.disabled = false;
-      drawBtn.style.opacity = "1";
-      drawBtn.style.cursor = "pointer";
-  }
-  if (resignBtn) {
-      resignBtn.disabled = false;
-      resignBtn.style.opacity = "1";
-      resignBtn.style.cursor = "pointer";
-  }
+    # Check if sender is actually a player in the game
+    if room in games:
+        g = games[room]
+        if request.sid not in [g.get("white_sid"), g.get("black_sid")]:
+            return
 
-  if(state.check){
-    const t = state.turn==="white"?"♔ WHITE":"♚ BLACK";
-    s.textContent=`⚠️ CHECK! ${t}'s turn`;
-    s.style.background="linear-gradient(135deg, #eb3349 0%, #f45c43 100%)";
-    s.style.color="#fff";
-    return;
-  }
-  s.textContent="";
-  s.style.background="";
-  s.style.color="";
-}
+    socketio.emit("chat_message", data, room=room)
 
-function goHome(){
-  if(confirm("Return to home? Current game will end.")){
-    socket.emit("leave_room",{room:currentRoom});
-    window.location.href = "/";
-  }
-}
+@socketio.on("typing")
+def on_typing(data):
+    # Block spectators from showing typing indicator
+    if data.get("sender") == "spectator":
+        return
+    socketio.emit("user_typing", data, room=data["room"], skip_sid=request.sid)
 
-function offerDraw(){
-  socket.emit("offer_draw",{room:currentRoom,color:playerColor});
-  const messages = document.getElementById("messages");
-  if (messages) messages.textContent="🤝 Draw offer sent...";
-}
+@socketio.on("stop_typing")
+def on_stop_typing(data):
+    # Block spectators from showing typing indicator
+    if data.get("sender") == "spectator":
+        return
+    socketio.emit("user_stop_typing", data, room=data["room"], skip_sid=request.sid)
 
-socket.on("draw_offered", data=>{
-  const drawMessage = document.getElementById("drawMessage");
-  const drawModal = document.getElementById("drawModal");
-  if (drawMessage && drawModal) {
-    drawMessage.textContent = `${data.fromColor.toUpperCase()} offers a draw. Accept?`;
-    drawModal.classList.add("active");
-  }
-});
+@socketio.on("offer_draw")
+def offer_draw(data):
+    socketio.emit("draw_offered", {"fromColor": data["color"]}, room=data["room"], skip_sid=request.sid)
 
-socket.on("draw_declined", ()=>{
-  const messages = document.getElementById("messages");
-  if (messages) messages.textContent="❌ Opponent declined your draw.";
-});
+@socketio.on("respond_draw")
+def respond_draw(data):
+    room = data["room"]
+    if room not in games: return
+    g = games[room]
+    if data["accept"]:
+        g["winner"] = "draw"
+        g["reason"] = "agreement"
+        save_game(room, g)
+        for sid in g.get("clients", set()):
+            socketio.emit("game_update", {"state": export_state(room, sid)}, room=sid)
+    else:
+        socketio.emit("draw_declined", {}, room=room)
 
-function respondToDraw(acc){
-  const drawModal = document.getElementById("drawModal");
-  if (drawModal) drawModal.classList.remove("active");
-  socket.emit("respond_draw",{room:currentRoom,accept:acc});
-}
+@socketio.on("resign")
+def resign(data):
+    room = data["room"]
+    if room not in games: return
+    g = games[room]
+    if g["winner"]: return
+    g["winner"] = "black" if data["color"] == "white" else "white"
+    g["reason"] = "resign"
+    save_game(room, g)
+    for sid in g.get("clients", set()):
+        socketio.emit("game_update", {"state": export_state(room, sid)}, room=sid)
 
-function resignGame(){
-  if(confirm("Are you sure you want to resign?")){
-    socket.emit("resign",{room:currentRoom,color:playerColor});
-  }
-}
-</script>
-</body>
-</html>
+@socketio.on("leave_room")
+def on_leave(data):
+    room = data.get("room")
+    if room: leave_room(room)
+
+if __name__ == "__main__":
+    socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 5001)), allow_unsafe_werkzeug=True)
