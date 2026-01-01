@@ -451,7 +451,14 @@ def create(data):
     }
     
     logger.info(f"🎮 Room '{room}' created by {player_name} (bot={bot_mode}, difficulty={bot_difficulty})")
-    emit("room_created", {"state": export_state(room, sid)})
+    
+    # Send proper state structure
+    state = export_state(room, sid)
+    emit("room_created", {
+        "room": room,
+        "color": state["color"],
+        "state": state
+    })
 
 @socketio.on("join_room")
 def join(data):
@@ -478,7 +485,12 @@ def join(data):
             g["white_disconnect_timer"].cancel()
             g["white_disconnect_timer"] = None
         socketio.emit("player_reconnected", {"color": "white"}, room=room)
-        emit("game_joined", {"state": export_state(room, sid)})
+        state = export_state(room, sid)
+        emit("game_joined", {
+            "room": room,
+            "color": state["color"],
+            "state": state
+        })
         return
     
     if sid == g.get("black_sid"):
@@ -487,7 +499,12 @@ def join(data):
             g["black_disconnect_timer"].cancel()
             g["black_disconnect_timer"] = None
         socketio.emit("player_reconnected", {"color": "black"}, room=room)
-        emit("game_joined", {"state": export_state(room, sid)})
+        state = export_state(room, sid)
+        emit("game_joined", {
+            "room": room,
+            "color": state["color"],
+            "state": state
+        })
         return
     
     # New player joining
@@ -501,7 +518,10 @@ def join(data):
         g["start_time"] = datetime.now()
         
         for client_sid in g["clients"]:
-            socketio.emit("game_update", {"state": export_state(room, client_sid)}, room=client_sid)
+            state = export_state(room, client_sid)
+            socketio.emit("game_update", {
+                "state": state
+            }, room=client_sid)
         
         logger.info(f"👥 {player_name} joined room '{room}' as Black")
     else:
@@ -509,7 +529,12 @@ def join(data):
         g["spectators"].add(sid)
         spectator_count = len(g["spectators"])
         socketio.emit("spectator_joined", {"spectatorCount": spectator_count}, room=room)
-        emit("game_joined", {"state": export_state(room, sid)})
+        state = export_state(room, sid)
+        emit("game_joined", {
+            "room": room,
+            "color": state["color"],
+            "state": state
+        })
         logger.info(f"👁️ Spectator joined room '{room}' (total: {spectator_count})")
 
 @socketio.on("find_match")
