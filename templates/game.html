@@ -1294,7 +1294,7 @@ function startGame(data){
   document.getElementById("game").style.display = "block";
 
   currentRoom = data.room;
-  playerColor = data.color;
+  playerColor = data.color || data.state.color;  // Support both formats
   gameState = data.state;
 
   updatePlayerNames(gameState);
@@ -1346,6 +1346,9 @@ function startGame(data){
   }
   
   console.log("✅ startGame completed");
+  console.log("   Player Color:", playerColor);
+  console.log("   Turn:", gameState.turn);
+  console.log("   Is Active:", gameState.isActive);
 }
 
 socket.on("game_start", d=>{
