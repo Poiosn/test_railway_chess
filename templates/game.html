@@ -1232,11 +1232,27 @@ document.getElementById("soundToggle").addEventListener("click", function() {
 });
 
 // ===== SOCKET EVENTS =====
-socket.emit("join_room", {
-  room: currentRoom,
-  playerName: playerName,
-  gameMode: gameMode
-});
+// Determine if we should create or join based on mode parameter
+if (URL_MODE === "bot" || URL_MODE === "create") {
+  // Create a new room for bot games or explicit create mode
+  console.log("🎮 Creating room:", currentRoom);
+  socket.emit("create_room", {
+    room: currentRoom,
+    playerName: playerName,
+    timeControl: URL_TIME,
+    bot: URL_MODE === "bot",
+    botDifficulty: params.get("difficulty") || "medium",
+    gameMode: gameMode
+  });
+} else {
+  // Join existing room for join/spectate/global modes
+  console.log("🚪 Joining room:", currentRoom);
+  socket.emit("join_room", {
+    room: currentRoom,
+    playerName: playerName,
+    gameMode: gameMode
+  });
+}
 
 socket.on("room_created", startGame);
 socket.on("game_joined", startGame);
