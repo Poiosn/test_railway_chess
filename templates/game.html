@@ -348,755 +348,772 @@
     .square.dark {
       background: linear-gradient(135deg, #c9a882 0%, #b58863 100%);
     }
+    .square:hover {
+      filter: brightness(1.1);
+    }
     .square.selected {
-      background: radial-gradient(circle, #baca44 0%, #a8b834 100%) !important;
-      box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.3);
-    }
-    .square.possible-move::after {
-      content: '';
-      position: absolute;
-      width: 30%;
-      height: 30%;
-      background: radial-gradient(circle, rgba(34, 197, 94, 0.7), rgba(34, 197, 94, 0.4));
-      border-radius: 50%;
-      animation: moveIndicator 1.5s ease-in-out infinite;
-    }
-    @keyframes moveIndicator {
-      0%, 100% { transform: scale(1); opacity: 0.8; }
-      50% { transform: scale(1.2); opacity: 1; }
+      box-shadow: inset 0 0 0 3px rgba(102, 126, 234, 0.8);
+      z-index: 10;
     }
     .square.last-move {
-      background: radial-gradient(circle, #ffd93d 0%, #cdd26a 100%) !important;
+      background-blend-mode: multiply;
+      position: relative;
+    }
+    .square.last-move.light {
+      background: linear-gradient(135deg, rgba(240, 186, 90, 0.5) 0%, rgba(240, 186, 90, 0.4) 100%), 
+                  linear-gradient(135deg, #f5e6d3 0%, #f0d9b5 100%);
+    }
+    .square.last-move.dark {
+      background: linear-gradient(135deg, rgba(170, 139, 87, 0.5) 0%, rgba(170, 139, 87, 0.4) 100%), 
+                  linear-gradient(135deg, #c9a882 0%, #b58863 100%);
+    }
+    .square.possible-move::after {
+      content:"";
+      width:35%;
+      height:35%;
+      background: rgba(102, 126, 234, 0.5);
+      border-radius:50%;
+      pointer-events:none;
+      position: absolute;
+      animation: moveHintPulse 1.5s ease-in-out infinite;
+    }
+    .square.possible-move.has-piece::after {
+      width: 90%;
+      height: 90%;
+      background: transparent;
+      border: 3px solid rgba(220, 38, 38, 0.6);
+      border-radius: 50%;
+    }
+    @keyframes moveHintPulse {
+      0%, 100% { transform: scale(1); opacity: 0.5; }
+      50% { transform: scale(1.2); opacity: 0.8; }
     }
 
     .piece {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: grab;
-    }
-    .piece:active {
-      cursor: grabbing;
+      width:85%;
+      height:85%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      z-index: 10;
     }
     .piece img {
-      width: 85%;
-      height: 85%;
-      object-fit: contain;
-      pointer-events: none;
-      filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
+      width:100%;
+      height:100%;
+      object-fit:contain;
+      pointer-events:none;
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
     }
-
-    /* STATUS */
-    .status {
-      height: 28px;
-      text-align: center;
-      padding: 3px;
-      margin-top: 4px;
-      border-radius: 6px;
-      font-size: 10px;
-      font-weight: 800;
-      background: rgba(102, 126, 234, 0.1);
-      color: #333;
-      border: 2px solid rgba(102, 126, 234, 0.2);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    .piece[draggable="true"]:hover {
+      transform: scale(1.08);
+      cursor: grab;
     }
-
-    #messages {
-      text-align: center;
-      color: #dc2626;
-      margin-top: 3px;
-      height: 14px;
-      font-weight: 700;
-      font-size: 9px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    .piece[draggable="true"]:active {
+      cursor: grabbing;
     }
 
     /* SIDEBAR */
     .sidebar {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
+      max-height: 100%;
     }
 
     .card {
-      background: rgba(255, 255, 255, 0.8);
-      backdrop-filter: blur(10px);
-      border-radius: 8px;
-      padding: 8px;
-      border: 2px solid rgba(102, 126, 234, 0.2);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    }
-
-    .card h4 {
-      color: #2c3e50;
-      margin-bottom: 5px;
-      font-size: 11px;
-      font-weight: 800;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    /* MOVE HISTORY */
-    .move-list {
-      display: grid;
-      grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr);
-      gap: 3px;
-      font-size: 10px;
-      max-height: 200px;
-      overflow-y: auto;
-    }
-    .move-number {
-      color: #666;
-      font-weight: 800;
-      text-align: right;
-      padding-right: 5px;
-    }
-    .move-item {
-      background: rgba(248, 249, 250, 0.9);
-      padding: 3px 5px;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      font-weight: 600;
-      text-align: center;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .move-item:hover {
-      background: rgba(102, 126, 234, 0.15);
-      transform: translateX(2px);
-    }
-    .move-item.white {
-      border-left: 3px solid #e0e0e0;
-    }
-    .move-item.black {
-      border-left: 3px solid #2c3e50;
-    }
-
-    /* CHAT */
-    .chat-messages {
-      height: 200px;
-      max-height: 200px;
-      overflow-y: auto;
-      padding: 5px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      background: rgba(248, 249, 250, 0.5);
-      border-radius: 6px;
-      margin-bottom: 5px;
-    }
-    .chat-line {
-      padding: 5px 7px;
-      border-radius: 6px;
-      max-width: 85%;
-      word-break: break-word;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-      font-size: 10px;
-      font-weight: 500;
-      user-select: text;
-      -webkit-user-select: text;
-    }
-    .chat-line.you {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      align-self: flex-end;
-      border-bottom-right-radius: 3px;
-    }
-    .chat-line.opponent {
-      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-      color: white;
-      align-self: flex-start;
-      border-bottom-left-radius: 3px;
-    }
-    
-    .typing-indicator {
-      height: 12px;
-      font-size: 9px;
-      color: #666;
-      margin-bottom: 3px;
-      font-style: italic;
-    }
-
-    .chat-input {
-      display: flex;
-      gap: 4px;
-      align-items: center;
-    }
-    .chat-input input {
-      flex: 1;
-      padding: 5px 7px;
-      border-radius: 6px;
-      border: 2px solid rgba(102, 126, 234, 0.3);
       background: rgba(255, 255, 255, 0.9);
+      border-radius: 8px;
+      padding: 6px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+      border: 2px solid rgba(102, 126, 234, 0.2);
+    }
+
+    .card-header {
       font-size: 10px;
-      outline: none;
-      transition: all 0.3s ease;
-    }
-    .chat-input input:focus {
-      border-color: #667eea;
-      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-    }
-
-    .emoji-picker-wrap {
-      position: relative;
+      font-weight: 800;
+      color: #667eea;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
     }
 
-    .emoji-btn {
-      cursor: pointer;
-      padding: 4px;
-      font-size: 12px;
-      border-radius: 5px;
-      transition: all 0.2s ease;
+    #status {
+      padding: 6px;
+      border-radius: 6px;
+      text-align: center;
+      font-weight: 700;
+      font-size: 10px;
       background: rgba(102, 126, 234, 0.1);
-      border: none;
-      width: 28px;
-      height: 28px;
+      color: #333;
+      border: 2px solid rgba(102, 126, 234, 0.2);
+      min-height: 26px;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-    .emoji-btn:hover {
-      background: rgba(102, 126, 234, 0.2);
-      transform: scale(1.1);
+
+    #messages {
+      padding: 5px;
+      border-radius: 5px;
+      text-align: center;
+      font-size: 9px;
+      font-weight: 700;
+      color: #333;
+      min-height: 22px;
+      background: rgba(255, 255, 255, 0.5);
     }
 
-    .emoji-panel {
+    /* MOVE HISTORY */
+    .moves-container {
+      max-height: 140px;
+      overflow-y: auto;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.03);
+      padding: 4px;
+    }
+
+    #moveList {
+      display: grid;
+      grid-template-columns: 22px 1fr 1fr;
+      gap: 3px;
+      font-size: 9px;
+      font-weight: 600;
+    }
+
+    .move-number {
+      color: #667eea;
+      font-weight: 800;
+      text-align: center;
+      padding: 3px 0;
+    }
+
+    .move-item {
+      padding: 3px 6px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .move-item:hover {
+      background: rgba(102, 126, 234, 0.1);
+      transform: translateX(2px);
+    }
+
+    .move-item.white {
+      border-left: 3px solid #f0d9b5;
+    }
+
+    .move-item.black {
+      border-left: 3px solid #b58863;
+    }
+
+    /* CONTROLS */
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 4px;
+    }
+
+    .btn {
+      padding: 6px 8px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn::before {
+      content: '';
       position: absolute;
-      bottom: 45px;
-      left: 0;
-      background: rgba(255, 255, 255, 0.98);
-      backdrop-filter: blur(15px);
-      border: 2px solid rgba(102, 126, 234, 0.3);
-      border-radius: 10px;
-      padding: 8px;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.5);
+      transform: translate(-50%, -50%);
+      transition: width 0.6s, height 0.6s;
+    }
+
+    .btn:hover::before {
+      width: 300px;
+      height: 300px;
+    }
+
+    .btn span {
+      position: relative;
+      z-index: 1;
+    }
+
+    .btn-home {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .btn-home:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-draw {
+      background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
+      color: white;
+    }
+
+    .btn-draw:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(247, 151, 30, 0.4);
+    }
+
+    .btn-resign {
+      background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+      color: white;
+      grid-column: span 2;
+    }
+
+    .btn-resign:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(235, 51, 73, 0.4);
+    }
+
+    .btn-rematch {
+      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+      color: white;
+      grid-column: span 2;
+      opacity: 0.5;
+      cursor: not-allowed;
+      transition: all 0.3s ease;
+    }
+
+    .btn-rematch.active {
+      opacity: 1;
+      cursor: pointer;
+    }
+
+    .btn-rematch.active:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(17, 153, 142, 0.4);
+    }
+
+    /* CHAT */
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      max-height: 130px;
+    }
+
+    #chatMessages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px;
+      background: rgba(0, 0, 0, 0.03);
+      border-radius: 6px;
+      margin-bottom: 4px;
+      min-height: 70px;
+      max-height: 90px;
+      font-size: 9px;
+    }
+
+    .chat-message {
+      padding: 3px 6px;
+      margin-bottom: 3px;
+      border-radius: 4px;
+      word-wrap: break-word;
+      animation: messageFadeIn 0.3s ease;
+    }
+
+    @keyframes messageFadeIn {
+      from { opacity: 0; transform: translateY(-5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .chat-message.white {
+      background: rgba(240, 217, 181, 0.3);
+      border-left: 3px solid #f0d9b5;
+    }
+
+    .chat-message.black {
+      background: rgba(181, 136, 99, 0.3);
+      border-left: 3px solid #b58863;
+    }
+
+    .chat-message strong {
+      color: #667eea;
+      font-weight: 800;
+    }
+
+    .chat-input-area {
       display: flex;
       gap: 4px;
-      flex-wrap: wrap;
-      width: 180px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-      z-index: 100;
     }
 
-    /* BUTTONS */
-    .button-group {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 4px;
-      margin-top: 4px;
+    #chatInput {
+      flex: 1;
+      padding: 5px 8px;
+      border: 2px solid rgba(102, 126, 234, 0.3);
+      border-radius: 6px;
+      font-size: 9px;
+      outline: none;
+      transition: border-color 0.3s ease;
+      font-family: inherit;
     }
 
-    button {
-      padding: 6px 6px;
+    #chatInput:focus {
+      border-color: rgba(102, 126, 234, 0.6);
+    }
+
+    .btn-send {
+      padding: 5px 10px;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
       border: none;
       border-radius: 6px;
       cursor: pointer;
-      font-weight: 700;
       font-size: 9px;
+      font-weight: 700;
       transition: all 0.3s ease;
-      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-      white-space: nowrap;
-    }
-    button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-    }
-    button:active {
-      transform: translateY(0);
-    }
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-      transform: none !important;
     }
 
-    .btn-home {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    .btn-send:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
     }
-    .btn-draw {
-      background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
-    }
-    .btn-resign {
-      background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
-    }
-    .btn-secondary {
-      background: linear-gradient(135deg, #bdc3c7 0%, #2c3e50 100%);
-    }
-    .btn-bot {
-      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-    }
-    .btn-rematch {
-      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+
+    /* TYPING INDICATOR */
+    .typing-indicator {
+      padding: 3px 8px;
+      font-size: 8px;
+      color: #999;
+      font-style: italic;
       display: none;
     }
-    .btn-rematch.active {
+
+    .typing-indicator.active {
       display: block;
     }
 
     /* MODALS */
     .modal {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
       display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(5px);
+      z-index: 1000;
       align-items: center;
       justify-content: center;
-      background: rgba(0, 0, 0, 0.75);
-      backdrop-filter: blur(8px);
-      z-index: 9999;
-      padding: 20px;
+      animation: fadeIn 0.3s ease;
     }
+
     .modal.active {
       display: flex;
     }
 
     .modal-content {
       background: white;
-      backdrop-filter: blur(20px);
       padding: 20px;
       border-radius: 12px;
-      text-align: center;
-      min-width: 260px;
-      max-width: 90vw;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
-      animation: modalSlideUp 0.3s ease;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 400px;
+      width: 90%;
+      animation: modalSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    @keyframes modalSlideUp {
-      from { transform: translateY(30px); opacity: 0; }
+    @keyframes modalSlideIn {
+      from { transform: translateY(-50px); opacity: 0; }
       to { transform: translateY(0); opacity: 1; }
     }
 
     .modal-content h3 {
-      font-size: clamp(15px, 3.5vw, 20px);
-      font-weight: 900;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin-bottom: 12px;
+      font-size: 16px;
+      margin-bottom: 15px;
+      color: #667eea;
+      font-weight: 800;
     }
 
-    .promotion-pieces {
+    .modal-content p {
+      font-size: 13px;
+      margin-bottom: 15px;
+      color: #666;
+    }
+
+    #promotionPieces {
       display: flex;
       justify-content: center;
-      align-items: center;
-      gap: 8px;
-      margin: 12px 0;
-      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 15px;
     }
 
-    .promotion-pieces img {
-      width: clamp(45px, 13vw, 60px);
-      height: clamp(45px, 13vw, 60px);
+    #promotionPieces img {
+      width: 60px;
+      height: 60px;
       cursor: pointer;
-      transition: all 0.3s ease;
-      filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.2));
-      border-radius: 6px;
-      padding: 4px;
-      background: rgba(102, 126, 234, 0.05);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius: 8px;
+      padding: 5px;
+      border: 2px solid transparent;
     }
-    .promotion-pieces img:hover {
-      transform: scale(1.15) translateY(-5px);
-      background: rgba(102, 126, 234, 0.15);
+
+    #promotionPieces img:hover {
+      transform: scale(1.15);
+      background: rgba(102, 126, 234, 0.1);
+      border-color: rgba(102, 126, 234, 0.3);
     }
 
     .modal-buttons {
       display: flex;
-      gap: 8px;
-      justify-content: center;
-      margin-top: 12px;
-      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
     }
 
-    /* SCROLLBAR */
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: rgba(0, 0, 0, 0.05);
-      border-radius: 10px;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border-radius: 10px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    .modal-btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+      transition: all 0.3s ease;
     }
 
-    /* RESPONSIVE DESIGN */
-
-    /* OPTIMIZED FOR 1366x768 */
-    @media (min-width: 1280px) and (max-width: 1440px) and (min-height: 720px) and (max-height: 800px) {
-      .container {
-        max-width: 1350px;
-        padding: 6px;
-        max-height: calc(100vh - 16px);
-      }
-
-      .game-layout {
-        grid-template-columns: 1fr 280px;
-        gap: 10px;
-      }
-
-      .board-wrapper {
-        max-width: 450px;
-        max-height: 450px;
-      }
-
-      .move-list {
-        max-height: 200px;
-      }
-
-      .chat-messages {
-        height: 200px;
-        max-height: 200px;
-      }
-
-      .card {
-        padding: 8px;
-      }
-
-      body {
-        padding: 8px;
-        overflow: hidden;
-      }
-
-      button {
-        padding: 6px 5px;
-        font-size: 9px;
-      }
-
-      .button-group {
-        grid-template-columns: repeat(4, 1fr);
-      }
+    .modal-btn.accept {
+      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+      color: white;
     }
 
-    /* TABLET */
-    @media (max-width: 1024px) {
+    .modal-btn.accept:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(17, 153, 142, 0.4);
+    }
+
+    .modal-btn.decline {
+      background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+      color: white;
+    }
+
+    .modal-btn.decline:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(235, 51, 73, 0.4);
+    }
+
+    /* EMOJI PICKER */
+    .emoji-toggle {
+      background: none;
+      border: none;
+      font-size: 14px;
+      cursor: pointer;
+      padding: 5px;
+      transition: transform 0.2s ease;
+    }
+
+    .emoji-toggle:hover {
+      transform: scale(1.2);
+    }
+
+    /* MOBILE RESPONSIVE */
+    @media (max-width: 1100px) {
       .game-layout {
         grid-template-columns: 1fr;
-        gap: 15px;
       }
 
       .sidebar {
-        max-width: 600px;
-        margin: 0 auto;
-        width: 100%;
-      }
-
-      .button-group {
-        max-width: 600px;
-        margin: 15px auto 0;
-      }
-    }
-
-    /* MOBILE */
-    @media (max-width: 768px) {
-      body {
-        padding: 5px;
-      }
-
-      .container {
-        padding: 12px;
-        border-radius: 15px;
-        max-height: calc(100vh - 10px);
-      }
-
-      .header {
-        margin-bottom: 10px;
-      }
-
-      .sound-toggle {
-        width: 35px;
-        height: 35px;
-        font-size: 18px;
-      }
-
-      .game-info-bar {
-        padding: 10px 12px;
-        margin-bottom: 10px;
-      }
-
-      .game-layout {
-        gap: 12px;
-      }
-
-      .board-section {
+        grid-template-columns: repeat(2, 1fr);
         gap: 8px;
-      }
-
-      .player-card {
-        padding: 8px 12px;
-        min-height: 45px;
-      }
-
-      .player-avatar {
-        width: 28px;
-        height: 28px;
-        font-size: 16px;
       }
 
       .card {
-        padding: 12px;
+        height: auto;
       }
 
-      .card h4 {
-        margin-bottom: 8px;
-      }
-
-      .move-list {
-        max-height: 120px;
-        grid-template-columns: 30px minmax(0, 1fr) minmax(0, 1fr);
-      }
-
-      .chat-messages {
-        height: 120px;
-        max-height: 120px;
-      }
-
-      .button-group {
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-        margin-top: 10px;
+      .controls {
+        grid-column: span 2;
       }
     }
 
-    /* SMALL MOBILE */
-    @media (max-width: 400px) {
+    @media (max-width: 768px) {
       .container {
-        padding: 10px;
+        padding: 4px;
       }
 
       h1 {
-        font-size: 22px;
+        font-size: 16px;
       }
 
       .subtitle {
-        font-size: 10px;
-      }
-
-      .player-card {
-        padding: 6px 10px;
-        min-height: 40px;
-      }
-
-      .timer {
-        padding: 5px 10px;
-        min-width: 55px;
-        font-size: 12px;
-      }
-
-      .chat-messages {
-        height: 130px;
-      }
-
-      .move-list {
-        max-height: 120px;
-      }
-    }
-
-    /* LANDSCAPE MOBILE */
-    @media (max-height: 600px) and (orientation: landscape) {
-      .container {
-        max-height: none;
+        font-size: 8px;
       }
 
       .board-wrapper {
-        max-width: 350px;
+        max-width: 100%;
       }
 
-      .chat-messages {
-        height: 120px;
+      .sidebar {
+        display: grid;
+        grid-template-columns: 1fr;
       }
 
-      .move-list {
+      #chatMessages {
         max-height: 100px;
       }
     }
+
+    @media (max-width: 480px) {
+      .game-layout {
+        gap: 6px;
+      }
+
+      .player-card {
+        padding: 3px 6px;
+        min-height: 28px;
+      }
+
+      .timer {
+        padding: 2px 6px;
+        font-size: 10px;
+        min-width: 45px;
+      }
+
+      .card {
+        padding: 5px;
+      }
+
+      .card-header {
+        font-size: 9px;
+      }
+
+      #status, #turnIndicator {
+        font-size: 9px;
+        min-height: 24px;
+      }
+    }
+
+    /* SPECTATOR BADGE */
+    .spectator-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 4px;
+      font-size: 8px;
+      font-weight: 800;
+      margin-left: 5px;
+      animation: badgePulse 2s ease-in-out infinite;
+    }
+
+    @keyframes badgePulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    .spectator-count {
+      font-size: 9px;
+      color: #667eea;
+      font-weight: 700;
+      margin-left: 5px;
+    }
+
+    /* MATCHMAKING INDICATOR */
+    .matchmaking-indicator {
+      display: none;
+      text-align: center;
+      padding: 20px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #667eea;
+    }
+
+    .matchmaking-indicator.active {
+      display: block;
+    }
+
+    .matchmaking-spinner {
+      border: 3px solid rgba(102, 126, 234, 0.3);
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 10px auto;
+    }
   </style>
 </head>
-
 <body>
-
 <div class="container">
-    <!-- HEADER -->
-    <div class="header">
-      <div id="soundToggle" class="sound-toggle" onclick="toggleSound()" title="Toggle Sound">🔊</div>
-      <h1>♔ Chess Master ♚</h1>
-      <p class="subtitle">⚡ Premium Edition — Real-time Multiplayer</p>
-    </div>
-    
-    <!-- LOADING -->
-    <div id="loadingMessage">
-        <div style="font-size:clamp(24px, 5vw, 32px); margin-bottom:15px;">🔌</div>
-        Connecting to server...
+  <div class="header">
+    <h1>♟️ Chess Master ♛</h1>
+    <div class="subtitle">Premium Edition — Real-time Multiplayer</div>
+    <div class="sound-toggle" id="soundToggle" title="Toggle Sound">🔊</div>
+  </div>
+
+  <div id="loadingMessage">
+    <div style="font-size: 40px; margin-bottom: 20px;">♟️</div>
+    <div>Connecting to game...</div>
+  </div>
+
+  <div id="game" style="display:none;">
+    <div class="game-info-bar">
+      <h3 id="roomName">🏛️ Room: </h3>
     </div>
 
-    <!-- GAME -->
-    <div id="game" style="display:none;">
-      <!-- GAME INFO BAR -->
-      <div class="game-info-bar">
-        <h3>👥 Room: <span id="roomName"></span></h3>
+    <div class="game-layout">
+      <div class="board-section">
+        <!-- TOP PLAYER (Black) -->
+        <div class="player-card black">
+          <div class="player-info">
+            <div class="player-avatar">♚</div>
+            <div class="player-name-text" id="blackPlayerName">Black</div>
+          </div>
+          <div class="timer" id="blackTimer">5:00</div>
+        </div>
+
+        <!-- CHESSBOARD -->
+        <div class="board-wrapper" id="boardWrapper">
+          <div class="chessboard" id="chessboard"></div>
+          <div class="disconnect-overlay" id="disconnectOverlay">
+            <div style="font-size:1.2em; margin-bottom:8px; font-weight:900;">⚠️ Opponent Disconnected</div>
+            <div style="font-size:0.9em;">Reconnecting in <span id="disconnectTimer">15</span>s...</div>
+            <div style="font-size:0.8em; margin-top:8px; opacity:0.9;">You will win if they don't return</div>
+          </div>
+        </div>
+
+        <!-- TURN INDICATOR -->
+        <div class="turn-indicator" id="turnIndicator">♔ White to move</div>
+
+        <!-- BOTTOM PLAYER (White) -->
+        <div class="player-card">
+          <div class="player-info">
+            <div class="player-avatar">♔</div>
+            <div class="player-name-text" id="whitePlayerName">White</div>
+          </div>
+          <div class="timer" id="whiteTimer">5:00</div>
+        </div>
       </div>
 
-      <!-- MAIN LAYOUT -->
-      <div class="game-layout">
-        <!-- BOARD SECTION -->
-        <div class="board-section">
-          <!-- BLACK PLAYER -->
-          <div class="player-card black" id="blackPlayerCard">
-            <div class="player-info">
-              <div class="player-avatar">♚</div>
-              <div class="player-name-text" id="blackName">Black</div>
-            </div>
-            <div class="timer" id="blackTimer">5:00</div>
-          </div>
-
-          <!-- TURN INDICATOR -->
-          <div class="turn-indicator" id="turnIndicator">♔ White to move</div>
-
-          <!-- CHESSBOARD -->
-          <div class="board-wrapper" id="boardWrapper">
-            <div class="chessboard" id="chessboard"></div>
-            <div id="disconnectOverlay" class="disconnect-overlay">
-                <div class="waiting-spinner"></div>
-                <div style="font-size:clamp(13px, 2.8vw, 16px); margin-bottom:6px; font-weight:900;">⚠️ Opponent Disconnected</div>
-                <div style="font-size:clamp(11px, 2.2vw, 13px); font-weight:normal;">Claiming win in <span id="disconnectTimer">15</span>s...</div>
-            </div>
-          </div>
-
-          <!-- WHITE PLAYER -->
-          <div class="player-card white" id="whitePlayerCard">
-            <div class="player-info">
-              <div class="player-avatar">♔</div>
-              <div class="player-name-text" id="whiteName">White</div>
-            </div>
-            <div class="timer" id="whiteTimer">5:00</div>
-          </div>
-
-          <!-- STATUS & MESSAGES -->
-          <div class="status" id="status"></div>
+      <!-- SIDEBAR -->
+      <div class="sidebar">
+        <!-- STATUS CARD -->
+        <div class="card">
+          <div class="card-header">📊 Game Status</div>
+          <div id="status">&nbsp;</div>
           <div id="messages"></div>
+        </div>
 
-          <!-- BUTTONS -->
-          <div class="button-group">
-            <button onclick="goHome()" class="btn-home">🏠 Home</button>
-            <button onclick="offerDraw()" class="btn-draw">🤝 Draw</button>
-            <button onclick="resignGame()" class="btn-resign">🏳️ Resign</button>
-            <button id="rematchBtn" onclick="requestRematch()" class="btn-rematch">🔄 Rematch</button>
+        <!-- MOVE HISTORY -->
+        <div class="card">
+          <div class="card-header">
+            📜 Move History
+            <span class="spectator-count" id="spectatorCount" style="display:none;"></span>
+          </div>
+          <div class="moves-container">
+            <div id="moveList"></div>
           </div>
         </div>
 
-        <!-- SIDEBAR -->
-        <div class="sidebar">
-          <!-- MOVE HISTORY -->
-          <div class="card">
-            <h4>📜 Move History</h4>
-            <div class="move-list" id="moveList"></div>
+        <!-- CONTROLS -->
+        <div class="card">
+          <div class="card-header">🎮 Controls</div>
+          <div class="controls">
+            <button class="btn btn-home" onclick="goHome()"><span>🏠 Home</span></button>
+            <button class="btn btn-draw" onclick="offerDraw()"><span>🤝 Draw</span></button>
+            <button class="btn btn-resign" onclick="resignGame()"><span>🏳️ Resign</span></button>
+            <button class="btn btn-rematch" id="rematchBtn" onclick="window.location.href='/'"><span>🔄 Rematch</span></button>
           </div>
+        </div>
 
-          <!-- CHAT -->
-          <div class="card">
-            <h4>💬 Live Chat</h4>
-            <div class="chat-messages" id="chatMessages"></div>
-            <div class="typing-indicator" id="typingIndicator"></div>
-
-            <div class="chat-input">
-              <div class="emoji-picker-wrap" id="emojiPickerWrap">
-                <button id="emojiToggle" class="emoji-btn" title="Add Emoji">😊</button>
-                <div id="emojiPanel" class="emoji-panel" style="display:none;">
-                  <div class="emoji-btn" onclick="insertEmoji('😀')">😀</div>
-                  <div class="emoji-btn" onclick="insertEmoji('😄')">😄</div>
-                  <div class="emoji-btn" onclick="insertEmoji('😂')">😂</div>
-                  <div class="emoji-btn" onclick="insertEmoji('😍')">😍</div>
-                  <div class="emoji-btn" onclick="insertEmoji('👍')">👍</div>
-                  <div class="emoji-btn" onclick="insertEmoji('🤝')">🤝</div>
-                  <div class="emoji-btn" onclick="insertEmoji('🎉')">🎉</div>
-                  <div class="emoji-btn" onclick="insertEmoji('😅')">😅</div>
-                  <div class="emoji-btn" onclick="insertEmoji('♟️')">♟️</div>
-                  <div class="emoji-btn" onclick="insertEmoji('❤️')">❤️</div>
-                  <div class="emoji-btn" onclick="insertEmoji('🔥')">🔥</div>
-                  <div class="emoji-btn" onclick="insertEmoji('⚡')">⚡</div>
-                </div>
-              </div>
-              <input id="chatInput" type="text" placeholder="Type message..." style="user-select:text;-webkit-user-select:text;" />
-              <button onclick="sendChat()">Send</button>
+        <!-- LIVE CHAT -->
+        <div class="card">
+          <div class="card-header">💬 Live Chat</div>
+          <div class="chat-container">
+            <div id="chatMessages"></div>
+            <div class="typing-indicator" id="typingIndicator">Opponent is typing...</div>
+            <div class="chat-input-area">
+              <button class="emoji-toggle" id="emojiToggle">😊</button>
+              <input type="text" id="chatInput" placeholder="Type a message..." maxlength="100" />
+              <button class="btn-send" onclick="sendMessage()">Send</button>
             </div>
           </div>
         </div>
       </div>
     </div>
+  </div>
 </div>
 
 <!-- PROMOTION MODAL -->
 <div class="modal" id="promotionModal">
   <div class="modal-content">
-    <h3>👑 Promote Pawn</h3>
-    <p style="color:#666;margin-top:6px;font-size:clamp(10px,2vw,12px);">Choose your piece:</p>
-    <div class="promotion-pieces" id="promotionPieces"></div>
+    <h3>♕ Promote Pawn</h3>
+    <p>Choose a piece for promotion:</p>
+    <div id="promotionPieces"></div>
     <div class="modal-buttons">
-      <button onclick="cancelPromotion()" class="btn-secondary">Cancel</button>
+      <button class="modal-btn decline" onclick="cancelPromotion()">Cancel</button>
     </div>
   </div>
 </div>
 
-<!-- DRAW MODAL -->
+<!-- DRAW OFFER MODAL -->
 <div class="modal" id="drawModal">
   <div class="modal-content">
     <h3>🤝 Draw Offer</h3>
-    <p id="drawMessage" style="color:#666;margin-top:10px;font-size:clamp(11px,2.3vw,14px);"></p>
+    <p id="drawMessage">Opponent offers a draw. Accept?</p>
     <div class="modal-buttons">
-      <button onclick="respondToDraw(true)" class="btn-bot">✅ Accept</button>
-      <button onclick="respondToDraw(false)" class="btn-resign">❌ Decline</button>
-    </div>
-  </div>
-</div>
-
-<!-- REMATCH MODAL -->
-<div class="modal" id="rematchModal">
-  <div class="modal-content">
-    <h3>🔄 Rematch Request</h3>
-    <p id="rematchMessage" style="color:#666;margin-top:10px;font-size:clamp(11px,2.3vw,14px);">Opponent wants a rematch!</p>
-    <div class="modal-buttons">
-      <button onclick="acceptRematch()" class="btn-bot">✅ Accept</button>
-      <button onclick="declineRematch()" class="btn-secondary">❌ Decline</button>
+      <button class="modal-btn decline" onclick="respondToDraw(false)">Decline</button>
+      <button class="modal-btn accept" onclick="respondToDraw(true)">Accept</button>
     </div>
   </div>
 </div>
 
 <script>
-const socket = io({ 
-  transports: ["websocket", "polling"],
-  reconnection: true,
-  reconnectionDelay: 500,
-  reconnectionAttempts: 10
-});
-
+// ===== PARSE URL PARAMS =====
 const params = new URLSearchParams(window.location.search);
-const URL_ROOM = params.get('room');
-const URL_NAME = params.get('name');
-const URL_MODE = params.get('mode');
-const URL_TIME = params.get('time');
-const URL_DIFFICULTY = params.get('difficulty') || 'medium';
+const URL_ROOM = params.get("room");
+const URL_NAME = params.get("name") || "Player";
+const URL_TIME = parseInt(params.get("time")) || 300;
+const URL_MODE = params.get("mode") || "friend";
 
-if (!URL_ROOM || !URL_NAME) {
-    alert("Invalid game parameters. Redirecting to home.");
-    window.location.href = "/";
+if (!URL_ROOM) {
+  alert("No room specified!");
+  window.location.href = "/";
 }
 
+// ===== SOCKET CONNECTION =====
+const socket = io();
+
+// Enhanced socket connection logging
+socket.on("connect", () => {
+  console.log("✅ Socket connected! ID:", socket.id);
+});
+
+socket.on("connect_error", (error) => {
+  console.error("❌ Socket connection error:", error);
+  alert("Connection error! Check your internet connection.");
+});
+
+socket.on("disconnect", (reason) => {
+  console.warn("⚠️ Socket disconnected:", reason);
+});
+
+socket.on("error", (error) => {
+  console.error("❌ Socket error:", error);
+  if (error && error.message) {
+    alert("Socket error: " + error.message);
+  }
+});
+
+// ===== GAME STATE =====
 let currentRoom = URL_ROOM;
 let playerColor = null;
 let playerName = URL_NAME;
@@ -1198,288 +1215,65 @@ function playSound(type) {
     osc.connect(gain); 
     gain.connect(audioCtx.destination);
     osc.frequency.value = sounds[type].freq;
-    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + sounds[type].duration);
     osc.start(audioCtx.currentTime);
     osc.stop(audioCtx.currentTime + sounds[type].duration);
-  } catch (e) { console.error("Sound error:", e); }
+  } catch (e) {
+    console.warn("Audio error:", e);
+  }
 }
 
-function toggleSound(){
+document.getElementById("soundToggle").addEventListener("click", function() {
   soundEnabled = !soundEnabled;
-  const btn = document.getElementById("soundToggle");
-  if (btn) {
-    btn.textContent = soundEnabled ? "🔊" : "🔇";
-    btn.classList.toggle("muted", !soundEnabled);
-  }
-}
-
-function animateMove(from, to, renderFn) {
-  const fromSq = document.querySelector(`.square[data-row="${from.row}"][data-col="${from.col}"]`);
-  const toSq = document.querySelector(`.square[data-row="${to.row}"][data-col="${to.col}"]`);
-  
-  const piece = fromSq ? fromSq.querySelector('.piece') : null;
-  const captured = toSq ? toSq.querySelector('.piece') : null;
-  
-  const startRect = piece ? piece.getBoundingClientRect() : null;
-  const capturedRect = captured ? captured.getBoundingClientRect() : null;
-
-  renderFn();
-
-  if (capturedRect) {
-    const ghost = captured.cloneNode(true);
-    ghost.style.position = 'fixed';
-    ghost.style.left = `${capturedRect.left}px`;
-    ghost.style.top = `${capturedRect.top}px`;
-    ghost.style.width = `${capturedRect.width}px`;
-    ghost.style.height = `${capturedRect.height}px`;
-    ghost.style.zIndex = '90';
-    ghost.style.pointerEvents = 'none';
-    ghost.style.transition = 'all 0.3s ease-out';
-    ghost.style.opacity = '1';
-    ghost.style.transform = 'scale(1)';
-    
-    document.body.appendChild(ghost);
-    
-    requestAnimationFrame(() => {
-      ghost.style.opacity = '0';
-      ghost.style.transform = 'scale(0.8)';
-    });
-    
-    setTimeout(() => ghost.remove(), 300);
-  }
-
-  if (startRect) {
-    const newToSq = document.querySelector(`.square[data-row="${to.row}"][data-col="${to.col}"]`);
-    const newPiece = newToSq ? newToSq.querySelector('.piece') : null;
-    
-    if (newPiece) {
-      const endRect = newPiece.getBoundingClientRect();
-      const dx = startRect.left - endRect.left;
-      const dy = startRect.top - endRect.top;
-      
-      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
-
-      newPiece.style.transition = 'none';
-      newPiece.style.transform = `translate(${dx}px, ${dy}px)`;
-      newPiece.style.zIndex = '100';
-      
-      void newPiece.offsetWidth;
-      
-      newPiece.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)';
-      newPiece.style.transform = 'translate(0, 0)';
-      
-      setTimeout(() => {
-        newPiece.style.zIndex = '';
-        newPiece.style.transition = '';
-        newPiece.style.transform = '';
-      }, 260);
-    }
-  }
-}
-
-function applyOptimisticMove(from, to, promotion = null) {
-  if (!gameState) return null;
-  const optimisticState = JSON.parse(JSON.stringify(gameState));
-  const piece = optimisticState.board[from.row][from.col];
-  optimisticState.board[to.row][to.col] = piece;
-  optimisticState.board[from.row][from.col] = ".";
-  if (promotion) {
-    const promotedPiece = playerColor === "white" ? promotion.toUpperCase() : promotion.toLowerCase();
-    optimisticState.board[to.row][to.col] = promotedPiece;
-  }
-  optimisticState.turn = optimisticState.turn === "white" ? "black" : "white";
-  return optimisticState;
-}
-
-function revertOptimisticMove(moveId) {
-  if (pendingMoves.has(moveId)) {
-    const moveData = pendingMoves.get(moveId);
-    if (moveData.previousState) {
-      gameState = moveData.previousState;
-      renderBoard(gameState);
-      updateStatus(gameState);
-      updateTurnIndicator(gameState);
-    }
-    pendingMoves.delete(moveId);
-  }
-}
-
-function sendChat(){
-  const input = document.getElementById("chatInput");
-  const text = input ? input.value.trim() : "";
-  if(!text || !currentRoom) return;
-  socket.emit("send_message", {
-    room: currentRoom,
-    sender: playerColor || "spectator",
-    message: text,
-    senderName: playerName
-  });
-  input.value = "";
-  stopTypingNow();
-  hideEmojiPanel();
-}
-
-function appendChat(data, isLocal){
-  const box = document.getElementById("chatMessages");
-  if (!box) return;
-  const div = document.createElement("div");
-  div.className = "chat-line " + (isLocal ? "you" : "opponent");
-  let displayName = data.senderName;
-  if (!displayName) {
-    if (data.sender === "white") displayName = "White";
-    else if (data.sender === "black") displayName = "Black";
-    else displayName = "User";
-  }
-  div.innerText = `${displayName}: ${data.message}`;
-  box.appendChild(div);
-  box.scrollTop = box.scrollHeight;
-}
-
-let typingTimeout = null;
-let isTyping = false;
-
-function handleTypingInput(){
-  if(!currentRoom || !playerColor) return;
-  if(!isTyping){
-    isTyping = true;
-    socket.emit("typing", { room: currentRoom, sender: playerColor, senderName: playerName });
-  }
-  if(typingTimeout) clearTimeout(typingTimeout);
-  typingTimeout = setTimeout(() => { stopTypingNow(); }, 1400);
-}
-
-function stopTypingNow(){
-  if(!isTyping) return;
-  isTyping = false;
-  if (currentRoom && playerColor) {
-    socket.emit("stop_typing", { room: currentRoom, sender: playerColor, senderName: playerName });
-  }
-}
-
-function insertEmoji(emoji) {
-  const input = document.getElementById("chatInput");
-  if (!input) return;
-  const start = input.selectionStart;
-  const end = input.selectionEnd;
-  const text = input.value;
-  input.value = text.slice(0, start) + emoji + text.slice(end);
-  input.selectionStart = input.selectionEnd = start + emoji.length;
-  input.focus();
-  handleTypingInput();
-}
-
-function hideEmojiPanel(){
-  const panel = document.getElementById("emojiPanel");
-  if(panel) panel.style.display = "none";
-}
-
-function initializeEmojiPanel() {
-  const emojiToggle = document.getElementById("emojiToggle");
-  const emojiPanel = document.getElementById("emojiPanel");
-  const emojiWrap = document.getElementById("emojiPickerWrap");
-  if (emojiToggle && emojiPanel) {
-    emojiToggle.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const visible = window.getComputedStyle(emojiPanel).display !== "none";
-      emojiPanel.style.display = visible ? "none" : "flex";
-    });
-    emojiPanel.addEventListener("click", (e) => { e.stopPropagation(); });
-  }
-  document.addEventListener("click", (e) => {
-    if (emojiWrap && !emojiWrap.contains(e.target)) {
-      hideEmojiPanel();
-    }
-  });
-}
-
-function updatePlayerNames(state) {
-  const whiteNameEl = document.getElementById("whiteName");
-  const blackNameEl = document.getElementById("blackName");
-  const whitePlayerCard = document.getElementById("whitePlayerCard");
-  const blackPlayerCard = document.getElementById("blackPlayerCard");
-
-  if (!whiteNameEl || !blackNameEl || !state) return;
-
-  let whiteName = "";
-  let blackName = "";
-  let topName = "";
-  let bottomName = "";
-
-  if (playerColor === "white") {
-    whiteName = playerName;
-    blackName = state.opponentName || "Opponent";
-    topName = blackName;
-    bottomName = whiteName;
-
-    // Top card should be black (opponent), bottom should be white (you)
-    if (blackPlayerCard) {
-      blackPlayerCard.className = "player-card black";
-    }
-    if (whitePlayerCard) {
-      whitePlayerCard.className = "player-card white";
-    }
-  } else if (playerColor === "black") {
-    blackName = playerName;
-    whiteName = state.opponentName || "Opponent";
-    topName = whiteName;
-    bottomName = blackName;
-
-    // Top card should be white (opponent), bottom should be black (you)
-    if (blackPlayerCard) {
-      blackPlayerCard.className = "player-card white";
-    }
-    if (whitePlayerCard) {
-      whitePlayerCard.className = "player-card black";
-    }
-  } else {
-    // Spectator mode - keep default
-    whiteName = state.whiteName || "White";
-    blackName = state.blackName || "Black";
-    topName = blackName;
-    bottomName = whiteName;
-
-    if (blackPlayerCard) {
-      blackPlayerCard.className = "player-card black";
-    }
-    if (whitePlayerCard) {
-      whitePlayerCard.className = "player-card white";
-    }
-  }
-
-  // In the HTML, blackName is at the top and whiteName is at the bottom
-  // When playing as black, we need to swap them so the player's name appears at the bottom
-  blackNameEl.textContent = topName;
-  whiteNameEl.textContent = bottomName;
-}
-
-socket.on("connect",()=>{
-  if (URL_MODE === 'create') {
-    socket.emit("create_room", { room: URL_ROOM, timeControl: URL_TIME, playerName: URL_NAME, bot: false });
-  } else if (URL_MODE === 'join') {
-    socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME });
-  } else if (URL_MODE === 'bot') {
-    socket.emit("create_room", { room: URL_ROOM, timeControl: URL_TIME, playerName: URL_NAME, bot: true, difficulty: URL_DIFFICULTY });
-  } else if (URL_MODE === 'global') {
-    // For global matchmaking, room already exists with players assigned
-    // Just join the room - backend will recognize and assign color
-    socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME });
-  } else if (URL_MODE === 'spectate') {
-    socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME, spectate: true });
-  }
+  this.textContent = soundEnabled ? "🔊" : "🔇";
+  this.classList.toggle("muted", !soundEnabled);
+  if (soundEnabled) initAudio();
 });
 
-socket.on("disconnect",()=>{});
+// ===== SOCKET EVENTS =====
+socket.emit("join_room", {
+  room: currentRoom,
+  playerName: playerName,
+  gameMode: gameMode
+});
 
 socket.on("room_created", startGame);
-socket.on("room_joined", startGame);
-
-socket.on("error", (data) => {
-    alert(data.message);
-    window.location.href = "/";
-});
+socket.on("game_joined", startGame);
 
 function startGame(data){
+  console.log("🎮 startGame called with data:", data);
+  
+  // CRITICAL: Check data validity
+  if (!data) {
+    console.error("❌ No data received in startGame!");
+    alert("Error: No game data received from server!");
+    return;
+  }
+  
+  if (!data.state) {
+    console.error("❌ No state in data! Data keys:", Object.keys(data));
+    alert("Error: Invalid game data received!");
+    return;
+  }
+  
+  if (!data.state.board) {
+    console.error("❌ No board in state! State keys:", Object.keys(data.state));
+    alert("Error: No board data in game state!");
+    return;
+  }
+  
+  if (!Array.isArray(data.state.board)) {
+    console.error("❌ Board is not an array! Board type:", typeof data.state.board, "Value:", data.state.board);
+    alert("Error: Invalid board format!");
+    return;
+  }
+  
+  console.log("✅ Data validation passed");
+  console.log("   Room:", data.room);
+  console.log("   Color:", data.color);
+  console.log("   Board:", data.state.board);
+  
   document.getElementById("loadingMessage").style.display = "none";
   document.getElementById("game").style.display = "block";
 
@@ -1492,9 +1286,9 @@ function startGame(data){
   const roomName = document.getElementById("roomName");
   if (roomName) {
     if (playerColor === "spectator") {
-      roomName.textContent = currentRoom + " (Spectating)";
+      roomName.textContent = "🏛️ Room: " + currentRoom + " (Spectating)";
     } else {
-      roomName.textContent = currentRoom;
+      roomName.textContent = "🏛️ Room: " + currentRoom;
     }
   }
 
@@ -1511,7 +1305,10 @@ function startGame(data){
       startLocalTimer();
   }
 
+  console.log("📍 About to call renderBoard...");
   renderBoard(gameState);
+  console.log("📍 Finished renderBoard");
+  
   updateStatus(gameState);
   updateTurnIndicator(gameState);
   
@@ -1531,6 +1328,8 @@ function startGame(data){
   if (data.spectatorCount !== undefined) {
     updateSpectatorCount(data.spectatorCount);
   }
+  
+  console.log("✅ startGame completed");
 }
 
 socket.on("game_start", d=>{
@@ -1648,204 +1447,96 @@ function processGameUpdate(d) {
     updateTurnIndicator(gameState);
   };
 
-  if (d.lastMove && !isMyMoveConfirmation) {
-    animateMove(d.lastMove.from, d.lastMove.to, performUpdate);
+  if (isMyMoveConfirmation) {
+    setTimeout(performUpdate, 0);
   } else {
-    performUpdate();
-  }
-
-  if (prev) {
-    if (isMyMoveConfirmation) {
-      lastMoveWasMine = false;
-    }
-
-    if (gameState.winner) playSound("win");
-    else if (gameState.check) playSound("check");
-    else if (d.lastMove && !isMyMoveConfirmation) {
-      const tr = d.lastMove.to.row;
-      const tc = d.lastMove.to.col;
-      const wasCapture = prev.board[tr][tc] !== ".";
+    if (d.lastMove && !lastMoveWasMine) {
+      const wasCapture = prev && prev.board && prev.board[d.lastMove.to.row] && prev.board[d.lastMove.to.row][d.lastMove.to.col] !== ".";
       playSound(wasCapture ? "capture" : "move");
     }
+    performUpdate();
+  }
+  lastMoveWasMine = false;
+}
+
+function updatePlayerNames(state) {
+  const whiteNameEl = document.getElementById("whitePlayerName");
+  const blackNameEl = document.getElementById("blackPlayerName");
+  
+  if (whiteNameEl && state.whiteName) {
+    whiteNameEl.textContent = state.whiteName;
+  }
+  if (blackNameEl && state.blackName) {
+    blackNameEl.textContent = state.blackName;
   }
 }
 
-socket.on("user_typing", data=>{
-  if(data.sender===playerColor) return;
-  const dest = document.getElementById("typingIndicator");
-  const displayName = data.senderName || (data.sender === "white" ? "White" : "Black");
-  if (dest) dest.innerText = `${displayName} is typing...`;
-});
-
-socket.on("user_stop_typing", data=>{
-  if(data.sender===playerColor) return;
-  const dest = document.getElementById("typingIndicator");
-  if (dest) dest.innerText = "";
-});
-
-socket.on("chat_message", data => {
-  appendChat(data, data.sender === playerColor);
-  if (data.sender !== playerColor) playSound("notify");
-});
-
-socket.on("invalid_move", data => {
-  lastMoveWasMine = false;
-  console.warn("Server rejected move:", data);
-  if (data.moveId) revertOptimisticMove(data.moveId);
-  const messages = document.getElementById("messages");
-  if (messages) messages.textContent = "❌ Invalid move!";
-});
-
-// ===== REMATCH FUNCTIONALITY =====
-function requestRematch() {
-    if (!currentRoom) return;
-    socket.emit("request_rematch", { room: currentRoom });
-    
-    const rematchBtn = document.getElementById("rematchBtn");
-    if (rematchBtn) {
-        rematchBtn.textContent = "⏳ Waiting for opponent...";
-        rematchBtn.disabled = true;
-    }
+function applyOptimisticMove(from, to, promotion) {
+  const optimistic = JSON.parse(JSON.stringify(gameState));
+  const piece = optimistic.board[from.row][from.col];
+  optimistic.board[to.row][to.col] = promotion ? (piece.toUpperCase() === piece ? promotion.toUpperCase() : promotion.toLowerCase()) : piece;
+  optimistic.board[from.row][from.col] = ".";
+  optimistic.turn = optimistic.turn === "white" ? "black" : "white";
+  return optimistic;
 }
 
-function acceptRematch() {
-    const modal = document.getElementById("rematchModal");
-    if (modal) modal.classList.remove("active");
-
-    // When accepting, also request rematch (this will trigger rematch_started when both accept)
-    socket.emit("request_rematch", { room: currentRoom });
-
-    const rematchBtn = document.getElementById("rematchBtn");
-    if (rematchBtn) {
-        rematchBtn.textContent = "⏳ Starting rematch...";
-        rematchBtn.disabled = true;
-    }
+function animateMove(from, to, callback) {
+  requestAnimationFrame(callback);
 }
 
-function declineRematch() {
-    const modal = document.getElementById("rematchModal");
-    if (modal) modal.classList.remove("active");
-
-    // Notify server and opponent that rematch was declined
-    socket.emit("decline_rematch", { room: currentRoom });
-}
-
-socket.on("rematch_requested", (data) => {
-    const modal = document.getElementById("rematchModal");
-    const message = document.getElementById("rematchMessage");
-
-    if (modal && message) {
-        message.textContent = `${data.from.toUpperCase()} wants a rematch!`;
-        modal.classList.add("active");
-    }
-});
-
-socket.on("rematch_declined", (data) => {
-    const messages = document.getElementById("messages");
-    const status = document.getElementById("status");
-
-    // Reset rematch button
-    const rematchBtn = document.getElementById("rematchBtn");
-    if (rematchBtn) {
-        rematchBtn.textContent = "🔄 Rematch";
-        rematchBtn.disabled = false;
-    }
-
-    // Show notification
-    if (messages) {
-        messages.textContent = "❌ Opponent declined the rematch.";
-        messages.style.color = "#ff4444";
-        messages.style.fontWeight = "bold";
-
-        // Clear message after 5 seconds
-        setTimeout(() => {
-            if (messages.textContent === "❌ Opponent declined the rematch.") {
-                messages.textContent = "";
-                messages.style.color = "";
-                messages.style.fontWeight = "";
-            }
-        }, 5000);
-    }
-
-    playSound("notify");
-});
-
-socket.on("rematch_started", (data) => {
-    currentRoom = data.room;
-    playerColor = data.color;
-    gameState = data.state;
-    
-    moveHistory = [];
-    selectedSquare = null;
-    possibleMoves = [];
-    
-    const rematchBtn = document.getElementById("rematchBtn");
-    if (rematchBtn) {
-        rematchBtn.classList.remove("active");
-        rematchBtn.disabled = false;
-        rematchBtn.textContent = "🔄 Rematch";
-    }
-    
-    const roomName = document.getElementById("roomName");
-    if (roomName) roomName.textContent = currentRoom;
-    
-    updatePlayerNames(gameState);
-    renderBoard(gameState);
-    updateStatus(gameState);
-    updateTurnIndicator(gameState);
-    renderMoveHistory();
-    
-    whiteSeconds = gameState.whiteTimeFormatted ? timeStringToSeconds(gameState.whiteTimeFormatted) : 300;
-    blackSeconds = gameState.blackTimeFormatted ? timeStringToSeconds(gameState.blackTimeFormatted) : 300;
-    updateDisplayedTimers();
-    startLocalTimer();
-    
-    playSound("notify");
-});
-
-// === SPECTATOR MODE ===
 function updateSpectatorCount(count) {
-  const roomName = document.getElementById("roomName");
-  if (roomName && playerColor === "spectator") {
-    const baseRoom = currentRoom.replace(" (Spectating)", "");
-    roomName.textContent = `${baseRoom} (Spectating) • 👁️ ${count} viewer${count !== 1 ? 's' : ''}`;
+  const spectatorCount = document.getElementById("spectatorCount");
+  if (spectatorCount) {
+    if (count > 0) {
+      spectatorCount.textContent = `👁️ ${count} watching`;
+      spectatorCount.style.display = 'inline';
+    } else {
+      spectatorCount.style.display = 'none';
+    }
   }
 }
 
 socket.on("spectator_joined", (data) => {
-  if (data.spectatorCount !== undefined) {
-    updateSpectatorCount(data.spectatorCount);
-  }
+  updateSpectatorCount(data.spectatorCount);
 });
 
 socket.on("spectator_left", (data) => {
-  if (data.spectatorCount !== undefined) {
-    updateSpectatorCount(data.spectatorCount);
-  }
+  updateSpectatorCount(data.spectatorCount);
 });
 
-document.addEventListener("DOMContentLoaded", function() {
-  initializeEmojiPanel();
-  const chatInputEl = document.getElementById("chatInput");
-  if (chatInputEl) {
-    chatInputEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        sendChat();
-      }
-    });
-    chatInputEl.addEventListener("input", handleTypingInput);
-  }
-  document.body.addEventListener('click', initAudio, { once: true });
-});
-
+// ===== RENDER BOARD (IMPROVED WITH SAFETY CHECKS) =====
 function renderBoard(state, lastMove=null){
+  console.log("🎨 renderBoard called with state:", state);
+  
   const board=document.getElementById("chessboard");
-  if (!board) return;
+  if (!board) {
+    console.error("❌ Chessboard element not found!");
+    return;
+  }
+  
+  // CRITICAL: Check if state and state.board exist
+  if (!state) {
+    console.error("❌ No state provided to renderBoard!");
+    return;
+  }
+  
+  if (!state.board) {
+    console.error("❌ No board in state! State keys:", Object.keys(state));
+    return;
+  }
+  
+  if (!Array.isArray(state.board) || state.board.length !== 8) {
+    console.error("❌ Invalid board format! Board:", state.board);
+    return;
+  }
+  
+  console.log("✅ Rendering board. First row:", state.board[0]);
+  
   board.innerHTML="";
   const flipped = (playerColor === "black");
   const rows = flipped ? [...Array(8).keys()].reverse() : [...Array(8).keys()];
   const cols = flipped ? [...Array(8).keys()].reverse() : [...Array(8).keys()];
+  
   for (let r of rows){
     for (let c of cols){
       const sq=document.createElement("div");
@@ -1881,6 +1572,13 @@ function renderBoard(state, lastMove=null){
       if(possibleMoves.some(m=>m.row===r && m.col===c)){
         sq.classList.add("possible-move");
       }
+      
+      // CRITICAL: Check if board[r] exists before accessing board[r][c]
+      if (!state.board[r]) {
+        console.error(`❌ Board row ${r} is undefined!`);
+        continue;
+      }
+      
       const piece = state.board[r][c];
       if(piece !== "."){
         const pDiv=document.createElement("div");
@@ -1946,42 +1644,46 @@ function renderBoard(state, lastMove=null){
         const clr = isWhitePiece ? "w" : "b";
         const type = piece.toLowerCase();
         img.src=`https://images.chesscomfiles.com/chess-themes/pieces/neo/150/${clr}${type}.png`;
+        img.onerror = function() {
+          console.error(`❌ Failed to load piece image: ${img.src}`);
+        };
         pDiv.appendChild(img);
         sq.appendChild(pDiv);
       }
+
+      // Click handlers
       sq.addEventListener("click", ()=> handleSquareClick(r,c,state));
-      sq.addEventListener("dragover", e=> e.preventDefault());
-      sq.addEventListener("drop", e=>{
+
+      // Drag and Drop handlers
+      sq.addEventListener("dragover", (e) => {
         e.preventDefault();
-        const fr=parseInt(e.dataTransfer.getData("fromRow"));
-        const fc=parseInt(e.dataTransfer.getData("fromCol"));
-        const from={row:fr,col:fc};
-        const to={row:r,col:c};
-        const valid = possibleMoves.some(m=>m.row===r && m.col===c);
-        
-        selectedSquare = null;
-        possibleMoves = [];
-        
-        if(!valid){
-          const messages = document.getElementById("messages");
-          if (messages) messages.textContent="❌ Invalid move!";
-          renderBoard(gameState, lastMove);
-          return;
-        }
-        const movingPiece = state.board[fr][fc];
-        const isPawn = movingPiece.toLowerCase()==="p";
-        const isPromoRank = (playerColor==="white" && r===0) ||
-                            (playerColor==="black" && r===7);
-        if(isPawn && isPromoRank){
-          pendingPromotion = { from, to };
-          showPromotionModal(playerColor);
-        } else {
-          makeMove(from,to,null,true);
+      });
+
+      sq.addEventListener("drop", (e) => {
+        e.preventDefault();
+        const fr = parseInt(e.dataTransfer.getData("fromRow"));
+        const fc = parseInt(e.dataTransfer.getData("fromCol"));
+        const from = { row: fr, col: fc };
+        const to = { row: r, col: c };
+
+        if (!isNaN(fr) && !isNaN(fc)) {
+          const movingPiece = state.board[fr][fc];
+          const isPawn = movingPiece.toLowerCase() === "p";
+          const isPromoRank = (playerColor === "white" && r === 0) ||
+                              (playerColor === "black" && r === 7);
+          if (isPawn && isPromoRank) {
+            pendingPromotion = { from, to };
+            showPromotionModal(playerColor);
+          } else {
+            makeMove(from,to,null,true);
+          }
         }
       });
       board.appendChild(sq);
     }
   }
+  
+  console.log("✅ Board rendered successfully");
 }
 
 function handleSquareClick(row, col, state){
@@ -2260,6 +1962,73 @@ function resignGame(){
     socket.emit("resign",{room:currentRoom,color:playerColor});
   }
 }
+
+// ===== CHAT =====
+const chatInput = document.getElementById("chatInput");
+const chatMessages = document.getElementById("chatMessages");
+let typingTimeout;
+
+chatInput.addEventListener("input", () => {
+  socket.emit("typing", { room: currentRoom, sender: playerColor });
+  clearTimeout(typingTimeout);
+  typingTimeout = setTimeout(() => {
+    socket.emit("stop_typing", { room: currentRoom, sender: playerColor });
+  }, 1000);
+});
+
+chatInput.addEventListener("keypress", (e) => {
+  if (e.key === "Enter") {
+    sendMessage();
+  }
+});
+
+function sendMessage() {
+  const msg = chatInput.value.trim();
+  if (!msg) return;
+  socket.emit("send_message", { room: currentRoom, sender: playerColor, message: msg });
+  chatInput.value = "";
+  socket.emit("stop_typing", { room: currentRoom, sender: playerColor });
+}
+
+socket.on("chat_message", (data) => {
+  const msgDiv = document.createElement("div");
+  msgDiv.className = `chat-message ${data.sender}`;
+  const senderName = data.sender === "white" ? (gameState?.whiteName || "White") : (gameState?.blackName || "Black");
+  msgDiv.innerHTML = `<strong>${senderName}:</strong> ${escapeHtml(data.message)}`;
+  chatMessages.appendChild(msgDiv);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+});
+
+socket.on("user_typing", (data) => {
+  const typingIndicator = document.getElementById("typingIndicator");
+  if (typingIndicator && data.sender !== playerColor) {
+    typingIndicator.classList.add("active");
+  }
+});
+
+socket.on("user_stop_typing", (data) => {
+  const typingIndicator = document.getElementById("typingIndicator");
+  if (typingIndicator) {
+    typingIndicator.classList.remove("active");
+  }
+});
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Simple emoji picker
+const emojiToggle = document.getElementById("emojiToggle");
+const emojis = ["😊", "😂", "👍", "❤️", "🎉", "😎", "🤔", "😭"];
+let emojiIndex = 0;
+
+emojiToggle.addEventListener("click", () => {
+  chatInput.value += emojis[emojiIndex];
+  emojiIndex = (emojiIndex + 1) % emojis.length;
+  chatInput.focus();
+});
 </script>
 </body>
 </html>
