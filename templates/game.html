@@ -243,6 +243,10 @@
       background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
       color: #333;
       border: 2px solid rgba(102, 126, 234, 0.2);
+      height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     /* CHESSBOARD - Optimized for 1366x768 */
@@ -386,7 +390,7 @@
 
     /* STATUS */
     .status {
-      min-height: 16px;
+      height: 28px;
       text-align: center;
       padding: 3px;
       margin-top: 4px;
@@ -396,15 +400,21 @@
       background: rgba(102, 126, 234, 0.1);
       color: #333;
       border: 2px solid rgba(102, 126, 234, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     #messages {
       text-align: center;
       color: #dc2626;
       margin-top: 3px;
-      min-height: 12px;
+      height: 14px;
       font-weight: 700;
       font-size: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     /* SIDEBAR */
@@ -1080,6 +1090,7 @@ const URL_ROOM = params.get('room');
 const URL_NAME = params.get('name');
 const URL_MODE = params.get('mode');
 const URL_TIME = params.get('time');
+const URL_DIFFICULTY = params.get('difficulty') || 'medium';
 
 if (!URL_ROOM || !URL_NAME) {
     alert("Invalid game parameters. Redirecting to home.");
@@ -1448,7 +1459,7 @@ socket.on("connect",()=>{
   } else if (URL_MODE === 'join') {
     socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME });
   } else if (URL_MODE === 'bot') {
-    socket.emit("create_room", { room: URL_ROOM, timeControl: URL_TIME, playerName: URL_NAME, bot: true });
+    socket.emit("create_room", { room: URL_ROOM, timeControl: URL_TIME, playerName: URL_NAME, bot: true, difficulty: URL_DIFFICULTY });
   } else if (URL_MODE === 'global') {
     // For global matchmaking, room already exists with players assigned
     // Just join the room - backend will recognize and assign color
@@ -2203,9 +2214,9 @@ function updateStatus(state){
     s.style.color="#fff";
     return;
   }
-  s.textContent="";
-  s.style.background="";
-  s.style.color="";
+  s.textContent="\u00A0";
+  s.style.background="rgba(102, 126, 234, 0.1)";
+  s.style.color="#333";
 }
 
 function goHome(){
@@ -2222,6 +2233,9 @@ function offerDraw(){
 }
 
 socket.on("draw_offered", data=>{
+  // Don't show draw modal to spectators
+  if (playerColor === "spectator") return;
+
   const drawMessage = document.getElementById("drawMessage");
   const drawModal = document.getElementById("drawModal");
   if (drawMessage && drawModal) {
