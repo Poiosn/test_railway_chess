@@ -12,6 +12,11 @@ import shutil
 import hashlib
 import hmac
 import json
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Import database functions
 from database import (
@@ -50,33 +55,61 @@ def get_current_user():
 # Initialize database on startup
 init_db_pool()
 
-# ===== STOCKFISH SETUP =====
-# Try to find Stockfish in multiple locations
+# ===== IMPROVED STOCKFISH SETUP =====
 STOCKFISH_PATH = None
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-stockfish_paths = [
-    os.path.join(BASE_DIR, "stockfish"),  # Project directory (first priority)
-    os.path.expanduser("~/.local/bin/stockfish"),  # User local bin
-    shutil.which("stockfish"),
-    "/opt/homebrew/bin/stockfish",  # Homebrew on Apple Silicon
-    "/usr/local/bin/stockfish",      # Homebrew on Intel Mac
-    "/usr/games/stockfish",          # Linux
-    "/usr/bin/stockfish",            # Linux
-]
+STOCKFISH_ENGINE = None
+engine_lock = threading.Lock()
 
-for path in stockfish_paths:
-    if path and os.path.exists(path):
-        STOCKFISH_PATH = path
-        break
+def find_stockfish():
+    """Find Stockfish executable"""
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    stockfish_paths = [
+        "/usr/games/stockfish",          # Railway/Linux (most common)
+        "/usr/bin/stockfish",            # Linux alternative
+        os.path.join(BASE_DIR, "stockfish"),  # Project directory
+        os.path.expanduser("~/.local/bin/stockfish"),  # User local bin
+        shutil.which("stockfish"),
+        "/opt/homebrew/bin/stockfish",  # Homebrew on Apple Silicon
+        "/usr/local/bin/stockfish",      # Homebrew on Intel Mac
+    ]
+    
+    for path in stockfish_paths:
+        if path and os.path.exists(path):
+            logger.info(f"✅ Stockfish Found: {path}")
+            # Test if it's executable
+            try:
+                test_engine = chess.engine.SimpleEngine.popen_uci(path)
+                test_engine.quit()
+                logger.info(f"✅ Stockfish verified working at: {path}")
+                return path
+            except Exception as e:
+                logger.warning(f"⚠️ Stockfish found at {path} but failed to initialize: {e}")
+                continue
+    
+    logger.error("❌ Stockfish not found in any location!")
+    logger.info("📥 Install Stockfish:")
+    logger.info("   Railway: Add to nixpacks.toml: aptPkgs = ['stockfish']")
+    logger.info("   macOS: brew install stockfish")
+    logger.info("   Linux: sudo apt-get install stockfish")
+    return None
 
-if STOCKFISH_PATH:
-    print(f"✅ Stockfish Engine Found: {STOCKFISH_PATH}")
-else:
-    print("⚠️ Stockfish not found! Bot will use random moves.")
-    print("📥 Install Stockfish:")
-    print("   macOS: brew install stockfish")
-    print("   Linux: sudo apt-get install stockfish")
-    print("   Or download from: https://stockfishchess.org/download/")
+STOCKFISH_PATH = find_stockfish()
+
+def get_stockfish_engine():
+    """Get or create a Stockfish engine instance (thread-safe)"""
+    global STOCKFISH_ENGINE
+    
+    if not STOCKFISH_PATH:
+        return None
+    
+    with engine_lock:
+        # Create new engine for each call (safer for multi-threading)
+        try:
+            engine = chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH)
+            return engine
+        except Exception as e:
+            logger.error(f"❌ Failed to create Stockfish engine: {e}")
+            return None
 
 games = {}
 sid_to_room = {}
@@ -229,583 +262,331 @@ def get_user_profile_api(username):
 @app.route('/api/user/<username>/games')
 def get_user_games_api(username):
     """Get user's game history"""
-    games = get_user_games(username)
-    if games is None:
+    games_list = get_user_games(username)
+    if games_list is None:
         return jsonify({'error': 'User not found'}), 404
-    return jsonify({'games': games}), 200
+    return jsonify({'games': games_list}), 200
 
 @app.route('/api/game/<int:game_id>/replay')
 def get_game_replay_api(game_id):
-    """Get game moves for replay"""
-    replay_data = get_game_replay(game_id)
-    if not replay_data:
+    """Get game replay data"""
+    replay = get_game_replay(game_id)
+    if not replay:
         return jsonify({'error': 'Game not found'}), 404
-    return jsonify(replay_data), 200
+    return jsonify(replay), 200
 
-# --- CHESS LOGIC ---
-def format_seconds(sec):
-    total = int(max(0, round(sec)))
-    return f"{total//60}:{total%60:02d}"
-
-def board_to_matrix(board):
-    grid = [["." for _ in range(8)] for _ in range(8)]
-    for sq, piece in board.piece_map().items():
-        grid[7 - chess.square_rank(sq)][chess.square_file(sq)] = piece.symbol()
-    return grid
-
-def get_legal_moves_map(board):
-    """Pre-calculates all legal moves mapped by starting square (row,col)"""
-    moves = {}
-    for move in board.legal_moves:
-        r_from = 7 - chess.square_rank(move.from_square)
-        c_from = chess.square_file(move.from_square)
-        r_to = 7 - chess.square_rank(move.to_square)
-        c_to = chess.square_file(move.to_square)
-        
-        key = f"{r_from},{c_from}"
-        if key not in moves:
-            moves[key] = []
-        moves[key].append({"row": r_to, "col": c_to})
-    return moves
-
-def export_state(room, current_sid=None):
+# ===== GAME LOGIC =====
+def export_state(room, sid):
     g = games[room]
-    state = {
-        "board": board_to_matrix(g["board"]),
-        "turn": "white" if g["board"].turn else "black",
-        "check": g["board"].is_check(),
+    is_white = (sid == g.get("white_sid"))
+    is_black = (sid == g.get("black_sid"))
+    is_spectator = sid in g.get("spectators", set())
+    
+    return {
+        "fen": g["board"].fen(),
+        "isWhite": is_white,
+        "isBlack": is_black,
+        "isSpectator": is_spectator,
+        "whiteTime": g["whiteTime"],
+        "blackTime": g["blackTime"],
         "winner": g["winner"],
         "reason": g.get("reason"),
         "isActive": g.get("isActive", False),
-        "whiteTime": g["whiteTime"], 
-        "blackTime": g["blackTime"],
-        "whiteTimeFormatted": format_seconds(g["whiteTime"]),
-        "blackTimeFormatted": format_seconds(g["blackTime"]),
-        "moves": get_legal_moves_map(g["board"]),
-        "whiteName": g["white_player"],
-        "blackName": g["black_player"],
+        "whitePlayer": g.get("white_player", "White"),
+        "blackPlayer": g.get("black_player", "Black"),
+        "spectatorCount": len(g.get("spectators", set())),
         "gameMode": g.get("game_mode", "friend")
     }
-    
-    if current_sid:
-        if current_sid == g.get("white_sid"):
-            state["opponentName"] = g["black_player"]
-        elif current_sid == g.get("black_sid"):
-            state["opponentName"] = g["white_player"]
-    
-    return state
 
 def update_time(g):
-    if not g.get("isActive") or g["winner"]: return
+    """Update chess clock"""
     now = time.time()
     elapsed = now - g["lastUpdate"]
     g["lastUpdate"] = now
     
-    if g["board"].turn:
+    if not g.get("isActive") or g["winner"]:
+        return
+    
+    if g["board"].turn:  # White's turn
         g["whiteTime"] = max(0, g["whiteTime"] - elapsed)
-        if g["whiteTime"] <= 0: 
+        if g["whiteTime"] <= 0:
             g["winner"] = "black"
             g["reason"] = "timeout"
-    else:
+    else:  # Black's turn
         g["blackTime"] = max(0, g["blackTime"] - elapsed)
-        if g["blackTime"] <= 0: 
+        if g["blackTime"] <= 0:
             g["winner"] = "white"
             g["reason"] = "timeout"
 
 def save_game(room, g):
-    """Save game using database.py function"""
-    if g.get("saved"): 
+    """Save completed game to database"""
+    if g.get("game_saved"):
         return
     
-    end_time = datetime.utcnow()
-    start_time = g.get("start_timestamp", end_time)
-    win_reason = g.get("reason", "unknown")
+    white_user_id = g.get("white_user_id")
+    black_user_id = g.get("black_user_id")
     
-    success = save_game_record(room, g, start_time, end_time, win_reason)
-    if success:
-        g["saved"] = True
-
-def timeout_watcher():
-    while True:
-        time.sleep(1)
-        for r, g in list(games.items()):
-            if g.get("isActive") and not g["winner"]:
-                with g["lock"]:
-                    update_time(g)
-                    if g["winner"]:
-                        save_game(r, g)
-                        for sid in g.get("clients", set()):
-                            socketio.emit("game_update", {"state": export_state(r, sid)}, room=sid)
-
-timeout_thread = threading.Thread(target=timeout_watcher, daemon=True)
-timeout_thread.start()
+    # Skip saving bot games without user
+    if g.get("bot") and not white_user_id:
+        return
+    
+    save_game_record(
+        room_name=room,
+        white_player=g.get("white_player", "White"),
+        black_player=g.get("black_player", "Black"),
+        winner=g["winner"],
+        win_reason=g.get("reason", "unknown"),
+        start_time=g.get("start_time"),
+        end_time=datetime.now(),
+        white_user_id=white_user_id,
+        black_user_id=black_user_id,
+        time_control=g.get("time_control"),
+        game_mode=g.get("game_mode", "friend"),
+        move_history=g.get("move_history", [])
+    )
+    
+    g["game_saved"] = True
 
 def handle_disconnect_timeout(room, color):
-    if room not in games: return
+    """Handle player disconnect timeout"""
+    if room not in games:
+        return
+    
     g = games[room]
     
-    with g["lock"]:
-        if g["winner"]: return
-        if color == "white" and g.get("white_disconnect_timer"):
-            g["winner"] = "black"
-            g["reason"] = "abandonment"
-            g["white_disconnect_timer"] = None
-        elif color == "black" and g.get("black_disconnect_timer"):
-            g["winner"] = "white"
-            g["reason"] = "abandonment"
-            g["black_disconnect_timer"] = None
-        else:
-            return 
+    # Check if player reconnected
+    if color == "white" and g.get("white_sid"):
+        return
+    if color == "black" and g.get("black_sid"):
+        return
+    
+    # Player didn't reconnect - they lose
+    if not g["winner"]:
+        g["winner"] = "black" if color == "white" else "white"
+        g["reason"] = "disconnect"
         save_game(room, g)
+        
         for sid in g.get("clients", set()):
             socketio.emit("game_update", {"state": export_state(room, sid)}, room=sid)
 
-def cancel_timer(g, color):
-    if color == "white" and g.get("white_disconnect_timer"):
-        g["white_disconnect_timer"].cancel()
-        g["white_disconnect_timer"] = None
-    elif color == "black" and g.get("black_disconnect_timer"):
-        g["black_disconnect_timer"].cancel()
-        g["black_disconnect_timer"] = None
+# ===== SOCKETIO EVENTS =====
+
+@socketio.on("connect")
+def connect():
+    logger.info(f"🔌 Client connected: {request.sid}")
 
 @socketio.on("create_room")
 def create(data):
     room = data["room"]
-    is_bot = data.get("bot", False)
-    player_name = data.get("playerName", "White")
-    bot_difficulty = data.get("difficulty", "medium")  # Get difficulty from client
-
-    creator_color = random.choice(["white", "black"]) if not is_bot else "white"
-
-    if room in games:
-        g = games[room]
-        if g.get("winner") is None:
-            emit("error", {"message": f"Room '{room}' is already taken!"})
-            return
-
-    white_player = player_name if creator_color == "white" else None
-    black_player = player_name if creator_color == "black" else None
-
-    if is_bot:
-        black_player = f"Bot ({bot_difficulty.capitalize()})"
-
-    # Get user ID if authenticated
-    user = get_current_user()
-    white_user_id = user['id'] if user and creator_color == "white" else None
-    black_user_id = user['id'] if user and creator_color == "black" else None
-
+    time_control = data.get("timeControl", 600)
+    bot_mode = data.get("bot", False)
+    bot_difficulty = data.get("botDifficulty", "medium")
+    game_mode = data.get("gameMode", "friend")
+    
+    current_user = get_current_user()
+    player_name = current_user['display_name'] if current_user else data.get("playerName", "Player")
+    user_id = current_user['id'] if current_user else None
+    
+    sid = request.sid
+    join_room(room)
+    sid_to_room[sid] = room
+    
     games[room] = {
         "board": chess.Board(),
-        "whiteTime": float(data.get("timeControl", 300)),
-        "blackTime": float(data.get("timeControl", 300)),
+        "white_sid": sid,
+        "black_sid": None,
+        "white_player": player_name,
+        "black_player": "Stockfish Bot" if bot_mode else "Waiting...",
+        "white_user_id": user_id,
+        "black_user_id": None,
+        "whiteTime": time_control,
+        "blackTime": time_control,
+        "time_control": time_control,
         "lastUpdate": time.time(),
-        "start_timestamp": datetime.utcnow(),
-        "isActive": True if is_bot else False,
         "winner": None,
-        "bot": is_bot,
-        "bot_difficulty": bot_difficulty,  # Store difficulty level
+        "isActive": bot_mode,
+        "clients": {sid},
+        "spectators": set(),
         "lock": threading.Lock(),
-        "white_player": white_player,
-        "black_player": black_player,
-        "white_sid": request.sid if creator_color == "white" else None,
-        "black_sid": request.sid if creator_color == "black" else None,
-        "white_user_id": white_user_id,
-        "black_user_id": black_user_id,
-        "white_disconnect_timer": None,
-        "black_disconnect_timer": None,
-        "clients": {request.sid},
-        "game_mode": "bot" if is_bot else "friend",
+        "bot": bot_mode,
+        "bot_difficulty": bot_difficulty,
+        "game_mode": game_mode,
+        "start_time": datetime.now() if bot_mode else None,
         "move_history": []
     }
     
-    sid_to_room[request.sid] = room
-    join_room(room)
-    emit("room_created", {
-        "color": creator_color, 
-        "state": export_state(room, request.sid), 
-        "room": room
-    })
+    logger.info(f"🎮 Room '{room}' created by {player_name} (bot={bot_mode}, difficulty={bot_difficulty})")
+    emit("room_created", {"state": export_state(room, sid)})
 
 @socketio.on("join_room")
 def join(data):
     room = data["room"]
-    player_name = data.get("playerName", "Black")
-    spectate = data.get("spectate", False)  # NEW: Check if joining as spectator
-
-    if room not in games: 
-        emit("error", {"message": "Room not found"})
-        return
-        
-    g = games[room]
-    
-    reconnected = False
-    
-    # Check for player reconnection
-    if request.sid == g.get("white_sid"):
-        reconnected = True
-        cancel_timer(g, "white")
-        socketio.emit("player_reconnected", {"color": "white"}, room=room)
-        
-    elif request.sid == g.get("black_sid"):
-        reconnected = True
-        cancel_timer(g, "black")
-        socketio.emit("player_reconnected", {"color": "black"}, room=room)
-
-    elif player_name == g["white_player"] and g.get("white_sid") is None:
-        g["white_sid"] = request.sid
-        cancel_timer(g, "white")
-        reconnected = True
-        # Link user if authenticated
-        user = get_current_user()
-        if user:
-            g["white_user_id"] = user['id']
-        # Check if both players are now connected (for global matchmaking)
-        if g.get("black_sid") is not None:
-            g["isActive"] = True
-            g["lastUpdate"] = time.time()
-        socketio.emit("player_reconnected", {"color": "white"}, room=room)
-
-    elif g["black_player"] and player_name == g["black_player"] and g.get("black_sid") is None:
-        g["black_sid"] = request.sid
-        cancel_timer(g, "black")
-        reconnected = True
-        # Link user if authenticated
-        user = get_current_user()
-        if user:
-            g["black_user_id"] = user['id']
-        # Check if both players are now connected (for global matchmaking)
-        if g.get("white_sid") is not None:
-            g["isActive"] = True
-            g["lastUpdate"] = time.time()
-        socketio.emit("player_reconnected", {"color": "black"}, room=room)
-
-    # NEW: Handle spectator mode
-    elif spectate or (g["white_player"] and g["black_player"]):
-        # Join as spectator
-        if "spectators" not in g:
-            g["spectators"] = set()
-        g["spectators"].add(request.sid)
-        
-        if "clients" not in g: g["clients"] = set()
-        g["clients"].add(request.sid)
-        sid_to_room[request.sid] = room
-        join_room(room)
-        
-        # Notify other players about new spectator
-        spectator_count = len(g.get("spectators", set()))
-        socketio.emit("spectator_joined", {
-            "spectatorName": player_name,
-            "spectatorCount": spectator_count
-        }, room=room, skip_sid=request.sid)
-        
-        emit("room_joined", {
-            "color": "spectator", 
-            "state": export_state(room, request.sid), 
-            "room": room,
-            "spectatorCount": spectator_count
-        })
-        return
-
-    elif not g["white_player"]:
-        g["white_player"] = player_name
-        g["white_sid"] = request.sid
-        g["isActive"] = True
-        g["lastUpdate"] = time.time()
-        # Link user if authenticated
-        user = get_current_user()
-        if user:
-            g["white_user_id"] = user['id']
-    elif not g["black_player"]:
-        g["black_player"] = player_name
-        g["black_sid"] = request.sid
-        g["isActive"] = True
-        g["lastUpdate"] = time.time()
-        # Link user if authenticated
-        user = get_current_user()
-        if user:
-            g["black_user_id"] = user['id']
-    else:
-        if not reconnected:
-            emit("error", {"message": "Room is full"})
-            return
-
-    if "clients" not in g: g["clients"] = set()
-    g["clients"].add(request.sid)
-    sid_to_room[request.sid] = room
-    join_room(room)
-    
-    my_color = "white" if request.sid == g.get("white_sid") else "black"
-    if request.sid != g.get("white_sid") and request.sid != g.get("black_sid"):
-        my_color = "spectator"
-
-    spectator_count = len(g.get("spectators", set()))
-    emit("room_joined", {
-        "color": my_color, 
-        "state": export_state(room, request.sid), 
-        "room": room,
-        "spectatorCount": spectator_count
-    })
-    
-    for sid in g.get("clients", set()):
-        socketio.emit("game_start", {"state": export_state(room, sid)}, room=sid)
-
-# ===== GLOBAL MATCHMAKING =====
-@socketio.on("join_matchmaking")
-def join_matchmaking(data):
-    player_name = data.get("playerName", "Player")
-    time_control = data.get("timeControl", 300)
     sid = request.sid
+    
+    if room not in games:
+        emit("error", {"message": "Room does not exist."})
+        return
+    
+    g = games[room]
+    join_room(room)
+    sid_to_room[sid] = room
+    g["clients"].add(sid)
+    
+    current_user = get_current_user()
+    player_name = current_user['display_name'] if current_user else data.get("playerName", "Player")
+    user_id = current_user['id'] if current_user else None
+    
+    # Check if rejoining as original player
+    if sid == g.get("white_sid"):
+        # White player reconnected
+        if g.get("white_disconnect_timer"):
+            g["white_disconnect_timer"].cancel()
+            g["white_disconnect_timer"] = None
+        socketio.emit("player_reconnected", {"color": "white"}, room=room)
+        emit("game_joined", {"state": export_state(room, sid)})
+        return
+    
+    if sid == g.get("black_sid"):
+        # Black player reconnected
+        if g.get("black_disconnect_timer"):
+            g["black_disconnect_timer"].cancel()
+            g["black_disconnect_timer"] = None
+        socketio.emit("player_reconnected", {"color": "black"}, room=room)
+        emit("game_joined", {"state": export_state(room, sid)})
+        return
+    
+    # New player joining
+    if not g["black_sid"] and not g.get("bot"):
+        # Join as black player
+        g["black_sid"] = sid
+        g["black_player"] = player_name
+        g["black_user_id"] = user_id
+        g["isActive"] = True
+        g["lastUpdate"] = time.time()
+        g["start_time"] = datetime.now()
+        
+        for client_sid in g["clients"]:
+            socketio.emit("game_update", {"state": export_state(room, client_sid)}, room=client_sid)
+        
+        logger.info(f"👥 {player_name} joined room '{room}' as Black")
+    else:
+        # Join as spectator
+        g["spectators"].add(sid)
+        spectator_count = len(g["spectators"])
+        socketio.emit("spectator_joined", {"spectatorCount": spectator_count}, room=room)
+        emit("game_joined", {"state": export_state(room, sid)})
+        logger.info(f"👁️ Spectator joined room '{room}' (total: {spectator_count})")
+
+@socketio.on("find_match")
+def find_match(data):
+    """Handle matchmaking requests"""
+    sid = request.sid
+    time_control = data.get("timeControl", 600)
+    
+    current_user = get_current_user()
+    player_name = current_user['display_name'] if current_user else data.get("playerName", "Player")
+    user_id = current_user['id'] if current_user else None
     
     with matchmaking_lock:
         # Check if already in queue
-        if any(p["sid"] == sid for p in matchmaking_queue):
-            emit("matchmaking_status", {"status": "already_in_queue"})
-            return
+        for player in matchmaking_queue:
+            if player["sid"] == sid:
+                emit("error", {"message": "Already in matchmaking queue"})
+                return
         
-        # Look for a match with same time control
-        match_found = None
-        for i, player in enumerate(matchmaking_queue):
-            if player["timeControl"] == time_control and player["sid"] != sid:
-                match_found = player
+        # Try to find opponent with same time control
+        matched = False
+        for i, opponent in enumerate(matchmaking_queue):
+            if opponent["timeControl"] == time_control:
+                # Match found!
                 matchmaking_queue.pop(i)
+                
+                # Create game room
+                room = f"match_{secrets.token_hex(8)}"
+                
+                # Randomly assign colors
+                if random.choice([True, False]):
+                    white_sid, black_sid = sid, opponent["sid"]
+                    white_name, black_name = player_name, opponent["playerName"]
+                    white_id, black_id = user_id, opponent["userId"]
+                else:
+                    white_sid, black_sid = opponent["sid"], sid
+                    white_name, black_name = opponent["playerName"], player_name
+                    white_id, black_id = opponent["userId"], user_id
+                
+                # Add both players to room
+                join_room(room, sid=white_sid)
+                join_room(room, sid=black_sid)
+                sid_to_room[white_sid] = room
+                sid_to_room[black_sid] = room
+                
+                games[room] = {
+                    "board": chess.Board(),
+                    "white_sid": white_sid,
+                    "black_sid": black_sid,
+                    "white_player": white_name,
+                    "black_player": black_name,
+                    "white_user_id": white_id,
+                    "black_user_id": black_id,
+                    "whiteTime": time_control,
+                    "blackTime": time_control,
+                    "time_control": time_control,
+                    "lastUpdate": time.time(),
+                    "winner": None,
+                    "isActive": True,
+                    "clients": {white_sid, black_sid},
+                    "spectators": set(),
+                    "lock": threading.Lock(),
+                    "bot": False,
+                    "game_mode": "matchmaking",
+                    "start_time": datetime.now(),
+                    "move_history": []
+                }
+                
+                # Notify both players
+                socketio.emit("match_found", {
+                    "room": room,
+                    "state": export_state(room, white_sid)
+                }, room=white_sid)
+                
+                socketio.emit("match_found", {
+                    "room": room,
+                    "state": export_state(room, black_sid)
+                }, room=black_sid)
+                
+                matched = True
+                logger.info(f"🎲 Match created: {white_name} vs {black_name} in room '{room}'")
                 break
         
-        if match_found:
-            # Create game room
-            room = f"global-{secrets.token_hex(4)}"
-            
-            # Random color assignment
-            if random.choice([True, False]):
-                white_player = player_name
-                white_sid = sid
-                black_player = match_found["playerName"]
-                black_sid = match_found["sid"]
-            else:
-                white_player = match_found["playerName"]
-                white_sid = match_found["sid"]
-                black_player = player_name
-                black_sid = sid
-            
-            # Get user IDs if authenticated (check both possible players)
-            user = get_current_user()
-            # We can't determine user_ids yet since players will connect with new sids
-            # Set them to None and let join_room handle user linking
-            
-            games[room] = {
-                "board": chess.Board(),
-                "whiteTime": float(time_control),
-                "blackTime": float(time_control),
-                "lastUpdate": time.time(),
-                "start_timestamp": datetime.utcnow(),
-                "isActive": False,  # Will become True when both players join
-                "winner": None,
-                "bot": False,
-                "lock": threading.Lock(),
-                "white_player": white_player,
-                "black_player": black_player,
-                "white_sid": None,  # Will be set when player joins
-                "black_sid": None,  # Will be set when player joins
-                "white_user_id": None,  # Will be set when player joins
-                "black_user_id": None,  # Will be set when player joins
-                "white_disconnect_timer": None,
-                "black_disconnect_timer": None,
-                "clients": set(),
-                "game_mode": "global",
-                "move_history": []
-            }
-            
-            # Don't add to sid_to_room yet - will be done in join_room
-            
-            # Notify both players with their assigned names
-            socketio.emit("matchmaking_found", {
-                "room": room,
-                "playerName": white_player,
-                "color": "white"
-            }, room=white_sid)
-            
-            socketio.emit("matchmaking_found", {
-                "room": room,
-                "playerName": black_player,
-                "color": "black"
-            }, room=black_sid)
-            
-            print(f"✅ Match found! Room: {room}, White: {white_player}, Black: {black_player}")
-        else:
+        if not matched:
             # Add to queue
             matchmaking_queue.append({
                 "sid": sid,
                 "playerName": player_name,
+                "userId": user_id,
                 "timeControl": time_control,
                 "timestamp": time.time()
             })
-            emit("matchmaking_status", {"status": "searching"})
-            print(f"🔍 Player {player_name} joined matchmaking queue (time: {time_control}s)")
+            emit("matchmaking_waiting", {"queuePosition": len(matchmaking_queue)})
+            logger.info(f"⏳ {player_name} added to matchmaking queue (position: {len(matchmaking_queue)})")
 
 @socketio.on("cancel_matchmaking")
 def cancel_matchmaking():
+    """Cancel matchmaking search"""
     sid = request.sid
+    
     with matchmaking_lock:
         for i, player in enumerate(matchmaking_queue):
             if player["sid"] == sid:
                 matchmaking_queue.pop(i)
                 emit("matchmaking_cancelled")
-                print(f"❌ Player cancelled matchmaking")
+                logger.info(f"❌ Player cancelled matchmaking")
                 return
-
-# ===== REMATCH FUNCTIONALITY =====
-@socketio.on("request_rematch")
-def request_rematch(data):
-    room = data.get("room")
-    if room not in games:
-        emit("error", {"message": "Game not found"})
-        return
     
-    g = games[room]
-    requester_sid = request.sid
-    
-    # Determine who is requesting
-    if requester_sid == g.get("white_sid"):
-        requester_color = "white"
-        opponent_sid = g.get("black_sid")
-    elif requester_sid == g.get("black_sid"):
-        requester_color = "black"
-        opponent_sid = g.get("white_sid")
-    else:
-        emit("error", {"message": "You are not a player in this game"})
-        return
-    
-    # If bot game, create instant rematch
-    if g.get("game_mode") == "bot":
-        new_room = f"bot-{secrets.token_hex(4)}"
-        time_control = g.get("whiteTime", 300) if g.get("whiteTime", 300) > 0 else 300
-        player_name = g.get("white_player") if requester_color == "white" else g.get("black_player")
-        bot_difficulty = g.get("bot_difficulty", "medium")  # Preserve difficulty from previous game
-
-        # Create new bot game
-        games[new_room] = {
-            "board": chess.Board(),
-            "whiteTime": float(time_control),
-            "blackTime": float(time_control),
-            "lastUpdate": time.time(),
-            "start_timestamp": datetime.utcnow(),
-            "isActive": True,
-            "winner": None,
-            "bot": True,
-            "bot_difficulty": bot_difficulty,  # Preserve difficulty
-            "lock": threading.Lock(),
-            "white_player": player_name,
-            "black_player": f"Bot ({bot_difficulty.capitalize()})",
-            "white_sid": requester_sid,
-            "black_sid": None,
-            "white_disconnect_timer": None,
-            "black_disconnect_timer": None,
-            "clients": {requester_sid},
-            "game_mode": "bot",
-            "move_history": []
-        }
-        
-        sid_to_room[requester_sid] = new_room
-        
-        emit("rematch_started", {
-            "room": new_room,
-            "color": "white",
-            "state": export_state(new_room, requester_sid)
-        })
-        print(f"🔄 Bot rematch created: {new_room}")
-    else:
-        # For multiplayer, need opponent acceptance
-        if "rematch_requests" not in g:
-            g["rematch_requests"] = set()
-        
-        g["rematch_requests"].add(requester_color)
-        
-        # Check if both players requested rematch
-        if len(g["rematch_requests"]) == 2:
-            # Create new game
-            new_room = f"{g.get('game_mode', 'friend')}-{secrets.token_hex(4)}"
-            time_control = g.get("whiteTime", 300) if g.get("whiteTime", 300) > 0 else 300
-            
-            white_sid = g.get("white_sid")
-            black_sid = g.get("black_sid")
-            white_player = g.get("white_player")
-            black_player = g.get("black_player")
-            
-            games[new_room] = {
-                "board": chess.Board(),
-                "whiteTime": float(time_control),
-                "blackTime": float(time_control),
-                "lastUpdate": time.time(),
-                "start_timestamp": datetime.utcnow(),
-                "isActive": True,
-                "winner": None,
-                "bot": False,
-                "lock": threading.Lock(),
-                "white_player": white_player,
-                "black_player": black_player,
-                "white_sid": white_sid,
-                "black_sid": black_sid,
-                "white_disconnect_timer": None,
-                "black_disconnect_timer": None,
-                "clients": {white_sid, black_sid},
-                "game_mode": g.get("game_mode", "friend")
-            }
-            
-            sid_to_room[white_sid] = new_room
-            sid_to_room[black_sid] = new_room
-            
-            # Notify both players
-            socketio.emit("rematch_started", {
-                "room": new_room,
-                "color": "white",
-                "state": export_state(new_room, white_sid)
-            }, room=white_sid)
-            
-            socketio.emit("rematch_started", {
-                "room": new_room,
-                "color": "black",
-                "state": export_state(new_room, black_sid)
-            }, room=black_sid)
-            
-            print(f"🔄 Rematch created: {new_room}")
-        else:
-            # Notify opponent of rematch request
-            if opponent_sid:
-                socketio.emit("rematch_requested", {
-                    "from": requester_color
-                }, room=opponent_sid)
-
-@socketio.on("decline_rematch")
-def decline_rematch(data):
-    room = data.get("room")
-    if room not in games:
-        return
-
-    g = games[room]
-    decliner_sid = request.sid
-
-    # Determine who is declining
-    if decliner_sid == g.get("white_sid"):
-        decliner_color = "white"
-        opponent_sid = g.get("black_sid")
-    elif decliner_sid == g.get("black_sid"):
-        decliner_color = "black"
-        opponent_sid = g.get("white_sid")
-    else:
-        return
-
-    # Clear rematch requests
-    if "rematch_requests" in g:
-        g["rematch_requests"].clear()
-
-    # Notify opponent that rematch was declined
-    if opponent_sid:
-        socketio.emit("rematch_declined", {
-            "from": decliner_color
-        }, room=opponent_sid)
-        print(f"❌ {decliner_color.upper()} declined rematch in room {room}")
+    emit("error", {"message": "Not in matchmaking queue"})
 
 @socketio.on("disconnect")
-def on_disconnect():
+def disconnect():
     sid = request.sid
     room = sid_to_room.pop(sid, None)
     
@@ -836,7 +617,7 @@ def on_disconnect():
             g["clients"].discard(sid)
 
         if disconnected_color and g.get("isActive") and not g["winner"]:
-            print(f"⚠️ {disconnected_color} disconnected from {room}. Starting {DISCONNECT_TIMEOUT}s timer.")
+            logger.info(f"⚠️ {disconnected_color} disconnected from {room}. Starting {DISCONNECT_TIMEOUT}s timer.")
             socketio.emit("player_disconnected", {"color": disconnected_color, "timeout": DISCONNECT_TIMEOUT}, room=room)
             t = threading.Timer(DISCONNECT_TIMEOUT, handle_disconnect_timeout, [room, disconnected_color])
             t.start()
@@ -846,7 +627,7 @@ def on_disconnect():
                 g["black_disconnect_timer"] = t
 
         if len(g["clients"]) == 0 and not g.get("white_disconnect_timer") and not g.get("black_disconnect_timer"):
-            print(f"🧹 Room '{room}' is empty and idle. Deleting game.")
+            logger.info(f"🧹 Room '{room}' is empty and idle. Deleting game.")
             del games[room]
 
 @socketio.on("move")
@@ -905,73 +686,100 @@ def move(data):
                 socketio.start_background_task(bot_play, room)
 
 def bot_play(room):
+    """IMPROVED BOT FUNCTION with better error handling and engine management"""
     time.sleep(0.5)
-    if room not in games: return
+    if room not in games:
+        return
+    
     g = games[room]
-
-    with g["lock"]:
-        board = g["board"]
-        if board.is_game_over(): return
-
-        best_move = None
-        bot_difficulty = g.get("bot_difficulty", "medium")  # easy, medium, hard
-
-        if STOCKFISH_PATH:
-            try:
-                engine = chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH)
-
-                # Configure difficulty based on level
-                if bot_difficulty == "easy":
-                    # Limit depth and time for weaker play
-                    result = engine.play(board, chess.engine.Limit(depth=1, time=0.1))
-                elif bot_difficulty == "hard":
-                    # Strong play with deeper search
-                    result = engine.play(board, chess.engine.Limit(depth=15, time=1.0))
-                else:  # medium (default)
-                    # Balanced play
-                    result = engine.play(board, chess.engine.Limit(depth=8, time=0.5))
-
-                best_move = result.move
-                engine.quit()
-                print(f"🤖 Stockfish move: {best_move} (difficulty: {bot_difficulty})")
-            except Exception as e:
-                print(f"❌ Stockfish Error: {e}")
-                print(f"   Falling back to random moves")
-                best_move = random.choice(list(board.legal_moves))
-        else:
-            # Fallback to random moves if Stockfish not available
-            print(f"🎲 Random bot move (Stockfish not available)")
-            best_move = random.choice(list(board.legal_moves))
-
-        if best_move:
-            san = board.san(best_move)
-            board.push(best_move)
-
-            # Record bot move for replay (same as player moves)
-            if "move_history" not in g:
-                g["move_history"] = []
-
-            g["move_history"].append({
-                "notation": san,
-                "from_square": chess.square_name(best_move.from_square),
-                "to_square": chess.square_name(best_move.to_square),
-                "white_time": g["whiteTime"],
-                "black_time": g["blackTime"],
-                "fen": board.fen()
-            })
-
+    engine = None
+    
+    try:
+        with g["lock"]:
+            board = g["board"]
             if board.is_game_over():
-                g["winner"] = "black"
-                g["reason"] = "checkmate"
-                save_game(room, g)
+                return
 
-            for sid in g.get("clients", set()):
-                socketio.emit("game_update", {
-                    "state": export_state(room, sid),
-                    "lastMove": {"from": {"row": 7-chess.square_rank(best_move.from_square), "col": chess.square_file(best_move.from_square)},
-                                 "to": {"row": 7-chess.square_rank(best_move.to_square), "col": chess.square_file(best_move.to_square)}},
-                    "moveNotation": san
-                }, room=sid)
+            best_move = None
+            bot_difficulty = g.get("bot_difficulty", "medium")
+            
+            logger.info(f"🤖 Bot thinking (difficulty: {bot_difficulty}, path: {STOCKFISH_PATH})...")
+            
+            if STOCKFISH_PATH:
+                try:
+                    # Get a fresh engine instance
+                    engine = get_stockfish_engine()
+                    
+                    if engine:
+                        # Configure difficulty based on level
+                        if bot_difficulty == "easy":
+                            result = engine.play(board, chess.engine.Limit(depth=1, time=0.1))
+                        elif bot_difficulty == "hard":
+                            result = engine.play(board, chess.engine.Limit(depth=15, time=1.0))
+                        else:  # medium
+                            result = engine.play(board, chess.engine.Limit(depth=8, time=0.5))
+                        
+                        best_move = result.move
+                        logger.info(f"✅ Stockfish move: {best_move} (difficulty: {bot_difficulty})")
+                    else:
+                        logger.error("❌ Failed to get Stockfish engine, using random move")
+                        best_move = random.choice(list(board.legal_moves))
+                        
+                except Exception as e:
+                    logger.error(f"❌ Stockfish Error: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    logger.info("   Falling back to random moves")
+                    best_move = random.choice(list(board.legal_moves))
+            else:
+                logger.warning("🎲 Stockfish not available, using random move")
+                best_move = random.choice(list(board.legal_moves))
+
+            if best_move:
+                san = board.san(best_move)
+                board.push(best_move)
+
+                # Record bot move
+                if "move_history" not in g:
+                    g["move_history"] = []
+
+                g["move_history"].append({
+                    "notation": san,
+                    "from_square": chess.square_name(best_move.from_square),
+                    "to_square": chess.square_name(best_move.to_square),
+                    "white_time": g["whiteTime"],
+                    "black_time": g["blackTime"],
+                    "fen": board.fen()
+                })
+
+                if board.is_game_over():
+                    g["winner"] = "black"
+                    g["reason"] = "checkmate"
+                    save_game(room, g)
+
+                for sid in g.get("clients", set()):
+                    socketio.emit("game_update", {
+                        "state": export_state(room, sid),
+                        "lastMove": {
+                            "from": {
+                                "row": 7-chess.square_rank(best_move.from_square),
+                                "col": chess.square_file(best_move.from_square)
+                            },
+                            "to": {
+                                "row": 7-chess.square_rank(best_move.to_square),
+                                "col": chess.square_file(best_move.to_square)
+                            }
+                        },
+                        "moveNotation": san
+                    }, room=sid)
+    
+    finally:
+        # CRITICAL: Always close the engine
+        if engine:
+            try:
+                engine.quit()
+            except Exception as e:
+                logger.error(f"Error closing engine: {e}")
 
 @socketio.on("send_message")
 def msg(data):
@@ -992,14 +800,12 @@ def msg(data):
 
 @socketio.on("typing")
 def on_typing(data):
-    # Block spectators from showing typing indicator
     if data.get("sender") == "spectator":
         return
     socketio.emit("user_typing", data, room=data["room"], skip_sid=request.sid)
 
 @socketio.on("stop_typing")
 def on_stop_typing(data):
-    # Block spectators from showing typing indicator
     if data.get("sender") == "spectator":
         return
     socketio.emit("user_stop_typing", data, room=data["room"], skip_sid=request.sid)
