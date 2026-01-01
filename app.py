@@ -51,8 +51,32 @@ def get_current_user():
 init_db_pool()
 
 # ===== STOCKFISH SETUP =====
-STOCKFISH_PATH = shutil.which("stockfish") or "/usr/games/stockfish" or "/usr/bin/stockfish"
-print(f"♟️ Stockfish Engine Path: {STOCKFISH_PATH}")
+# Try to find Stockfish in multiple locations
+STOCKFISH_PATH = None
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+stockfish_paths = [
+    os.path.join(BASE_DIR, "stockfish"),  # Project directory (first priority)
+    os.path.expanduser("~/.local/bin/stockfish"),  # User local bin
+    shutil.which("stockfish"),
+    "/opt/homebrew/bin/stockfish",  # Homebrew on Apple Silicon
+    "/usr/local/bin/stockfish",      # Homebrew on Intel Mac
+    "/usr/games/stockfish",          # Linux
+    "/usr/bin/stockfish",            # Linux
+]
+
+for path in stockfish_paths:
+    if path and os.path.exists(path):
+        STOCKFISH_PATH = path
+        break
+
+if STOCKFISH_PATH:
+    print(f"✅ Stockfish Engine Found: {STOCKFISH_PATH}")
+else:
+    print("⚠️ Stockfish not found! Bot will use random moves.")
+    print("📥 Install Stockfish:")
+    print("   macOS: brew install stockfish")
+    print("   Linux: sudo apt-get install stockfish")
+    print("   Or download from: https://stockfishchess.org/download/")
 
 games = {}
 sid_to_room = {}
@@ -349,21 +373,22 @@ def create(data):
     room = data["room"]
     is_bot = data.get("bot", False)
     player_name = data.get("playerName", "White")
-    
+    bot_difficulty = data.get("difficulty", "medium")  # Get difficulty from client
+
     creator_color = random.choice(["white", "black"]) if not is_bot else "white"
-    
+
     if room in games:
         g = games[room]
-        if g.get("winner") is None: 
+        if g.get("winner") is None:
             emit("error", {"message": f"Room '{room}' is already taken!"})
             return
 
     white_player = player_name if creator_color == "white" else None
     black_player = player_name if creator_color == "black" else None
-    
+
     if is_bot:
-        black_player = "Bot"
-    
+        black_player = f"Bot ({bot_difficulty.capitalize()})"
+
     # Get user ID if authenticated
     user = get_current_user()
     white_user_id = user['id'] if user and creator_color == "white" else None
@@ -378,6 +403,7 @@ def create(data):
         "isActive": True if is_bot else False,
         "winner": None,
         "bot": is_bot,
+        "bot_difficulty": bot_difficulty,  # Store difficulty level
         "lock": threading.Lock(),
         "white_player": white_player,
         "black_player": black_player,
@@ -653,7 +679,8 @@ def request_rematch(data):
         new_room = f"bot-{secrets.token_hex(4)}"
         time_control = g.get("whiteTime", 300) if g.get("whiteTime", 300) > 0 else 300
         player_name = g.get("white_player") if requester_color == "white" else g.get("black_player")
-        
+        bot_difficulty = g.get("bot_difficulty", "medium")  # Preserve difficulty from previous game
+
         # Create new bot game
         games[new_room] = {
             "board": chess.Board(),
@@ -664,15 +691,17 @@ def request_rematch(data):
             "isActive": True,
             "winner": None,
             "bot": True,
+            "bot_difficulty": bot_difficulty,  # Preserve difficulty
             "lock": threading.Lock(),
             "white_player": player_name,
-            "black_player": "Bot",
+            "black_player": f"Bot ({bot_difficulty.capitalize()})",
             "white_sid": requester_sid,
             "black_sid": None,
             "white_disconnect_timer": None,
             "black_disconnect_timer": None,
             "clients": {requester_sid},
-            "game_mode": "bot"
+            "game_mode": "bot",
+            "move_history": []
         }
         
         sid_to_room[requester_sid] = new_room
@@ -876,25 +905,42 @@ def move(data):
                 socketio.start_background_task(bot_play, room)
 
 def bot_play(room):
-    time.sleep(0.5) 
+    time.sleep(0.5)
     if room not in games: return
     g = games[room]
-    
+
     with g["lock"]:
         board = g["board"]
         if board.is_game_over(): return
 
         best_move = None
+        bot_difficulty = g.get("bot_difficulty", "medium")  # easy, medium, hard
+
         if STOCKFISH_PATH:
             try:
                 engine = chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH)
-                result = engine.play(board, chess.engine.Limit(time=0.5))
+
+                # Configure difficulty based on level
+                if bot_difficulty == "easy":
+                    # Limit depth and time for weaker play
+                    result = engine.play(board, chess.engine.Limit(depth=1, time=0.1))
+                elif bot_difficulty == "hard":
+                    # Strong play with deeper search
+                    result = engine.play(board, chess.engine.Limit(depth=15, time=1.0))
+                else:  # medium (default)
+                    # Balanced play
+                    result = engine.play(board, chess.engine.Limit(depth=8, time=0.5))
+
                 best_move = result.move
                 engine.quit()
+                print(f"🤖 Stockfish move: {best_move} (difficulty: {bot_difficulty})")
             except Exception as e:
                 print(f"❌ Stockfish Error: {e}")
+                print(f"   Falling back to random moves")
                 best_move = random.choice(list(board.legal_moves))
         else:
+            # Fallback to random moves if Stockfish not available
+            print(f"🎲 Random bot move (Stockfish not available)")
             best_move = random.choice(list(board.legal_moves))
 
         if best_move:
