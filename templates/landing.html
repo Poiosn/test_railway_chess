@@ -376,6 +376,22 @@
       from { transform: translateY(20px); opacity: 0; }
       to { transform: translateY(0); opacity: 1; }
     }
+
+    .btn-difficulty {
+      width: 100%;
+      border: none;
+      color: white;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+    .btn-difficulty:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    }
+    .btn-difficulty:active {
+      transform: translateY(-1px);
+    }
     
     .btn-secondary { background: #7f8c8d; }
 
@@ -605,16 +621,45 @@
   <div class="modal-content">
     <h3>👤 Enter Your Name</h3>
     <p id="namePromptText" style="color:#666;margin-top:8px;">What should we call you?</p>
-    <input 
-      type="text" 
-      id="playerNameInput" 
-      placeholder="e.g., Magnus, Hikaru..." 
+    <input
+      type="text"
+      id="playerNameInput"
+      placeholder="e.g., Magnus, Hikaru..."
       maxlength="20"
       style="margin-top:16px; width:100%; box-sizing:border-box;"
     />
     <div style="margin-top:20px; display:flex; gap:12px; justify-content:center;">
       <button onclick="submitPlayerName()" style="background:#11998e;">✅ Go</button>
       <button onclick="cancelNameModal()" class="btn-secondary">❌ Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bot Difficulty Modal -->
+<div class="modal" id="botDifficultyModal" aria-hidden="true">
+  <div class="modal-content" style="max-width: 400px;">
+    <h3>🤖 Select Bot Difficulty</h3>
+    <p style="color:#666;margin-top:8px;font-size:13px;">Choose your challenge level:</p>
+
+    <div style="margin-top:20px; display:flex; flex-direction:column; gap:12px;">
+      <button onclick="selectBotDifficulty('easy')" class="btn-difficulty" style="background:linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding:14px; font-size:14px; border-radius:10px;">
+        <div style="font-weight:800; font-size:16px; margin-bottom:4px;">⭐ Easy</div>
+        <div style="font-size:11px; opacity:0.9;">Perfect for beginners</div>
+      </button>
+
+      <button onclick="selectBotDifficulty('medium')" class="btn-difficulty" style="background:linear-gradient(135deg, #f7971e 0%, #ffd200 100%); padding:14px; font-size:14px; border-radius:10px;">
+        <div style="font-weight:800; font-size:16px; margin-bottom:4px;">⭐⭐ Medium</div>
+        <div style="font-size:11px; opacity:0.9;">Balanced challenge</div>
+      </button>
+
+      <button onclick="selectBotDifficulty('hard')" class="btn-difficulty" style="background:linear-gradient(135deg, #eb3349 0%, #f45c43 100%); padding:14px; font-size:14px; border-radius:10px;">
+        <div style="font-weight:800; font-size:16px; margin-bottom:4px;">⭐⭐⭐ Expert</div>
+        <div style="font-size:11px; opacity:0.9;">Strong Stockfish AI</div>
+      </button>
+    </div>
+
+    <div style="margin-top:16px;">
+      <button onclick="closeBotDifficultyModal()" class="btn-secondary">❌ Cancel</button>
     </div>
   </div>
 </div>
@@ -742,7 +787,9 @@ function playBot(){
   const timeBtn = document.querySelector(".time-btn.selected");
   const timeControl = timeBtn ? parseInt(timeBtn.dataset.time) : 300;
   const room="bot-"+Math.random().toString(36).slice(2,8);
-  showNameModal("bot", { room, timeControl });
+
+  // Show difficulty modal first
+  showBotDifficultyModal({ room, timeControl });
 }
 
 function playGlobal(){
@@ -752,8 +799,11 @@ function playGlobal(){
 }
 
 function showNameModal(actionType, actionData = {}) {
+  console.log("showNameModal called:", actionType, actionData);
+
   // If user is logged in, skip name modal
   if (currentUser) {
+    console.log("User is logged in, skipping name modal");
     const playerName = currentUser.displayName || currentUser.username;
     executeGameAction(actionType, actionData, playerName);
     return;
@@ -763,8 +813,11 @@ function showNameModal(actionType, actionData = {}) {
   const modal = document.getElementById("nameModal");
   const promptText = document.getElementById("namePromptText");
   const input = document.getElementById("playerNameInput");
-  
-  if (!modal || !input) return;
+
+  if (!modal || !input) {
+    console.error("Modal or input not found!");
+    return;
+  }
 
   input.value = "";
   if (actionType === "create") promptText.textContent = "Creating Room. Your name?";
@@ -782,12 +835,17 @@ function showNameModal(actionType, actionData = {}) {
 }
 
 function executeGameAction(type, data, playerName) {
+  console.log("executeGameAction called:", type, data, playerName);
+
   if (type === "create") {
     window.location.href = `/game?mode=create&room=${encodeURIComponent(data.room)}&name=${encodeURIComponent(playerName)}&time=${data.timeControl}`;
   } else if (type === "join") {
     window.location.href = `/game?mode=join&room=${encodeURIComponent(data.room)}&name=${encodeURIComponent(playerName)}`;
   } else if (type === "bot") {
-    window.location.href = `/game?mode=bot&room=${encodeURIComponent(data.room)}&name=${encodeURIComponent(playerName)}&time=${data.timeControl}`;
+    const difficulty = data.difficulty || "medium";
+    const url = `/game?mode=bot&room=${encodeURIComponent(data.room)}&name=${encodeURIComponent(playerName)}&time=${data.timeControl}&difficulty=${difficulty}`;
+    console.log("Navigating to:", url);
+    window.location.href = url;
   } else if (type === "global") {
     socket.emit("join_matchmaking", { playerName, timeControl: data.timeControl });
     startMatchmakingUI();
@@ -847,6 +905,48 @@ function cancelMatchmaking() {
 function cancelNameModal() {
   document.getElementById("nameModal").classList.remove("active");
   pendingRoomAction = null;
+}
+
+// === BOT DIFFICULTY MODAL ===
+let pendingBotData = null;
+
+function showBotDifficultyModal(data) {
+  console.log("showBotDifficultyModal called with data:", data);
+  pendingBotData = data;
+  const modal = document.getElementById("botDifficultyModal");
+  if (modal) {
+    console.log("Opening bot difficulty modal");
+    modal.classList.add("active");
+  } else {
+    console.error("Bot difficulty modal not found!");
+  }
+}
+
+function closeBotDifficultyModal() {
+  const modal = document.getElementById("botDifficultyModal");
+  if (modal) modal.classList.remove("active");
+  pendingBotData = null;
+}
+
+function selectBotDifficulty(difficulty) {
+  if (!pendingBotData) {
+    console.error("No pending bot data!");
+    return;
+  }
+
+  console.log("Selected difficulty:", difficulty);
+  console.log("Pending bot data:", pendingBotData);
+
+  // Add difficulty to the data before closing modal
+  const botData = { ...pendingBotData, difficulty: difficulty };
+
+  console.log("Bot data with difficulty:", botData);
+
+  // Close difficulty modal
+  closeBotDifficultyModal();
+
+  // Show name modal for bot game
+  showNameModal("bot", botData);
 }
 
 // === SPECTATE MODE ===
