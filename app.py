@@ -282,6 +282,15 @@ def export_state(room, sid):
     is_black = (sid == g.get("black_sid"))
     is_spectator = sid in g.get("spectators", set())
     
+    # Determine player's color
+    color = None
+    if is_white:
+        color = "white"
+    elif is_black:
+        color = "black"
+    elif is_spectator:
+        color = "spectator"
+    
     # Convert chess.Board to 8x8 array for frontend
     board = g["board"]
     board_array = []
@@ -330,7 +339,8 @@ def export_state(room, sid):
         "whiteTimeFormatted": format_time(g["whiteTime"]),
         "blackTimeFormatted": format_time(g["blackTime"]),
         "spectatorCount": len(g.get("spectators", set())),
-        "gameMode": g.get("game_mode", "friend")
+        "gameMode": g.get("game_mode", "friend"),
+        "color": color  # Add this line - IMPORTANT!
     }
 
 def update_time(g):
