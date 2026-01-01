@@ -282,18 +282,53 @@ def export_state(room, sid):
     is_black = (sid == g.get("black_sid"))
     is_spectator = sid in g.get("spectators", set())
     
+    # Convert chess.Board to 8x8 array for frontend
+    board = g["board"]
+    board_array = []
+    for rank in range(8):
+        row = []
+        for file in range(8):
+            square = chess.square(file, 7 - rank)
+            piece = board.piece_at(square)
+            if piece:
+                row.append(str(piece))
+            else:
+                row.append(".")
+        board_array.append(row)
+    
+    # Calculate legal moves for each piece
+    moves_dict = {}
+    if not board.is_game_over():
+        for move in board.legal_moves:
+            from_square = move.from_square
+            from_row = 7 - chess.square_rank(from_square)
+            from_col = chess.square_file(from_square)
+            to_row = 7 - chess.square_rank(move.to_square)
+            to_col = chess.square_file(move.to_square)
+            
+            key = f"{from_row},{from_col}"
+            if key not in moves_dict:
+                moves_dict[key] = []
+            moves_dict[key].append({"row": to_row, "col": to_col})
+    
+    # Format times as MM:SS
+    def format_time(seconds):
+        minutes = int(seconds) // 60
+        secs = int(seconds) % 60
+        return f"{minutes}:{secs:02d}"
+    
     return {
-        "fen": g["board"].fen(),
-        "isWhite": is_white,
-        "isBlack": is_black,
-        "isSpectator": is_spectator,
-        "whiteTime": g["whiteTime"],
-        "blackTime": g["blackTime"],
+        "board": board_array,
+        "moves": moves_dict,
+        "turn": "white" if board.turn else "black",
+        "check": board.is_check(),
         "winner": g["winner"],
         "reason": g.get("reason"),
         "isActive": g.get("isActive", False),
-        "whitePlayer": g.get("white_player", "White"),
-        "blackPlayer": g.get("black_player", "Black"),
+        "whiteName": g.get("white_player", "White"),
+        "blackName": g.get("black_player", "Black"),
+        "whiteTimeFormatted": format_time(g["whiteTime"]),
+        "blackTimeFormatted": format_time(g["blackTime"]),
         "spectatorCount": len(g.get("spectators", set())),
         "gameMode": g.get("game_mode", "friend")
     }
