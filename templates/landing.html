@@ -461,15 +461,15 @@
       }
 
       h1 { font-size: 26px; margin-top: 0; margin-bottom: 4px; }
-      
+
       .subtitle { margin-bottom: 10px; font-size: 12px; }
-      
+
       .time-btn {
         flex: 1 1 30%;
         font-size: 12px;
         padding: 8px;
       }
-      
+
       .game-info, .time-control-section {
         padding: 10px;
         margin-bottom: 10px;
@@ -478,7 +478,7 @@
       .game-info h3 { font-size: 14px; margin-bottom: 2px; }
       .game-info p { font-size: 12px; margin: 0; }
       .time-control-section h4 { margin-bottom: 6px; font-size: 14px; }
-      
+
       .connection-status {
         margin-bottom: 10px;
         padding: 8px;
@@ -486,20 +486,72 @@
       }
 
       .room-controls { margin-bottom: 10px; gap: 8px; }
-      input[type="text"] { padding: 10px; }
-      button { padding: 10px; }
-      
+      input[type="text"] { padding: 10px; font-size: 14px; }
+      button { padding: 10px; font-size: 14px; }
+
       .btn-bot, .btn-global {
         margin-bottom: 10px;
         margin-top: 0;
       }
-      
+
+      .btn-spectate {
+        width: 100%;
+        padding: 12px;
+        font-size: 14px;
+        margin-top: 10px;
+        white-space: nowrap;
+        overflow: visible;
+        text-overflow: clip;
+      }
+
       #visitorCounter {
         bottom: 5px;
         right: 5px;
         font-size: 10px;
         padding: 4px 10px;
         position: fixed;
+      }
+    }
+
+    @media (max-width: 400px) {
+      h1 { font-size: 22px; }
+      .subtitle { font-size: 11px; }
+
+      button {
+        padding: 10px 8px;
+        font-size: 13px;
+      }
+
+      .btn-spectate {
+        padding: 12px 8px;
+        font-size: 13px;
+        width: 100%;
+      }
+
+      input[type="text"] {
+        font-size: 13px;
+        padding: 9px;
+      }
+
+      .time-btn {
+        font-size: 11px;
+        padding: 7px 4px;
+      }
+    }
+
+    @media (max-width: 360px) {
+      h1 { font-size: 20px; }
+      .subtitle { font-size: 10px; }
+
+      button {
+        padding: 9px 6px;
+        font-size: 12px;
+      }
+
+      .btn-spectate {
+        padding: 10px 6px;
+        font-size: 12px;
+        width: 100%;
       }
     }
   </style>
