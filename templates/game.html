@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
+    * { margin:0; padding:0; box-sizing:border-box; cursor: default; }
 
     body {
       font-family:'Inter','Segoe UI','Helvetica Neue',sans-serif;
@@ -20,6 +20,7 @@
       overflow:hidden;
       user-select: none;
       -webkit-user-select: none;
+      cursor: default;
     }
 
     /* GLASSMORPHISM CONTAINER */
@@ -29,13 +30,14 @@
       -webkit-backdrop-filter: blur(20px) saturate(180%);
       border-radius: 12px;
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-      padding: 6px;
+      padding: 4px;
       width: 100%;
       max-width: 1350px;
       max-height: calc(100vh - 16px);
       overflow-y: auto;
       position: relative;
       animation: containerFadeIn 0.6s ease;
+      cursor: default;
     }
 
     @keyframes containerFadeIn {
@@ -46,7 +48,7 @@
     /* HEADER */
     .header {
       text-align: center;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
       position: relative;
     }
 
@@ -56,9 +58,9 @@
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 900;
-      margin-bottom: 2px;
+      margin-bottom: 1px;
       letter-spacing: -1px;
       animation: titleShine 3s linear infinite;
     }
@@ -69,7 +71,7 @@
 
     .subtitle {
       color: #666;
-      font-size: 9px;
+      font-size: 8px;
       font-weight: 600;
       letter-spacing: 0.5px;
     }
@@ -78,14 +80,14 @@
       position: absolute;
       top: 0;
       right: 0;
-      width: 28px;
-      height: 28px;
+      width: 24px;
+      height: 24px;
       background: rgba(102, 126, 234, 0.1);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 14px;
+      font-size: 12px;
       cursor: pointer;
       transition: all 0.3s ease;
       border: 2px solid rgba(102, 126, 234, 0.2);
@@ -97,6 +99,30 @@
     .sound-toggle.muted {
       opacity: 0.5;
       background: rgba(220, 38, 38, 0.1);
+    }
+
+    /* GAME ACTION BUTTONS */
+    .game-actions-card {
+      margin-top: 6px;
+      padding: 6px;
+    }
+
+    .action-buttons-bottom {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .action-buttons-bottom button {
+      width: 100%;
+      padding: 6px 10px;
+      font-size: 10px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      font-weight: 700;
     }
 
     /* LOADING */
@@ -111,9 +137,9 @@
     /* GAME INFO BAR */
     .game-info-bar {
       background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-      padding: 4px 8px;
+      padding: 3px 8px;
       border-radius: 6px;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -122,7 +148,7 @@
     }
 
     .game-info-bar h3 {
-      font-size: 11px;
+      font-size: 10px;
       color: #333;
       font-weight: 800;
     }
@@ -131,7 +157,7 @@
     .game-layout {
       display: grid;
       grid-template-columns: 1fr 280px;
-      gap: 10px;
+      gap: 8px;
       align-items: start;
     }
 
@@ -139,7 +165,7 @@
     .board-section {
       display: flex;
       flex-direction: column;
-      gap: 5px;
+      gap: 3px;
       max-height: 100%;
     }
 
@@ -148,12 +174,12 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 4px 8px;
+      padding: 3px 6px;
       border-radius: 6px;
       background: rgba(255, 255, 255, 0.8);
       border: 2px solid #e0e0e0;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      min-height: 32px;
+      min-height: 28px;
     }
 
     .player-card.black {
@@ -168,14 +194,14 @@
     }
 
     .player-avatar {
-      width: 22px;
-      height: 22px;
+      width: 20px;
+      height: 20px;
       border-radius: 50%;
       background: rgba(102, 126, 234, 0.2);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 12px;
+      font-size: 11px;
       border: 2px solid rgba(102, 126, 234, 0.3);
     }
 
@@ -199,14 +225,14 @@
     }
 
     .timer {
-      padding: 3px 8px;
+      padding: 2px 6px;
       border-radius: 5px;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 800;
       background: rgba(102, 126, 234, 0.1);
       color: #333;
       border: 2px solid rgba(102, 126, 234, 0.2);
-      min-width: 52px;
+      min-width: 48px;
       text-align: center;
       transition: all 0.3s ease;
     }
@@ -236,14 +262,14 @@
     /* TURN INDICATOR */
     .turn-indicator {
       text-align: center;
-      padding: 4px;
+      padding: 3px;
       border-radius: 6px;
-      font-size: 10px;
+      font-size: 9px;
       font-weight: 800;
       background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
       color: #333;
       border: 2px solid rgba(102, 126, 234, 0.2);
-      height: 26px;
+      height: 24px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -253,8 +279,8 @@
     .board-wrapper {
       position: relative;
       width: 100%;
-      max-width: 450px;
-      max-height: 450px;
+      max-width: 420px;
+      max-height: 420px;
       margin: 0 auto;
     }
 
@@ -388,6 +414,140 @@
       filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
     }
 
+    /* MOVE NAVIGATION BAR */
+    .move-nav-bar {
+      margin-top: 6px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    }
+
+    .nav-btn {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 10px;
+      color: rgba(44, 62, 80, 0.8);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      user-select: none;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    }
+
+    .nav-btn:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.35);
+      border-color: rgba(102, 126, 234, 0.5);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.2),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.6),
+                  0 0 20px rgba(102, 126, 234, 0.1);
+    }
+
+    .nav-btn:active:not(:disabled) {
+      transform: translateY(0);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    }
+
+    .nav-btn:disabled {
+      cursor: not-allowed;
+      background: rgba(255, 255, 255, 0.1);
+      pointer-events: auto;
+    }
+
+    .nav-btn:disabled:hover {
+      transform: none;
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.4);
+    }
+
+    .live-btn {
+      min-width: 70px;
+      height: 34px;
+      padding: 0 14px;
+      background: rgba(255, 255, 255, 0.25);
+      backdrop-filter: blur(15px);
+      border: 1.5px solid rgba(255, 255, 255, 0.5);
+      border-radius: 24px;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      color: rgba(44, 62, 80, 0.7);
+      cursor: pointer;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    }
+
+    .live-btn::before {
+      content: '●';
+      font-size: 10px;
+      color: rgba(220, 38, 38, 0.4);
+      transition: all 0.4s ease;
+    }
+
+    .live-btn.active {
+      background: rgba(220, 38, 38, 0.15);
+      border-color: rgba(220, 38, 38, 0.4);
+      color: rgba(220, 38, 38, 0.9);
+      box-shadow: 0 6px 24px rgba(220, 38, 38, 0.2),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.4),
+                  0 0 30px rgba(220, 38, 38, 0.15);
+    }
+
+    .live-btn.active::before {
+      color: rgba(220, 38, 38, 0.9);
+      animation: livePulse 2s ease-in-out infinite;
+    }
+
+    @keyframes livePulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.9); }
+    }
+
+    .live-btn:hover:not(.muted) {
+      background: rgba(220, 38, 38, 0.2);
+      border-color: rgba(220, 38, 38, 0.6);
+      color: rgba(220, 38, 38, 1);
+      transform: scale(1.05);
+      box-shadow: 0 8px 32px rgba(220, 38, 38, 0.3),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.5),
+                  0 0 40px rgba(220, 38, 38, 0.2);
+    }
+
+    .live-btn.muted {
+      opacity: 0.5;
+      cursor: default;
+      transform: none;
+    }
+
+    .live-btn.muted:hover {
+      transform: none;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    }
+
     /* STATUS */
     .status {
       height: 28px;
@@ -421,22 +581,22 @@
     .sidebar {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     }
 
     .card {
       background: rgba(255, 255, 255, 0.8);
       backdrop-filter: blur(10px);
       border-radius: 8px;
-      padding: 8px;
+      padding: 6px;
       border: 2px solid rgba(102, 126, 234, 0.2);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     }
 
     .card h4 {
       color: #2c3e50;
-      margin-bottom: 5px;
-      font-size: 11px;
+      margin-bottom: 4px;
+      font-size: 10px;
       font-weight: 800;
       display: flex;
       align-items: center;
@@ -449,7 +609,7 @@
       grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr);
       gap: 3px;
       font-size: 10px;
-      max-height: 200px;
+      max-height: 150px;
       overflow-y: auto;
     }
     .move-number {
@@ -482,8 +642,8 @@
 
     /* CHAT */
     .chat-messages {
-      height: 200px;
-      max-height: 200px;
+      height: 150px;
+      max-height: 150px;
       overflow-y: auto;
       padding: 5px;
       display: flex;
@@ -687,6 +847,75 @@
       margin-bottom: 12px;
     }
 
+    /* MODAL CLOSE BUTTON */
+    .modal-close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 32px;
+      height: 32px;
+      background: rgba(220, 38, 38, 0.1);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: bold;
+      color: #dc2626;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border: 2px solid rgba(220, 38, 38, 0.2);
+      z-index: 10;
+    }
+
+    .modal-close:hover {
+      background: rgba(220, 38, 38, 0.2);
+      transform: scale(1.1) rotate(90deg);
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+    }
+
+    .modal-close:active {
+      transform: scale(0.95) rotate(90deg);
+    }
+
+    /* GAME END MODAL */
+    .game-end-content {
+      text-align: center;
+      padding: 30px;
+      max-width: 400px;
+      position: relative;
+    }
+
+    .game-end-icon {
+      font-size: 64px;
+      margin-bottom: 15px;
+      animation: scaleIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes scaleIn {
+      0% { transform: scale(0); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .game-end-content h3 {
+      font-size: 24px;
+      margin-bottom: 10px;
+    }
+
+    .game-end-content .modal-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .game-end-content .modal-buttons button {
+      flex: 1;
+      min-width: 120px;
+      padding: 12px 20px;
+      font-size: 12px;
+    }
+
     .promotion-pieces {
       display: flex;
       justify-content: center;
@@ -786,144 +1015,616 @@
 
     /* TABLET */
     @media (max-width: 1024px) {
+      body {
+        padding: 6px;
+      }
+
+      .container {
+        padding: 8px;
+        max-height: calc(100vh - 12px);
+      }
+
       .game-layout {
         grid-template-columns: 1fr;
-        gap: 15px;
+        gap: 10px;
       }
 
       .sidebar {
         max-width: 600px;
         margin: 0 auto;
         width: 100%;
+        gap: 8px;
+      }
+
+      .board-wrapper {
+        max-width: 500px;
+        max-height: 500px;
+      }
+
+      .card {
+        padding: 8px;
+      }
+
+      .move-list {
+        max-height: 140px;
+      }
+
+      .chat-messages {
+        height: 140px;
+        max-height: 140px;
+      }
+
+      h1 {
+        font-size: 18px;
+      }
+
+      .subtitle {
+        font-size: 9px;
+      }
+
+      .game-info-bar {
+        padding: 4px 10px;
+        margin-bottom: 6px;
+      }
+
+      .game-info-bar h3 {
+        font-size: 11px;
+      }
+
+      .player-card {
+        padding: 4px 8px;
+        min-height: 32px;
+      }
+
+      .timer {
+        padding: 3px 8px;
+        font-size: 11px;
+      }
+
+      .turn-indicator {
+        height: 28px;
+        font-size: 10px;
+      }
+
+      .move-nav-bar {
+        margin-top: 8px;
+        padding: 10px;
+        gap: 8px;
+      }
+
+      .nav-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 16px;
+      }
+
+      .live-btn {
+        min-width: 80px;
+        height: 38px;
+        font-size: 13px;
       }
 
       .button-group {
         max-width: 600px;
-        margin: 15px auto 0;
+        margin: 10px auto 0;
+      }
+
+      .action-buttons-bottom button {
+        padding: 8px 12px;
+        font-size: 11px;
       }
     }
 
     /* MOBILE */
     @media (max-width: 768px) {
       body {
-        padding: 5px;
+        padding: 4px;
+        overflow-y: auto;
       }
 
       .container {
-        padding: 12px;
-        border-radius: 15px;
-        max-height: calc(100vh - 10px);
+        padding: 6px;
+        border-radius: 10px;
+        max-height: none;
+        overflow-y: visible;
       }
 
       .header {
-        margin-bottom: 10px;
+        margin-bottom: 4px;
+      }
+
+      h1 {
+        font-size: 14px;
+        margin-bottom: 1px;
+      }
+
+      .subtitle {
+        font-size: 7px;
       }
 
       .sound-toggle {
-        width: 35px;
-        height: 35px;
-        font-size: 18px;
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
       }
 
       .game-info-bar {
-        padding: 10px 12px;
-        margin-bottom: 10px;
+        padding: 3px 8px;
+        margin-bottom: 4px;
+      }
+
+      .game-info-bar h3 {
+        font-size: 9px;
       }
 
       .game-layout {
-        gap: 12px;
+        gap: 6px;
       }
 
       .board-section {
-        gap: 8px;
+        gap: 4px;
       }
 
       .player-card {
-        padding: 8px 12px;
-        min-height: 45px;
+        padding: 3px 6px;
+        min-height: 28px;
       }
 
       .player-avatar {
+        width: 18px;
+        height: 18px;
+        font-size: 10px;
+      }
+
+      .player-name-text {
+        font-size: 9px;
+      }
+
+      .timer {
+        padding: 2px 6px;
+        font-size: 9px;
+        min-width: 42px;
+      }
+
+      .turn-indicator {
+        padding: 2px;
+        font-size: 8px;
+        height: 22px;
+      }
+
+      .board-wrapper {
+        max-width: 100%;
+        max-height: none;
+      }
+
+      .chessboard {
+        border: 2px solid #2c3e50;
+        border-radius: 8px;
+      }
+
+      .square-coord {
+        font-size: 6px;
+      }
+
+      .move-nav-bar {
+        margin-top: 4px;
+        gap: 4px;
+        padding: 6px;
+      }
+
+      .nav-btn {
         width: 28px;
         height: 28px;
-        font-size: 16px;
+        font-size: 12px;
+      }
+
+      .live-btn {
+        min-width: 60px;
+        height: 30px;
+        font-size: 10px;
+        padding: 0 10px;
+        gap: 4px;
+      }
+
+      .sidebar {
+        gap: 6px;
       }
 
       .card {
-        padding: 12px;
+        padding: 6px;
       }
 
       .card h4 {
-        margin-bottom: 8px;
+        margin-bottom: 4px;
+        font-size: 9px;
       }
 
       .move-list {
-        max-height: 120px;
-        grid-template-columns: 30px minmax(0, 1fr) minmax(0, 1fr);
+        max-height: 100px;
+        grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr);
+        gap: 3px;
+      }
+
+      .move-number {
+        font-size: 8px;
+        padding: 2px;
+      }
+
+      .move-item {
+        padding: 3px 4px;
+        font-size: 9px;
       }
 
       .chat-messages {
-        height: 120px;
-        max-height: 120px;
+        height: 100px;
+        max-height: 100px;
+        padding: 4px;
+        gap: 3px;
+      }
+
+      .chat-message {
+        padding: 4px 6px;
+        font-size: 9px;
+      }
+
+      .chat-input-wrapper {
+        gap: 3px;
+      }
+
+      #chatInput {
+        padding: 4px 6px;
+        font-size: 9px;
+        height: 28px;
+      }
+
+      #sendChat {
+        min-width: 50px;
+        padding: 4px 8px;
+        font-size: 9px;
+        height: 28px;
+      }
+
+      .game-actions-card {
+        margin-top: 4px;
+        padding: 6px;
+      }
+
+      .action-buttons-bottom {
+        gap: 4px;
+      }
+
+      .action-buttons-bottom button {
+        padding: 5px 8px;
+        font-size: 9px;
+        gap: 3px;
       }
 
       .button-group {
         grid-template-columns: 1fr 1fr;
-        gap: 8px;
-        margin-top: 10px;
+        gap: 6px;
+        margin-top: 8px;
+      }
+
+      .modal-content {
+        padding: 20px;
+        width: 90%;
+        max-width: 350px;
+      }
+
+      .game-end-icon {
+        font-size: 40px;
+      }
+
+      #gameEndTitle {
+        font-size: 18px;
+      }
+
+      #gameEndMessage {
+        font-size: 11px;
+      }
+
+      .modal-buttons button {
+        padding: 8px 16px;
+        font-size: 11px;
       }
     }
 
     /* SMALL MOBILE */
     @media (max-width: 400px) {
+      body {
+        padding: 3px;
+      }
+
       .container {
-        padding: 10px;
+        padding: 5px;
       }
 
       h1 {
-        font-size: 22px;
+        font-size: 13px;
       }
 
       .subtitle {
-        font-size: 10px;
+        font-size: 6px;
+      }
+
+      .sound-toggle {
+        width: 22px;
+        height: 22px;
+        font-size: 11px;
+      }
+
+      .game-info-bar {
+        padding: 2px 6px;
+      }
+
+      .game-info-bar h3 {
+        font-size: 8px;
       }
 
       .player-card {
-        padding: 6px 10px;
-        min-height: 40px;
+        padding: 2px 5px;
+        min-height: 26px;
+      }
+
+      .player-avatar {
+        width: 16px;
+        height: 16px;
+        font-size: 9px;
+      }
+
+      .player-name-text {
+        font-size: 8px;
       }
 
       .timer {
-        padding: 5px 10px;
-        min-width: 55px;
-        font-size: 12px;
+        padding: 2px 5px;
+        min-width: 38px;
+        font-size: 8px;
       }
 
-      .chat-messages {
-        height: 130px;
+      .turn-indicator {
+        font-size: 7px;
+        height: 20px;
+      }
+
+      .move-nav-bar {
+        gap: 3px;
+        padding: 5px;
+      }
+
+      .nav-btn {
+        width: 26px;
+        height: 26px;
+        font-size: 11px;
+      }
+
+      .live-btn {
+        min-width: 55px;
+        height: 28px;
+        font-size: 9px;
+        padding: 0 8px;
+      }
+
+      .card {
+        padding: 5px;
+      }
+
+      .card h4 {
+        font-size: 8px;
       }
 
       .move-list {
-        max-height: 120px;
+        max-height: 90px;
+      }
+
+      .move-number {
+        font-size: 7px;
+      }
+
+      .move-item {
+        font-size: 8px;
+        padding: 2px 3px;
+      }
+
+      .chat-messages {
+        height: 90px;
+        max-height: 90px;
+      }
+
+      .chat-message {
+        font-size: 8px;
+        padding: 3px 5px;
+      }
+
+      #chatInput {
+        font-size: 8px;
+        height: 26px;
+      }
+
+      #sendChat {
+        font-size: 8px;
+        height: 26px;
+        min-width: 45px;
+      }
+
+      .action-buttons-bottom button {
+        padding: 4px 6px;
+        font-size: 8px;
+      }
+
+      .modal-content {
+        padding: 16px;
+      }
+
+      .game-end-icon {
+        font-size: 35px;
+      }
+
+      #gameEndTitle {
+        font-size: 16px;
+      }
+
+      #gameEndMessage {
+        font-size: 10px;
+      }
+
+      .modal-buttons button {
+        padding: 7px 14px;
+        font-size: 10px;
       }
     }
 
     /* LANDSCAPE MOBILE */
     @media (max-height: 600px) and (orientation: landscape) {
+      body {
+        padding: 3px;
+        overflow-y: auto;
+      }
+
       .container {
         max-height: none;
+        padding: 4px;
+      }
+
+      .header {
+        margin-bottom: 3px;
+      }
+
+      h1 {
+        font-size: 12px;
+      }
+
+      .subtitle {
+        font-size: 6px;
+      }
+
+      .game-info-bar {
+        padding: 2px 6px;
+        margin-bottom: 3px;
+      }
+
+      .game-layout {
+        grid-template-columns: 1fr 250px;
+        gap: 6px;
+      }
+
+      .board-section {
+        gap: 3px;
+      }
+
+      .player-card {
+        min-height: 24px;
+        padding: 2px 5px;
+      }
+
+      .player-avatar {
+        width: 16px;
+        height: 16px;
+        font-size: 9px;
+      }
+
+      .timer {
+        padding: 2px 5px;
+        font-size: 8px;
+      }
+
+      .turn-indicator {
+        height: 20px;
+        font-size: 7px;
       }
 
       .board-wrapper {
-        max-width: 350px;
+        max-width: 280px;
+        max-height: 280px;
+      }
+
+      .chessboard {
+        border: 2px solid #2c3e50;
+      }
+
+      .move-nav-bar {
+        margin-top: 3px;
+        padding: 4px;
+        gap: 3px;
+      }
+
+      .nav-btn {
+        width: 24px;
+        height: 24px;
+        font-size: 10px;
+      }
+
+      .live-btn {
+        min-width: 50px;
+        height: 26px;
+        font-size: 8px;
+        padding: 0 8px;
+      }
+
+      .sidebar {
+        gap: 4px;
+      }
+
+      .card {
+        padding: 4px;
+      }
+
+      .card h4 {
+        font-size: 8px;
+        margin-bottom: 3px;
       }
 
       .chat-messages {
-        height: 120px;
+        height: 80px;
+        max-height: 80px;
       }
 
       .move-list {
-        max-height: 100px;
+        max-height: 80px;
+      }
+
+      .move-number, .move-item {
+        font-size: 7px;
+        padding: 2px;
+      }
+
+      .chat-message {
+        font-size: 7px;
+        padding: 3px 4px;
+      }
+
+      #chatInput, #sendChat {
+        font-size: 8px;
+        height: 24px;
+        padding: 3px 5px;
+      }
+
+      .action-buttons-bottom button {
+        padding: 4px 6px;
+        font-size: 8px;
+      }
+    }
+
+    /* VERY SMALL SCREENS */
+    @media (max-width: 360px) {
+      h1 {
+        font-size: 12px;
+      }
+
+      .subtitle {
+        font-size: 5px;
+      }
+
+      .game-info-bar h3 {
+        font-size: 7px;
+      }
+
+      .chessboard {
+        border: 1px solid #2c3e50;
+      }
+
+      .square-coord {
+        font-size: 5px;
       }
     }
   </style>
@@ -987,17 +1688,18 @@
             <div class="timer" id="whiteTimer">5:00</div>
           </div>
 
+          <!-- MOVE NAVIGATION BAR -->
+          <div class="move-nav-bar">
+            <div class="nav-btn" id="firstMoveBtn" onclick="goToFirstMove()" title="First Move">⏮︎</div>
+            <div class="nav-btn" id="prevMoveBtn" onclick="goToPrevMove()" title="Previous Move">◀︎</div>
+            <div class="live-btn" id="liveBtn" onclick="goToLive()" title="Go to Live Position">LIVE</div>
+            <div class="nav-btn" id="nextMoveBtn" onclick="goToNextMove()" title="Next Move">▶︎</div>
+            <div class="nav-btn" id="lastMoveBtn" onclick="goToLastMove()" title="Last Move">⏭︎</div>
+          </div>
+
           <!-- STATUS & MESSAGES -->
           <div class="status" id="status"></div>
           <div id="messages"></div>
-
-          <!-- BUTTONS -->
-          <div class="button-group">
-            <button onclick="goHome()" class="btn-home">🏠 Home</button>
-            <button onclick="offerDraw()" class="btn-draw">🤝 Draw</button>
-            <button onclick="resignGame()" class="btn-resign">🏳️ Resign</button>
-            <button id="rematchBtn" onclick="requestRematch()" class="btn-rematch">🔄 Rematch</button>
-          </div>
         </div>
 
         <!-- SIDEBAR -->
@@ -1034,6 +1736,15 @@
               </div>
               <input id="chatInput" type="text" placeholder="Type message..." style="user-select:text;-webkit-user-select:text;" />
               <button onclick="sendChat()">Send</button>
+            </div>
+          </div>
+
+          <!-- GAME ACTION BUTTONS -->
+          <div class="card game-actions-card">
+            <div class="action-buttons-bottom">
+              <button onclick="goHome()" class="btn-home" title="Go Home">🏠 Home</button>
+              <button onclick="offerDraw()" class="btn-draw" title="Offer Draw">🤝 Draw</button>
+              <button onclick="resignGame()" class="btn-resign" title="Resign">🏳️ Resign</button>
             </div>
           </div>
         </div>
@@ -1077,6 +1788,21 @@
   </div>
 </div>
 
+<!-- GAME END MODAL -->
+<div class="modal" id="gameEndModal" onclick="closeGameEndModalBackdrop(event)">
+  <div class="modal-content game-end-content" onclick="event.stopPropagation()">
+    <div class="modal-close" onclick="closeGameEndModal()" title="Close and analyze game">✕</div>
+    <div class="game-end-icon" id="gameEndIcon">🏆</div>
+    <h3 id="gameEndTitle">Game Over</h3>
+    <p id="gameEndMessage" style="color:#666;margin-top:10px;font-size:clamp(11px,2.3vw,14px);"></p>
+    <div class="modal-buttons" style="margin-top: 20px;">
+      <button onclick="requestRematchFromEnd()" class="btn-rematch" style="display: flex;">🔄 Rematch</button>
+      <button onclick="goHome()" class="btn-home">🏠 Home</button>
+    </div>
+    <p style="color:#999;margin-top:12px;font-size:10px;">💡 Click X or outside to analyze game</p>
+  </div>
+</div>
+
 <script>
 const socket = io({ 
   transports: ["websocket", "polling"],
@@ -1117,6 +1843,9 @@ let disconnectInterval = null;
 let isDragging = false;
 let pendingUpdate = null;
 let gameMode = URL_MODE || "friend";
+let currentMoveIndex = -1; // -1 means live position
+let isViewingHistory = false;
+let liveGameState = null;
 
 function timeStringToSeconds(str) {
   if (!str || typeof str !== "string" || !str.includes(":")) return 0;
@@ -1511,10 +2240,12 @@ function startGame(data){
       startLocalTimer();
   }
 
+  liveGameState = gameState; // Initialize live state
   renderBoard(gameState);
   updateStatus(gameState);
   updateTurnIndicator(gameState);
-  
+  updateNavigationButtons(); // Initialize navigation buttons
+
   // Hide control buttons for spectators
   if (playerColor === "spectator") {
     const buttons = document.querySelectorAll('.btn-draw, .btn-resign, #rematchBtn');
@@ -1535,12 +2266,14 @@ function startGame(data){
 
 socket.on("game_start", d=>{
   gameState = d.state;
+  liveGameState = d.state;
   updateWaitingOverlay(false);
   updatePlayerNames(gameState);
   startLocalTimer();
   renderBoard(gameState);
   updateStatus(gameState);
   updateTurnIndicator(gameState);
+  updateNavigationButtons();
   playSound("notify");
 });
 
@@ -1608,10 +2341,11 @@ socket.on("game_update", d => {
 function processGameUpdate(d) {
   const prev = gameState;
   const isMyMoveConfirmation = d.lastMove && lastMoveWasMine;
-  
+
   const performUpdate = () => {
     const boardChanged = JSON.stringify(prev.board) !== JSON.stringify(d.state.board);
     gameState = d.state;
+    liveGameState = d.state; // Save live state for navigation
 
     updatePlayerNames(gameState);
 
@@ -1646,6 +2380,7 @@ function processGameUpdate(d) {
     }
     updateStatus(gameState);
     updateTurnIndicator(gameState);
+    updateNavigationButtons(); // Update navigation after state change
   };
 
   if (d.lastMove && !isMyMoveConfirmation) {
@@ -1774,10 +2509,13 @@ socket.on("rematch_started", (data) => {
     currentRoom = data.room;
     playerColor = data.color;
     gameState = data.state;
-    
+    liveGameState = data.state;
+
     moveHistory = [];
     selectedSquare = null;
     possibleMoves = [];
+    currentMoveIndex = -1;
+    isViewingHistory = false;
     
     const rematchBtn = document.getElementById("rematchBtn");
     if (rematchBtn) {
@@ -1799,7 +2537,8 @@ socket.on("rematch_started", (data) => {
     blackSeconds = gameState.blackTimeFormatted ? timeStringToSeconds(gameState.blackTimeFormatted) : 300;
     updateDisplayedTimers();
     startLocalTimer();
-    
+    updateNavigationButtons();
+
     playSound("notify");
 });
 
@@ -1887,15 +2626,19 @@ function renderBoard(state, lastMove=null){
         pDiv.className="piece";
         const isWhitePiece = piece === piece.toUpperCase();
         const color = isWhitePiece ? "white" : "black";
-        
-        // Only allow dragging for the player's own pieces, not for spectators
-        if(color === state.turn && color === playerColor && playerColor !== "spectator"){
+
+        // Only allow dragging for the player's own pieces, not for spectators or when viewing history
+        if(color === state.turn && color === playerColor && playerColor !== "spectator" && !isViewingHistory){
           pDiv.draggable=true;
         }
         pDiv.dataset.row=r;
         pDiv.dataset.col=c;
-        
+
         pDiv.addEventListener("dragstart", e=>{
+          if (isViewingHistory) {
+            e.preventDefault();
+            return;
+          }
           isDragging = true;
           selectedSquare = { row:r, col:c };
           
@@ -1986,7 +2729,14 @@ function renderBoard(state, lastMove=null){
 
 function handleSquareClick(row, col, state){
   if(state.winner) return;
-  
+
+  // Prevent moves when viewing history
+  if (isViewingHistory) {
+    const messages = document.getElementById("messages");
+    if (messages) messages.textContent = "📜 Viewing history - click LIVE to return";
+    return;
+  }
+
   // Prevent spectators from making moves
   if (playerColor === "spectator") {
     const messages = document.getElementById("messages");
@@ -2105,6 +2855,16 @@ function cancelPromotion(){
 function addMoveToHistory(lastMove,notation){
   moveHistory.push({ from:lastMove.from, to:lastMove.to, notation: notation });
   renderMoveHistory();
+
+  // Return to live position when new move comes in (unless explicitly viewing history)
+  if (!isViewingHistory) {
+    currentMoveIndex = -1;
+  } else {
+    // If viewing history, auto-advance to latest move
+    currentMoveIndex = moveHistory.length - 1;
+  }
+
+  updateNavigationButtons();
 }
 
 function renderMoveHistory(){
@@ -2177,6 +2937,7 @@ function updateStatus(state){
       s.textContent="🤝 Game Draw!";
       s.style.background="linear-gradient(135deg, #f7971e 0%, #ffd200 100%)";
       s.style.color="#fff";
+      showGameEndModal("draw", state.reason);
     } else {
       const w = state.winner==="white" ? "♔ WHITE" : "♚ BLACK";
       const r =
@@ -2187,6 +2948,7 @@ function updateStatus(state){
       s.textContent=`👑 ${w} Wins ${r}!`;
       s.style.background="linear-gradient(135deg, #11998e 0%, #38ef7d 100%)";
       s.style.color="#fff";
+      showGameEndModal(state.winner, state.reason);
     }
     return;
   }
@@ -2259,6 +3021,311 @@ function resignGame(){
   if(confirm("Are you sure you want to resign?")){
     socket.emit("resign",{room:currentRoom,color:playerColor});
   }
+}
+
+// ===== GAME END MODAL FUNCTIONS =====
+function showGameEndModal(winner, reason) {
+  const modal = document.getElementById("gameEndModal");
+  const icon = document.getElementById("gameEndIcon");
+  const title = document.getElementById("gameEndTitle");
+  const message = document.getElementById("gameEndMessage");
+
+  if (!modal) return;
+
+  // Determine icon, title, and message based on winner
+  if (winner === "draw") {
+    icon.textContent = "🤝";
+    title.textContent = "Game Drawn!";
+    message.textContent = reason === "agreement" ? "Draw by mutual agreement" :
+                          reason === "stalemate" ? "Draw by stalemate" :
+                          reason === "insufficient" ? "Draw by insufficient material" :
+                          reason === "repetition" ? "Draw by repetition" :
+                          "The game ended in a draw";
+  } else {
+    const isPlayerWin = winner === playerColor;
+    icon.textContent = isPlayerWin ? "🏆" : "😔";
+    title.textContent = isPlayerWin ? "Victory!" : "Defeat";
+
+    const winnerName = winner === "white" ? "White" : "Black";
+    const reasonText = reason === "checkmate" ? "Checkmate" :
+                       reason === "resign" ? "Resignation" :
+                       reason === "timeout" ? "Timeout" :
+                       reason === "abandonment" ? "Abandonment" : "Win";
+
+    message.textContent = isPlayerWin ?
+      `Congratulations! You won by ${reasonText.toLowerCase()}!` :
+      `${winnerName} wins by ${reasonText.toLowerCase()}`;
+  }
+
+  // Show modal after a short delay for dramatic effect
+  setTimeout(() => {
+    modal.classList.add("active");
+    playSound("win");
+  }, 1500);
+}
+
+function requestRematchFromEnd() {
+  const modal = document.getElementById("gameEndModal");
+  if (modal) {
+    modal.classList.remove("active");
+  }
+  requestRematch();
+}
+
+function closeGameEndModal() {
+  const modal = document.getElementById("gameEndModal");
+  if (modal) {
+    modal.classList.remove("active");
+  }
+}
+
+function closeGameEndModalBackdrop(event) {
+  // Only close if clicking on the backdrop itself, not the modal content
+  if (event.target.id === "gameEndModal") {
+    closeGameEndModal();
+  }
+}
+
+// ===== MOVE NAVIGATION FUNCTIONS =====
+function updateNavigationButtons() {
+  const firstBtn = document.getElementById("firstMoveBtn");
+  const prevBtn = document.getElementById("prevMoveBtn");
+  const liveBtn = document.getElementById("liveBtn");
+  const nextBtn = document.getElementById("nextMoveBtn");
+  const lastBtn = document.getElementById("lastMoveBtn");
+
+  const isAtLive = !isViewingHistory && currentMoveIndex === -1;
+  const hasNoMoves = moveHistory.length === 0;
+
+  // Update disabled states for visual feedback
+  // First/Prev buttons: enable when there are moves and we can go back
+  if (firstBtn) {
+    const shouldDisable = hasNoMoves || (isViewingHistory && currentMoveIndex === 0) || (!isViewingHistory && moveHistory.length === 0);
+    firstBtn.disabled = shouldDisable;
+    firstBtn.style.opacity = shouldDisable ? '0.3' : '1';
+  }
+
+  if (prevBtn) {
+    const shouldDisable = hasNoMoves || (isViewingHistory && currentMoveIndex === 0) || (!isViewingHistory && moveHistory.length === 0);
+    prevBtn.disabled = shouldDisable;
+    prevBtn.style.opacity = shouldDisable ? '0.3' : '1';
+  }
+
+  // Next/Last buttons: enable when viewing history and can go forward
+  if (nextBtn) {
+    const shouldDisable = !isViewingHistory || hasNoMoves || (isViewingHistory && currentMoveIndex >= moveHistory.length - 1);
+    nextBtn.disabled = shouldDisable;
+    nextBtn.style.opacity = shouldDisable ? '0.3' : '1';
+  }
+
+  if (lastBtn) {
+    const shouldDisable = !isViewingHistory || hasNoMoves;
+    lastBtn.disabled = shouldDisable;
+    lastBtn.style.opacity = shouldDisable ? '0.3' : '1';
+  }
+
+  // Update LIVE button state
+  if (liveBtn) {
+    if (isAtLive) {
+      liveBtn.classList.remove('active');
+      liveBtn.classList.add('muted');
+    } else {
+      liveBtn.classList.add('active');
+      liveBtn.classList.remove('muted');
+    }
+  }
+}
+
+function reconstructBoardAtMove(moveIndex) {
+  if (moveIndex < 0 || moveIndex >= moveHistory.length) return null;
+
+  // Start from initial position
+  const board = [
+    ['r','n','b','q','k','b','n','r'],
+    ['p','p','p','p','p','p','p','p'],
+    ['.','.','.','.','.','.','.','.'],
+    ['.','.','.','.','.','.','.','.'],
+    ['.','.','.','.','.','.','.','.'],
+    ['.','.','.','.','.','.','.','.'],
+    ['P','P','P','P','P','P','P','P'],
+    ['R','N','B','Q','K','B','N','R']
+  ];
+
+  // Apply all moves up to moveIndex
+  for (let i = 0; i <= moveIndex; i++) {
+    const move = moveHistory[i];
+    const fromRow = move.from.row;
+    const fromCol = move.from.col;
+    const toRow = move.to.row;
+    const toCol = move.to.col;
+
+    const piece = board[fromRow][fromCol];
+
+    // Check for castling (king moves 2 squares horizontally)
+    if (piece.toLowerCase() === 'k' && Math.abs(toCol - fromCol) === 2) {
+      // This is a castling move
+      board[toRow][toCol] = piece; // Move king
+      board[fromRow][fromCol] = '.'; // Clear king's original position
+
+      // Move the rook
+      if (toCol === 6) {
+        // Kingside castling (O-O)
+        const rook = board[fromRow][7];
+        board[fromRow][5] = rook; // Rook moves to f-file
+        board[fromRow][7] = '.'; // Clear rook's original position
+      } else if (toCol === 2) {
+        // Queenside castling (O-O-O)
+        const rook = board[fromRow][0];
+        board[fromRow][3] = rook; // Rook moves to d-file
+        board[fromRow][0] = '.'; // Clear rook's original position
+      }
+    }
+    // Check for en passant (pawn captures diagonally to empty square)
+    else if (piece.toLowerCase() === 'p' && fromCol !== toCol && board[toRow][toCol] === '.') {
+      // En passant capture
+      board[toRow][toCol] = piece; // Move pawn to capture square
+      board[fromRow][fromCol] = '.'; // Clear pawn's original position
+      board[fromRow][toCol] = '.'; // Remove captured pawn (same row as moving pawn)
+    }
+    // Regular move or capture
+    else {
+      board[toRow][toCol] = piece;
+      board[fromRow][fromCol] = '.';
+
+      // Handle promotion (if pawn reaches end rank)
+      if (piece.toLowerCase() === 'p') {
+        if ((piece === 'P' && toRow === 0) || (piece === 'p' && toRow === 7)) {
+          // Assume queen promotion if not specified
+          board[toRow][toCol] = piece === 'P' ? 'Q' : 'q';
+        }
+      }
+    }
+  }
+
+  return board;
+}
+
+function goToFirstMove() {
+  const btn = document.getElementById("firstMoveBtn");
+  if (btn && btn.disabled) return;
+  if (moveHistory.length === 0) return;
+
+  // Enter history mode and jump to first move
+  isViewingHistory = true;
+  currentMoveIndex = 0;
+
+  const board = reconstructBoardAtMove(0);
+  if (board) {
+    const historicalState = {
+      ...liveGameState,
+      board: board,
+      turn: "black", // After first move (white's move), it's black's turn
+      moves: {} // Clear available moves in history mode
+    };
+    renderBoard(historicalState, moveHistory[0]);
+    updateTurnIndicator(historicalState);
+  }
+
+  updateNavigationButtons();
+}
+
+function goToPrevMove() {
+  const btn = document.getElementById("prevMoveBtn");
+  if (btn && btn.disabled) return;
+  if (moveHistory.length === 0) return;
+
+  // If at live position, go to last move
+  if (!isViewingHistory) {
+    isViewingHistory = true;
+    currentMoveIndex = moveHistory.length - 1;
+  } else {
+    // If already viewing history, go back one move
+    if (currentMoveIndex > 0) {
+      currentMoveIndex--;
+    } else {
+      return; // Already at first move
+    }
+  }
+
+  const board = reconstructBoardAtMove(currentMoveIndex);
+  if (board) {
+    const historicalState = {
+      ...liveGameState,
+      board: board,
+      turn: (currentMoveIndex % 2 === 0) ? "black" : "white", // Even index = after white move
+      moves: {} // Clear available moves in history mode
+    };
+    renderBoard(historicalState, moveHistory[currentMoveIndex]);
+    updateTurnIndicator(historicalState);
+  }
+
+  updateNavigationButtons();
+}
+
+function goToNextMove() {
+  const btn = document.getElementById("nextMoveBtn");
+  if (btn && btn.disabled) return;
+
+  if (currentMoveIndex >= moveHistory.length - 1) {
+    goToLive();
+    return;
+  }
+
+  isViewingHistory = true;
+  currentMoveIndex++;
+
+  const board = reconstructBoardAtMove(currentMoveIndex);
+  if (board) {
+    const historicalState = {
+      ...liveGameState,
+      board: board,
+      turn: (currentMoveIndex % 2 === 0) ? "black" : "white", // Even index = after white move
+      moves: {} // Clear available moves in history mode
+    };
+    renderBoard(historicalState, moveHistory[currentMoveIndex]);
+    updateTurnIndicator(historicalState);
+  }
+
+  updateNavigationButtons();
+}
+
+function goToLastMove() {
+  const btn = document.getElementById("lastMoveBtn");
+  if (btn && btn.disabled) return;
+  if (moveHistory.length === 0) {
+    goToLive();
+    return;
+  }
+
+  isViewingHistory = true;
+  currentMoveIndex = moveHistory.length - 1;
+
+  const board = reconstructBoardAtMove(currentMoveIndex);
+  if (board) {
+    const historicalState = {
+      ...liveGameState,
+      board: board,
+      turn: (currentMoveIndex % 2 === 0) ? "black" : "white", // Even index = after white move
+      moves: {} // Clear available moves in history mode
+    };
+    renderBoard(historicalState, moveHistory[currentMoveIndex]);
+    updateTurnIndicator(historicalState);
+  }
+
+  updateNavigationButtons();
+}
+
+function goToLive() {
+  isViewingHistory = false;
+  currentMoveIndex = -1;
+
+  if (liveGameState) {
+    renderBoard(liveGameState, moveHistory.length > 0 ? moveHistory[moveHistory.length - 1] : null);
+    updateStatus(liveGameState);
+    updateTurnIndicator(liveGameState);
+  }
+
+  updateNavigationButtons();
 }
 </script>
 </body>
