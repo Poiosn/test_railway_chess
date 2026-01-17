@@ -25,11 +25,9 @@ from database import (
     check_username_exists, check_email_exists
 )
 
-# Email imports
-import smtplib
-import ssl
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+# Email imports - using HTTP API (Resend) for Railway compatibility
+import urllib.request
+import urllib.error
 
 # ===== FLASK APP =====
 app = Flask(__name__)
@@ -40,70 +38,61 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 # ===== EMAIL CONFIGURATION =====
-# Gmail SMTP with App Password - Using SSL (port 465) for better cloud compatibility
-# Uses environment variables if available (recommended for production)
+# Using Resend API (HTTP-based) - works reliably on Railway
+# Get your API key from https://resend.com (free tier: 3000 emails/month)
 EMAIL_CONFIG = {
-    'smtp_server': os.environ.get('SMTP_SERVER', 'smtp.gmail.com'),
-    'smtp_port': int(os.environ.get('SMTP_PORT', 465)),  # SSL port (more reliable on cloud platforms like Railway)
-    'smtp_port_tls': int(os.environ.get('SMTP_PORT_TLS', 587)),  # TLS port (fallback)
-    'sender_email': os.environ.get('SENDER_EMAIL', 'ssswapnil250@gmail.com'),
-    'sender_password': os.environ.get('SENDER_PASSWORD', 'ezsg fmaq opio spdh'),
-    'enabled': os.environ.get('EMAIL_ENABLED', 'true').lower() == 'true',
-    'timeout': int(os.environ.get('EMAIL_TIMEOUT', 30))  # Increased to 30 seconds for Railway
+    'resend_api_key': os.environ.get('RESEND_API_KEY', ''),  # Required: your Resend API key
+    'sender_email': os.environ.get('SENDER_EMAIL', 'Chess Master <onboarding@resend.dev>'),  # Use resend.dev for testing, or your verified domain
+    'enabled': os.environ.get('EMAIL_ENABLED', 'true').lower() == 'true'
 }
 
 def _send_email_worker(to_email, subject, text_content, html_content):
-    """Background worker to send email - prevents blocking the main thread"""
+    """Background worker to send email via Resend API"""
     print(f"📧 Starting email send to {to_email}...")
 
+    api_key = EMAIL_CONFIG['resend_api_key']
+
+    if not api_key:
+        print(f"⚠️ RESEND_API_KEY not set. Email not sent.")
+        print(f"📧 [DEV MODE] Would send to {to_email}: {subject}")
+        return False
+
     try:
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = subject
-        msg['From'] = EMAIL_CONFIG['sender_email']
-        msg['To'] = to_email
+        # Prepare request data
+        data = json.dumps({
+            "from": EMAIL_CONFIG['sender_email'],
+            "to": [to_email],
+            "subject": subject,
+            "html": html_content,
+            "text": text_content
+        }).encode('utf-8')
 
-        msg.attach(MIMEText(text_content, 'plain'))
-        msg.attach(MIMEText(html_content, 'html'))
+        # Create request
+        req = urllib.request.Request(
+            'https://api.resend.com/emails',
+            data=data,
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            },
+            method='POST'
+        )
 
-        # Try SSL first (port 465) - more reliable on cloud platforms
-        try:
-            print(f"📧 Attempting SSL connection to {EMAIL_CONFIG['smtp_server']}:{EMAIL_CONFIG['smtp_port']}...")
-            context = ssl.create_default_context()
-            with smtplib.SMTP_SSL(
-                EMAIL_CONFIG['smtp_server'],
-                EMAIL_CONFIG['smtp_port'],
-                context=context,
-                timeout=EMAIL_CONFIG['timeout']
-            ) as server:
-                print(f"📧 SSL connected, logging in...")
-                server.login(EMAIL_CONFIG['sender_email'], EMAIL_CONFIG['sender_password'])
-                print(f"📧 Logged in, sending email...")
-                server.sendmail(EMAIL_CONFIG['sender_email'], to_email, msg.as_string())
-            print(f"✅ Email sent to {to_email} (SSL)")
+        print(f"📧 Sending via Resend API...")
+
+        # Send request
+        with urllib.request.urlopen(req, timeout=30) as response:
+            result = json.loads(response.read().decode('utf-8'))
+            print(f"✅ Email sent to {to_email} via Resend (ID: {result.get('id', 'unknown')})")
             return True
-        except Exception as ssl_error:
-            print(f"⚠️ SSL failed: {type(ssl_error).__name__}: {ssl_error}")
-            print(f"📧 Trying TLS on port {EMAIL_CONFIG['smtp_port_tls']}...")
 
-            # Fallback to TLS (port 587)
-            try:
-                with smtplib.SMTP(
-                    EMAIL_CONFIG['smtp_server'],
-                    EMAIL_CONFIG['smtp_port_tls'],
-                    timeout=EMAIL_CONFIG['timeout']
-                ) as server:
-                    print(f"📧 TLS connected, starting TLS...")
-                    server.starttls()
-                    print(f"📧 TLS started, logging in...")
-                    server.login(EMAIL_CONFIG['sender_email'], EMAIL_CONFIG['sender_password'])
-                    print(f"📧 Logged in, sending email...")
-                    server.sendmail(EMAIL_CONFIG['sender_email'], to_email, msg.as_string())
-                print(f"✅ Email sent to {to_email} (TLS)")
-                return True
-            except Exception as tls_error:
-                print(f"❌ TLS also failed: {type(tls_error).__name__}: {tls_error}")
-                raise tls_error
-
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode('utf-8') if e.fp else 'No details'
+        print(f"❌ Resend API error ({e.code}): {error_body}")
+        return False
+    except urllib.error.URLError as e:
+        print(f"❌ Network error: {e.reason}")
+        return False
     except Exception as e:
         print(f"❌ Failed to send email to {to_email}: {type(e).__name__}: {e}")
         import traceback
