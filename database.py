@@ -1,572 +1,676 @@
+"""
+SQLite Database module for Chess Master application (Local Development)
+Simpler alternative to PostgreSQL for local testing
+"""
+
+import sqlite3
 import os
-import psycopg2
-from psycopg2 import pool
-from psycopg2.extras import RealDictCursor
 from datetime import datetime
+import threading
 
-# Global DB Pool
-db_pool = None
+# Thread-local storage for database connections
+thread_local = threading.local()
 
-def init_db_pool():
-    """Initialize the database connection pool and create tables."""
-    global db_pool
-    DATABASE_URL = os.environ.get('DATABASE_URL')
-    
-    if not DATABASE_URL:
-        print("⚠️ DATABASE_URL not set. Database features will be disabled.")
-        return
-
-    # Fix Railway Postgres URL
-    if DATABASE_URL.startswith('postgres://'):
-        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
-    
-    try:
-        # Reduced pool size (1-4) for Railway stability
-        db_pool = psycopg2.pool.SimpleConnectionPool(1, 4, dsn=DATABASE_URL)
-        print("✅ Database connection pool created!")
-        
-        # Initialize Tables - Get connection directly from pool
-        if db_pool:
-            conn = None
-            try:
-                conn = db_pool.getconn()
-                cur = conn.cursor()
-                
-                print("🔨 Creating/updating database tables...")
-                
-                # 1. Create Visitors Table
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS visitors (
-                        visit_date DATE PRIMARY KEY DEFAULT CURRENT_DATE,
-                        visit_count INTEGER DEFAULT 0
-                    );
-                """)
-                print("  ✓ Visitors table ready")
-                
-                # 2. Create Users Table (NEW)
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS users (
-                        id SERIAL PRIMARY KEY,
-                        username VARCHAR(50) UNIQUE NOT NULL,
-                        email VARCHAR(255) UNIQUE NOT NULL,
-                        password_hash VARCHAR(255) NOT NULL,
-                        display_name VARCHAR(100),
-                        avatar_url VARCHAR(500),
-                        elo_rating INTEGER DEFAULT 1200,
-                        games_played INTEGER DEFAULT 0,
-                        games_won INTEGER DEFAULT 0,
-                        games_drawn INTEGER DEFAULT 0,
-                        games_lost INTEGER DEFAULT 0,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        last_login TIMESTAMP
-                    );
-                """)
-                print("  ✓ Users table ready")
-                
-                # 3. Create or Update Games Table
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS games (
-                        id SERIAL PRIMARY KEY,
-                        room_name VARCHAR(255),
-                        white_player VARCHAR(255),
-                        black_player VARCHAR(255),
-                        winner VARCHAR(50),
-                        win_reason VARCHAR(100),
-                        start_time TIMESTAMP,
-                        end_time TIMESTAMP
-                    );
-                """)
-                
-                # Add new columns to existing games table if they don't exist
-                # Check and add white_user_id column
-                cur.execute("""
-                    SELECT column_name 
-                    FROM information_schema.columns 
-                    WHERE table_name='games' AND column_name='white_user_id';
-                """)
-                if not cur.fetchone():
-                    cur.execute("ALTER TABLE games ADD COLUMN white_user_id INTEGER REFERENCES users(id);")
-                    print("    + Added white_user_id column to games")
-                
-                # Check and add black_user_id column
-                cur.execute("""
-                    SELECT column_name 
-                    FROM information_schema.columns 
-                    WHERE table_name='games' AND column_name='black_user_id';
-                """)
-                if not cur.fetchone():
-                    cur.execute("ALTER TABLE games ADD COLUMN black_user_id INTEGER REFERENCES users(id);")
-                    print("    + Added black_user_id column to games")
-                
-                # Check and add time_control column
-                cur.execute("""
-                    SELECT column_name 
-                    FROM information_schema.columns 
-                    WHERE table_name='games' AND column_name='time_control';
-                """)
-                if not cur.fetchone():
-                    cur.execute("ALTER TABLE games ADD COLUMN time_control INTEGER;")
-                    print("    + Added time_control column to games")
-                
-                # Check and add game_mode column
-                cur.execute("""
-                    SELECT column_name 
-                    FROM information_schema.columns 
-                    WHERE table_name='games' AND column_name='game_mode';
-                """)
-                if not cur.fetchone():
-                    cur.execute("ALTER TABLE games ADD COLUMN game_mode VARCHAR(50);")
-                    print("    + Added game_mode column to games")
-                
-                print("  ✓ Games table ready")
-                
-                # 4. Create Game Moves Table (NEW - for replays)
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS game_moves (
-                        id SERIAL PRIMARY KEY,
-                        game_id INTEGER REFERENCES games(id) ON DELETE CASCADE,
-                        move_number INTEGER NOT NULL,
-                        move_notation VARCHAR(20) NOT NULL,
-                        from_square VARCHAR(2),
-                        to_square VARCHAR(2),
-                        piece VARCHAR(10),
-                        captured_piece VARCHAR(10),
-                        time_remaining_white REAL,
-                        time_remaining_black REAL,
-                        position_fen TEXT,
-                        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    );
-                """)
-                print("  ✓ Game_moves table ready")
-                
-                # 5. Create Indexes for Performance (only after columns exist!)
-                cur.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_games_white_user ON games(white_user_id);
-                """)
-                cur.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_games_black_user ON games(black_user_id);
-                """)
-                cur.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_game_moves_game_id ON game_moves(game_id);
-                """)
-                print("  ✓ Indexes created")
-                
-                conn.commit()
-                cur.close()
-                print("✅ Database tables ready!")
-                
-            except Exception as e:
-                print(f"❌ Table creation error: {e}")
-                import traceback
-                traceback.print_exc()
-                if conn:
-                    conn.rollback()
-            finally:
-                if conn:
-                    db_pool.putconn(conn)
-            
-    except Exception as e:
-        print(f"❌ Failed to create DB pool: {e}")
+DB_PATH = os.path.join(os.path.dirname(__file__), 'chess_master.db')
 
 def get_db_conn():
-    """Get a fresh, live connection from the pool."""
-    global db_pool
-    if not db_pool:
-        return None
-    
-    try:
-        conn = db_pool.getconn()
-        # Liveness Check: Verify connection is active
-        if conn:
-            if conn.closed:
-                db_pool.putconn(conn, close=True)
-                return db_pool.getconn()
-            
-            # Double check with a simple query
-            try:
-                with conn.cursor() as cur:
-                    cur.execute("SELECT 1")
-                return conn
-            except (psycopg2.InterfaceError, psycopg2.OperationalError):
-                # Connection is dead, get a new one
-                try:
-                    db_pool.putconn(conn, close=True)
-                except:
-                    pass
-                return db_pool.getconn()
-    except Exception as e:
-        print(f"⚠️ DB Pool Exhausted or Error: {e}")
-        return None
-    return None
+    """Get a thread-local database connection"""
+    if not hasattr(thread_local, 'connection'):
+        thread_local.connection = sqlite3.connect(DB_PATH, check_same_thread=False)
+        thread_local.connection.row_factory = sqlite3.Row
+    return thread_local.connection
 
 def release_db_conn(conn):
-    """Return connection to pool."""
-    global db_pool
-    if db_pool and conn:
-        try:
-            db_pool.putconn(conn)
-        except Exception:
-            pass
+    """No-op for SQLite (connections are thread-local)"""
+    pass
 
-# ===== APP HELPER FUNCTIONS =====
+def init_db_pool():
+    """Initialize SQLite database and create tables"""
+    print("📦 Using SQLite database for local development")
+    print(f"📂 Database file: {DB_PATH}")
+
+    conn = get_db_conn()
+    create_tables()
+    print("✅ SQLite database initialized successfully")
+
+def create_tables():
+    """Create necessary database tables if they don't exist"""
+    conn = get_db_conn()
+    cur = conn.cursor()
+
+    try:
+        # Users table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                display_name TEXT,
+                elo_rating INTEGER DEFAULT 1200,
+                games_played INTEGER DEFAULT 0,
+                games_won INTEGER DEFAULT 0,
+                games_drawn INTEGER DEFAULT 0,
+                games_lost INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP
+            )
+        """)
+
+        # Games table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS games (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                room_code TEXT NOT NULL,
+                white_player TEXT,
+                black_player TEXT,
+                white_user_id INTEGER,
+                black_user_id INTEGER,
+                winner TEXT,
+                win_reason TEXT,
+                game_mode TEXT,
+                time_control INTEGER,
+                start_time TIMESTAMP,
+                end_time TIMESTAMP,
+                move_count INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (white_user_id) REFERENCES users(id),
+                FOREIGN KEY (black_user_id) REFERENCES users(id)
+            )
+        """)
+
+        # Game moves table (for replay)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS game_moves (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                game_id INTEGER NOT NULL,
+                move_number INTEGER NOT NULL,
+                move_notation TEXT NOT NULL,
+                from_square TEXT,
+                to_square TEXT,
+                position_fen TEXT,
+                white_time_remaining REAL,
+                black_time_remaining REAL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
+            )
+        """)
+
+        # Visitor counter table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS visitor_count (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                count INTEGER DEFAULT 0
+            )
+        """)
+
+        # Insert initial visitor count if not exists
+        cur.execute("INSERT OR IGNORE INTO visitor_count (id, count) VALUES (1, 0)")
+
+        # Password reset codes table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS password_reset_codes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                email TEXT NOT NULL,
+                code TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP NOT NULL,
+                used INTEGER DEFAULT 0,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
+        # Email verification codes table (for registration)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS email_verification_codes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL,
+                username TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                display_name TEXT,
+                code TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP NOT NULL,
+                verified INTEGER DEFAULT 0
+            )
+        """)
+
+        conn.commit()
+        print("✅ Database tables created/verified")
+
+    except Exception as e:
+        print(f"❌ Error creating tables: {e}")
+        conn.rollback()
+
+# ===== VISITOR COUNT FUNCTIONS =====
 
 def increment_visitor_count():
-    """Upsert visitor count for today."""
+    """Increment the visitor counter"""
     conn = get_db_conn()
-    if not conn: return
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE visitor_count SET count = count + 1 WHERE id = 1")
+        conn.commit()
+    except Exception as e:
+        print(f"Error incrementing visitor count: {e}")
+        conn.rollback()
+
+def get_total_visitor_count():
+    """Get total visitor count"""
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT count FROM visitor_count WHERE id = 1")
+        result = cur.fetchone()
+        return result[0] if result else 0
+    except Exception as e:
+        print(f"Error getting visitor count: {e}")
+        return 0
+
+# ===== USER FUNCTIONS =====
+
+def get_user_by_id(user_id):
+    """Get user by ID"""
+    conn = get_db_conn()
     try:
         cur = conn.cursor()
         cur.execute("""
-            INSERT INTO visitors (visit_date, visit_count) 
-            VALUES (CURRENT_DATE, 1)
-            ON CONFLICT (visit_date) 
-            DO UPDATE SET visit_count = visitors.visit_count + 1
-        """)
-        conn.commit()
-        cur.close()
-    except Exception as e:
-        print(f"Visitor count error: {e}")
-        conn.rollback()
-    finally:
-        release_db_conn(conn)
-
-def get_total_visitor_count():
-    """Get sum of all visits."""
-    conn = get_db_conn()
-    count = 0
-    if conn:
-        try:
-            cur = conn.cursor()
-            cur.execute("SELECT COALESCE(SUM(visit_count), 0) FROM visitors")
-            res = cur.fetchone()
-            count = res[0] if res else 0
-            cur.close()
-        except Exception as e:
-            print(f"Visitor API error: {e}")
-            conn.rollback()
-        finally: release_db_conn(conn)
-    return count
-
-def get_leaderboard_data(limit=5):
-    """Get top 5 players by wins."""
-    conn = get_db_conn()
-    data = []
-    if conn:
-        try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("""
-                SELECT player_name, COUNT(*) as total,
-                SUM(CASE WHEN winner = player_color THEN 1 ELSE 0 END) as wins,
-                ROUND((SUM(CASE WHEN winner = player_color THEN 1 ELSE 0 END)::DECIMAL / NULLIF(COUNT(*),0))*100, 1) as win_rate
-                FROM (
-                    SELECT white_player as player_name, 'white' as player_color, winner FROM games WHERE white_player IS NOT NULL AND white_player != 'Bot'
-                    UNION ALL
-                    SELECT black_player as player_name, 'black' as player_color, winner FROM games WHERE black_player IS NOT NULL AND black_player != 'Bot'
-                ) as sub GROUP BY player_name HAVING COUNT(*) > 0 ORDER BY wins DESC LIMIT %s
-            """, (limit,))
-            data = cur.fetchall()
-            cur.close()
-        except Exception as e:
-            print(f"Leaderboard error: {e}")
-            conn.rollback()
-        finally: release_db_conn(conn)
-    return [dict(row) for row in data]
-
-def save_game_record(room, g, start_time, end_time, win_reason):
-    """Save finished game with moves and user stats."""
-    conn = get_db_conn()
-    if conn:
-        try:
-            cur = conn.cursor()
-            
-            # Get user IDs if available
-            white_user_id = g.get("white_user_id")
-            black_user_id = g.get("black_user_id")
-            
-            # Insert game
-            cur.execute("""
-                INSERT INTO games 
-                (room_name, white_player, black_player, white_user_id, black_user_id,
-                 winner, win_reason, start_time, end_time, time_control, game_mode) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-            """, (
-                room, 
-                g["white_player"], 
-                g["black_player"],
-                white_user_id,
-                black_user_id,
-                g["winner"], 
-                win_reason, 
-                start_time, 
-                end_time,
-                int(g.get("whiteTime", 300)),
-                g.get("game_mode", "friend")
-            ))
-            
-            game_id = cur.fetchone()[0]
-            
-            # Save moves if available
-            if "move_history" in g and g["move_history"]:
-                for idx, move_data in enumerate(g["move_history"]):
-                    cur.execute("""
-                        INSERT INTO game_moves 
-                        (game_id, move_number, move_notation, from_square, to_square,
-                         time_remaining_white, time_remaining_black, position_fen)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (
-                        game_id,
-                        idx + 1,
-                        move_data.get("notation", ""),
-                        move_data.get("from_square", ""),
-                        move_data.get("to_square", ""),
-                        move_data.get("white_time", 0),
-                        move_data.get("black_time", 0),
-                        move_data.get("fen", "")
-                    ))
-            
-            # Update user stats if users are linked
-            if white_user_id:
-                update_user_stats(cur, white_user_id, g["winner"], "white")
-            if black_user_id:
-                update_user_stats(cur, black_user_id, g["winner"], "black")
-            
-            conn.commit()
-            cur.close()
-            print(f"✅ Game {room} saved to DB with ID {game_id}.")
-            return True
-        except Exception as e:
-            print(f"❌ Save game error: {e}")
-            conn.rollback()
-        finally: release_db_conn(conn)
-    return False
-
-def update_user_stats(cur, user_id, winner, player_color):
-    """Update user statistics after game."""
-    try:
-        # Determine result
-        if winner == "draw":
-            cur.execute("""
-                UPDATE users 
-                SET games_played = games_played + 1,
-                    games_drawn = games_drawn + 1
-                WHERE id = %s
-            """, (user_id,))
-        elif winner == player_color:
-            # Won
-            cur.execute("""
-                UPDATE users 
-                SET games_played = games_played + 1,
-                    games_won = games_won + 1,
-                    elo_rating = elo_rating + 25
-                WHERE id = %s
-            """, (user_id,))
-        else:
-            # Lost
-            cur.execute("""
-                UPDATE users 
-                SET games_played = games_played + 1,
-                    games_lost = games_lost + 1,
-                    elo_rating = GREATEST(elo_rating - 20, 100)
-                WHERE id = %s
-            """, (user_id,))
-    except Exception as e:
-        print(f"Error updating user stats: {e}")
-
-# ===== AUTHENTICATION FUNCTIONS =====
-
-def get_user_by_id(user_id):
-    """Get user by ID."""
-    conn = get_db_conn()
-    if not conn:
-        return None
-    
-    try:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("""
-            SELECT id, username, email, display_name, elo_rating, 
-                   games_played, games_won, games_drawn, games_lost 
-            FROM users WHERE id = %s
+            SELECT id, username, email, password_hash, display_name,
+                   elo_rating, games_played, games_won, games_drawn, games_lost,
+                   created_at, last_login
+            FROM users WHERE id = ?
         """, (user_id,))
-        user = cur.fetchone()
-        cur.close()
-        return dict(user) if user else None
-    except Exception as e:
-        print(f"Error fetching user: {e}")
+
+        row = cur.fetchone()
+        if row:
+            return dict(row)
         return None
-    finally:
-        release_db_conn(conn)
+    except Exception as e:
+        print(f"Error getting user by id: {e}")
+        return None
 
 def get_user_by_username(username):
-    """Get user by username (for login)."""
+    """Get user by username"""
     conn = get_db_conn()
-    if not conn:
-        return None
-    
     try:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur = conn.cursor()
         cur.execute("""
-            SELECT id, username, email, password_hash, display_name, elo_rating, 
-                   games_played, games_won, games_drawn, games_lost
-            FROM users 
-            WHERE username = %s OR email = %s
-        """, (username, username))
-        user = cur.fetchone()
-        cur.close()
-        return dict(user) if user else None
-    except Exception as e:
-        print(f"Error fetching user: {e}")
-        return None
-    finally:
-        release_db_conn(conn)
+            SELECT id, username, email, password_hash, display_name,
+                   elo_rating, games_played, games_won, games_drawn, games_lost,
+                   created_at, last_login
+            FROM users WHERE username = ?
+        """, (username,))
 
-def create_user(username, email, password_hash, display_name):
-    """Create new user."""
-    conn = get_db_conn()
-    if not conn:
+        row = cur.fetchone()
+        if row:
+            return dict(row)
         return None
-    
+    except Exception as e:
+        print(f"Error getting user by username: {e}")
+        return None
+
+def create_user(username, email, password_hash, display_name=None):
+    """Create a new user"""
+    conn = get_db_conn()
     try:
         cur = conn.cursor()
         cur.execute("""
             INSERT INTO users (username, email, password_hash, display_name)
-            VALUES (%s, %s, %s, %s)
-            RETURNING id
-        """, (username, email, password_hash, display_name))
-        user_id = cur.fetchone()[0]
+            VALUES (?, ?, ?, ?)
+        """, (username, email, password_hash, display_name or username))
+
+        user_id = cur.lastrowid
         conn.commit()
-        cur.close()
         return user_id
     except Exception as e:
         print(f"Error creating user: {e}")
         conn.rollback()
         return None
-    finally:
-        release_db_conn(conn)
 
 def update_last_login(user_id):
-    """Update user's last login timestamp."""
+    """Update user's last login time"""
     conn = get_db_conn()
-    if not conn:
-        return
-    
     try:
         cur = conn.cursor()
-        cur.execute("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = %s", (user_id,))
+        cur.execute("""
+            UPDATE users SET last_login = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (user_id,))
         conn.commit()
-        cur.close()
     except Exception as e:
         print(f"Error updating last login: {e}")
         conn.rollback()
-    finally:
-        release_db_conn(conn)
 
 def get_user_profile(username):
-    """Get public user profile."""
-    conn = get_db_conn()
-    if not conn:
-        return None
-    
-    try:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("""
-            SELECT username, display_name, elo_rating, games_played, 
-                   games_won, games_drawn, games_lost, created_at
-            FROM users 
-            WHERE username = %s
-        """, (username,))
-        user = cur.fetchone()
-        cur.close()
-        return dict(user) if user else None
-    except Exception as e:
-        print(f"Error fetching profile: {e}")
-        return None
-    finally:
-        release_db_conn(conn)
+    """Get user profile information"""
+    return get_user_by_username(username)
 
-def get_user_games(username):
-    """Get user's game history."""
+def get_user_by_email(email):
+    """Get user by email address"""
     conn = get_db_conn()
-    if not conn:
-        return []
-    
     try:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        # Get user ID
-        cur.execute("SELECT id FROM users WHERE username = %s", (username,))
-        user_result = cur.fetchone()
-        if not user_result:
-            cur.close()
-            return []
-        
-        user_id = user_result['id']
-        
-        # Get games
+        cur = conn.cursor()
         cur.execute("""
-            SELECT g.id, g.room_name, g.white_player, g.black_player, 
-                   g.winner, g.win_reason, g.start_time, g.end_time,
-                   g.time_control, g.game_mode,
-                   w.username as white_username, b.username as black_username
-            FROM games g
-            LEFT JOIN users w ON g.white_user_id = w.id
-            LEFT JOIN users b ON g.black_user_id = b.id
-            WHERE g.white_user_id = %s OR g.black_user_id = %s
-            ORDER BY g.end_time DESC
-            LIMIT 50
-        """, (user_id, user_id))
-        
-        games = cur.fetchall()
-        cur.close()
-        return [dict(g) for g in games]
-    except Exception as e:
-        print(f"Error fetching games: {e}")
-        return []
-    finally:
-        release_db_conn(conn)
+            SELECT id, username, email, password_hash, display_name,
+                   elo_rating, games_played, games_won, games_drawn, games_lost,
+                   created_at, last_login
+            FROM users WHERE email = ?
+        """, (email.lower(),))
 
-def get_game_replay(game_id):
-    """Get game info and moves for replay."""
-    conn = get_db_conn()
-    if not conn:
+        row = cur.fetchone()
+        if row:
+            return dict(row)
         return None
-    
+    except Exception as e:
+        print(f"Error getting user by email: {e}")
+        return None
+
+def update_user_password(user_id, new_password_hash):
+    """Update user's password"""
+    conn = get_db_conn()
     try:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        # Get game info
+        cur = conn.cursor()
         cur.execute("""
-            SELECT g.*, w.username as white_username, b.username as black_username
-            FROM games g
-            LEFT JOIN users w ON g.white_user_id = w.id
-            LEFT JOIN users b ON g.black_user_id = b.id
-            WHERE g.id = %s
-        """, (game_id,))
-        
-        game = cur.fetchone()
-        if not game:
-            cur.close()
+            UPDATE users SET password_hash = ?
+            WHERE id = ?
+        """, (new_password_hash, user_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error updating password: {e}")
+        conn.rollback()
+        return False
+
+def create_reset_code(user_id, email, code, expires_at):
+    """Create a password reset code"""
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor()
+        # Invalidate any existing unused codes for this user
+        cur.execute("""
+            UPDATE password_reset_codes SET used = 1
+            WHERE user_id = ? AND used = 0
+        """, (user_id,))
+
+        # Create new code
+        cur.execute("""
+            INSERT INTO password_reset_codes (user_id, email, code, expires_at)
+            VALUES (?, ?, ?, ?)
+        """, (user_id, email.lower(), code, expires_at))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error creating reset code: {e}")
+        conn.rollback()
+        return False
+
+def verify_reset_code(email, code):
+    """Verify a password reset code and return user_id if valid"""
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT user_id, expires_at FROM password_reset_codes
+            WHERE email = ? AND code = ? AND used = 0
+            ORDER BY created_at DESC
+            LIMIT 1
+        """, (email.lower(), code))
+
+        row = cur.fetchone()
+        if not row:
             return None
-        
-        # Get moves
+
+        # Check if code has expired
+        expires_at = datetime.strptime(row['expires_at'], '%Y-%m-%d %H:%M:%S')
+        if datetime.utcnow() > expires_at:
+            return None
+
+        return row['user_id']
+    except Exception as e:
+        print(f"Error verifying reset code: {e}")
+        return None
+
+def mark_reset_code_used(email, code):
+    """Mark a reset code as used"""
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor()
         cur.execute("""
-            SELECT move_number, move_notation, from_square, to_square, 
-                   piece, captured_piece, time_remaining_white, 
-                   time_remaining_black, position_fen, timestamp
-            FROM game_moves
-            WHERE game_id = %s
-            ORDER BY move_number
-        """, (game_id,))
-        
-        moves = cur.fetchall()
-        cur.close()
-        
+            UPDATE password_reset_codes SET used = 1
+            WHERE email = ? AND code = ?
+        """, (email.lower(), code))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error marking reset code as used: {e}")
+        conn.rollback()
+        return False
+
+# ===== EMAIL VERIFICATION FUNCTIONS =====
+
+def create_verification_code(email, username, password_hash, display_name, code, expires_at):
+    """Create an email verification code for registration"""
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor()
+        # Remove any existing unverified codes for this email
+        cur.execute("""
+            DELETE FROM email_verification_codes
+            WHERE email = ? AND verified = 0
+        """, (email.lower(),))
+
+        # Create new verification code
+        cur.execute("""
+            INSERT INTO email_verification_codes (email, username, password_hash, display_name, code, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (email.lower(), username, password_hash, display_name, code, expires_at))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error creating verification code: {e}")
+        conn.rollback()
+        return False
+
+def verify_email_code(email, code):
+    """Verify email code and return registration data if valid"""
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT username, password_hash, display_name, expires_at
+            FROM email_verification_codes
+            WHERE email = ? AND code = ? AND verified = 0
+            ORDER BY created_at DESC
+            LIMIT 1
+        """, (email.lower(), code))
+
+        row = cur.fetchone()
+        if not row:
+            return None
+
+        # Check if code has expired
+        expires_at = datetime.strptime(row['expires_at'], '%Y-%m-%d %H:%M:%S')
+        if datetime.utcnow() > expires_at:
+            return None
+
         return {
-            'game': dict(game),
-            'moves': [dict(m) for m in moves]
+            'username': row['username'],
+            'password_hash': row['password_hash'],
+            'display_name': row['display_name']
         }
     except Exception as e:
-        print(f"Error fetching replay: {e}")
+        print(f"Error verifying email code: {e}")
         return None
-    finally:
-        release_db_conn(conn)
+
+def mark_email_verified(email, code):
+    """Mark email verification code as verified"""
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE email_verification_codes SET verified = 1
+            WHERE email = ? AND code = ?
+        """, (email.lower(), code))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error marking email as verified: {e}")
+        conn.rollback()
+        return False
+
+def check_username_exists(username):
+    """Check if username already exists"""
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM users WHERE username = ?", (username,))
+        return cur.fetchone() is not None
+    except Exception as e:
+        print(f"Error checking username: {e}")
+        return False
+
+def check_email_exists(email):
+    """Check if email already exists"""
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM users WHERE email = ?", (email.lower(),))
+        return cur.fetchone() is not None
+    except Exception as e:
+        print(f"Error checking email: {e}")
+        return False
+
+# ===== GAME FUNCTIONS =====
+
+def save_game_record(room, game_data, start_time, end_time, win_reason):
+    """Save a completed game to database"""
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor()
+
+        # Extract game data
+        white_player = game_data.get('white_player', 'Unknown')
+        black_player = game_data.get('black_player', 'Unknown')
+        white_user_id = game_data.get('white_user_id')
+        black_user_id = game_data.get('black_user_id')
+        winner = game_data.get('winner')
+        game_mode = game_data.get('game_mode', 'friend')
+        time_control = int(game_data.get('whiteTime', 300))
+        move_history = game_data.get('move_history', [])
+
+        # Insert game record
+        cur.execute("""
+            INSERT INTO games (
+                room_code, white_player, black_player,
+                white_user_id, black_user_id, winner, win_reason,
+                game_mode, time_control, start_time, end_time, move_count
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            room, white_player, black_player,
+            white_user_id, black_user_id, winner, win_reason,
+            game_mode, time_control, start_time, end_time, len(move_history)
+        ))
+
+        game_id = cur.lastrowid
+
+        # Save move history for replay
+        for i, move in enumerate(move_history):
+            cur.execute("""
+                INSERT INTO game_moves (
+                    game_id, move_number, move_notation, from_square, to_square,
+                    position_fen, white_time_remaining, black_time_remaining
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                game_id, i + 1, move.get('notation', ''),
+                move.get('from_square', ''), move.get('to_square', ''),
+                move.get('fen', ''),
+                move.get('white_time', 0), move.get('black_time', 0)
+            ))
+
+        # Update user statistics
+        if white_user_id:
+            update_user_stats(cur, white_user_id, winner, 'white')
+        if black_user_id:
+            update_user_stats(cur, black_user_id, winner, 'black')
+
+        conn.commit()
+        print(f"✅ Game {room} saved to database (ID: {game_id})")
+        return True
+
+    except Exception as e:
+        print(f"❌ Error saving game: {e}")
+        conn.rollback()
+        return False
+
+def update_user_stats(cur, user_id, winner, player_color):
+    """Update user statistics after game"""
+    if winner == 'draw':
+        cur.execute("""
+            UPDATE users
+            SET games_played = games_played + 1,
+                games_drawn = games_drawn + 1
+            WHERE id = ?
+        """, (user_id,))
+    elif winner == player_color:
+        # Player won
+        cur.execute("""
+            UPDATE users
+            SET games_played = games_played + 1,
+                games_won = games_won + 1,
+                elo_rating = elo_rating + 20
+            WHERE id = ?
+        """, (user_id,))
+    else:
+        # Player lost
+        cur.execute("""
+            UPDATE users
+            SET games_played = games_played + 1,
+                games_lost = games_lost + 1,
+                elo_rating = MAX(elo_rating - 15, 800)
+            WHERE id = ?
+        """, (user_id,))
+
+def get_user_games(username):
+    """Get game history for a user"""
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor()
+
+        # Get user ID
+        user = get_user_by_username(username)
+        if not user:
+            return None
+
+        user_id = user['id']
+
+        # Get games
+        cur.execute("""
+            SELECT id, room_code, white_player, black_player,
+                   winner, win_reason, game_mode, time_control,
+                   start_time, end_time, move_count,
+                   white_user_id, black_user_id
+            FROM games
+            WHERE white_user_id = ? OR black_user_id = ?
+            ORDER BY end_time DESC
+            LIMIT 50
+        """, (user_id, user_id))
+
+        games = []
+        for row in cur.fetchall():
+            row_dict = dict(row)
+            games.append({
+                'id': row_dict['id'],
+                'room_code': row_dict['room_code'],
+                'white_player': row_dict['white_player'],
+                'black_player': row_dict['black_player'],
+                'winner': row_dict['winner'],
+                'win_reason': row_dict['win_reason'],
+                'game_mode': row_dict['game_mode'],
+                'time_control': row_dict['time_control'],
+                'start_time': row_dict['start_time'],
+                'end_time': row_dict['end_time'],
+                'move_count': row_dict['move_count'],
+                'white_username': username if row_dict['white_user_id'] == user_id else 'Opponent',
+                'black_username': username if row_dict['black_user_id'] == user_id else 'Opponent'
+            })
+
+        return games
+
+    except Exception as e:
+        print(f"Error getting user games: {e}")
+        return []
+
+def get_game_replay(game_id):
+    """Get game replay data including all moves"""
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor()
+
+        # Get game info
+        cur.execute("""
+            SELECT room_code, white_player, black_player, winner, win_reason,
+                   game_mode, time_control, start_time, end_time
+            FROM games WHERE id = ?
+        """, (game_id,))
+
+        game_row = cur.fetchone()
+        if not game_row:
+            return None
+
+        game_dict = dict(game_row)
+
+        # Get moves
+        cur.execute("""
+            SELECT move_number, move_notation, from_square, to_square,
+                   position_fen, white_time_remaining, black_time_remaining
+            FROM game_moves
+            WHERE game_id = ?
+            ORDER BY move_number
+        """, (game_id,))
+
+        moves = []
+        for row in cur.fetchall():
+            row_dict = dict(row)
+            moves.append({
+                'move_number': row_dict['move_number'],
+                'move_notation': row_dict['move_notation'],
+                'from_square': row_dict['from_square'],
+                'to_square': row_dict['to_square'],
+                'position_fen': row_dict['position_fen'],
+                'white_time': row_dict['white_time_remaining'],
+                'black_time': row_dict['black_time_remaining']
+            })
+
+        return {
+            'game': {
+                'id': game_id,
+                'room_code': game_dict['room_code'],
+                'white_player': game_dict['white_player'],
+                'black_player': game_dict['black_player'],
+                'winner': game_dict['winner'],
+                'win_reason': game_dict['win_reason'],
+                'game_mode': game_dict['game_mode'],
+                'time_control': game_dict['time_control'],
+                'start_time': game_dict['start_time'],
+                'end_time': game_dict['end_time']
+            },
+            'moves': moves
+        }
+
+    except Exception as e:
+        print(f"Error getting game replay: {e}")
+        return None
+
+def get_leaderboard_data(limit=10):
+    """Get top players by ELO rating"""
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT username, display_name, elo_rating,
+                   games_played, games_won, games_drawn, games_lost
+            FROM users
+            WHERE games_played > 0
+            ORDER BY elo_rating DESC
+            LIMIT ?
+        """, (limit,))
+
+        leaderboard = []
+        for row in cur.fetchall():
+            row_dict = dict(row)
+            leaderboard.append({
+                'username': row_dict['username'],
+                'display_name': row_dict['display_name'],
+                'elo_rating': row_dict['elo_rating'],
+                'games_played': row_dict['games_played'],
+                'games_won': row_dict['games_won'],
+                'games_drawn': row_dict['games_drawn'],
+                'games_lost': row_dict['games_lost']
+            })
+
+        return leaderboard
+
+    except Exception as e:
+        print(f"Error getting leaderboard: {e}")
+        return []
