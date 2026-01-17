@@ -39,14 +39,71 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 # ===== EMAIL CONFIGURATION =====
-# Gmail SMTP with App Password
+# Gmail SMTP with App Password - Using SSL (port 465) for better cloud compatibility
 EMAIL_CONFIG = {
     'smtp_server': 'smtp.gmail.com',
-    'smtp_port': 587,
+    'smtp_port': 465,  # SSL port (more reliable on cloud platforms like Railway)
+    'smtp_port_tls': 587,  # TLS port (fallback)
     'sender_email': 'ssswapnil250@gmail.com',
     'sender_password': 'ezsg fmaq opio spdh',
-    'enabled': True
+    'enabled': True,
+    'timeout': 10  # 10 second timeout
 }
+
+def _send_email_worker(to_email, subject, text_content, html_content):
+    """Background worker to send email - prevents blocking the main thread"""
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = EMAIL_CONFIG['sender_email']
+        msg['To'] = to_email
+
+        msg.attach(MIMEText(text_content, 'plain'))
+        msg.attach(MIMEText(html_content, 'html'))
+
+        # Try SSL first (port 465) - more reliable on cloud platforms
+        try:
+            import ssl
+            context = ssl.create_default_context()
+            with smtplib.SMTP_SSL(
+                EMAIL_CONFIG['smtp_server'],
+                EMAIL_CONFIG['smtp_port'],
+                context=context,
+                timeout=EMAIL_CONFIG['timeout']
+            ) as server:
+                server.login(EMAIL_CONFIG['sender_email'], EMAIL_CONFIG['sender_password'])
+                server.sendmail(EMAIL_CONFIG['sender_email'], to_email, msg.as_string())
+            print(f"✅ Email sent to {to_email} (SSL)")
+            return True
+        except Exception as ssl_error:
+            print(f"⚠️ SSL failed: {ssl_error}, trying TLS...")
+
+            # Fallback to TLS (port 587)
+            with smtplib.SMTP(
+                EMAIL_CONFIG['smtp_server'],
+                EMAIL_CONFIG['smtp_port_tls'],
+                timeout=EMAIL_CONFIG['timeout']
+            ) as server:
+                server.starttls()
+                server.login(EMAIL_CONFIG['sender_email'], EMAIL_CONFIG['sender_password'])
+                server.sendmail(EMAIL_CONFIG['sender_email'], to_email, msg.as_string())
+            print(f"✅ Email sent to {to_email} (TLS)")
+            return True
+
+    except Exception as e:
+        print(f"❌ Failed to send email to {to_email}: {e}")
+        return False
+
+def send_email_async(to_email, subject, text_content, html_content):
+    """Send email in background thread to avoid blocking API response"""
+    email_thread = threading.Thread(
+        target=_send_email_worker,
+        args=(to_email, subject, text_content, html_content),
+        daemon=True
+    )
+    email_thread.start()
+    print(f"📧 Email queued for {to_email}")
+    return True
 
 def send_reset_code_email(to_email, username, code):
     """Send password reset code via email"""
@@ -54,14 +111,9 @@ def send_reset_code_email(to_email, username, code):
         print(f"📧 [DEV MODE] Reset code for {username}: {code}")
         return True
 
-    try:
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = '🔑 Chess Master - Password Reset Code'
-        msg['From'] = EMAIL_CONFIG['sender_email']
-        msg['To'] = to_email
+    subject = 'Chess Master - Password Reset Code'
 
-        # Plain text version
-        text = f"""
+    text = f"""
 Chess Master - Password Reset
 
 Hi {username},
@@ -75,46 +127,30 @@ This code will expire in 15 minutes.
 If you didn't request this, please ignore this email.
 
 - Chess Master Team
-        """
+    """
 
-        # HTML version
-        html = f"""
-        <html>
-        <body style="font-family: Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px;">
-            <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 20px; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
-                <h1 style="text-align: center; color: #667eea;">♔ Chess Master ♚</h1>
-                <h2 style="text-align: center; color: #333;">Password Reset</h2>
-                <p style="color: #666;">Hi <strong>{username}</strong>,</p>
-                <p style="color: #666;">You requested a password reset for your Chess Master account.</p>
-                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0;">
-                    <p style="color: white; margin: 0; font-size: 14px;">Your reset code is:</p>
-                    <h1 style="color: white; margin: 10px 0; letter-spacing: 8px; font-size: 32px;">{code}</h1>
-                </div>
-                <p style="color: #999; font-size: 12px; text-align: center;">This code will expire in 15 minutes.</p>
-                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                <p style="color: #999; font-size: 11px; text-align: center;">If you didn't request this, please ignore this email.</p>
+    html = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px;">
+        <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 20px; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+            <h1 style="text-align: center; color: #667eea;">Chess Master</h1>
+            <h2 style="text-align: center; color: #333;">Password Reset</h2>
+            <p style="color: #666;">Hi <strong>{username}</strong>,</p>
+            <p style="color: #666;">You requested a password reset for your Chess Master account.</p>
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0;">
+                <p style="color: white; margin: 0; font-size: 14px;">Your reset code is:</p>
+                <h1 style="color: white; margin: 10px 0; letter-spacing: 8px; font-size: 32px;">{code}</h1>
             </div>
-        </body>
-        </html>
-        """
+            <p style="color: #999; font-size: 12px; text-align: center;">This code will expire in 15 minutes.</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+            <p style="color: #999; font-size: 11px; text-align: center;">If you didn't request this, please ignore this email.</p>
+        </div>
+    </body>
+    </html>
+    """
 
-        msg.attach(MIMEText(text, 'plain'))
-        msg.attach(MIMEText(html, 'html'))
-
-        # Send email
-        with smtplib.SMTP(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port']) as server:
-            server.starttls()
-            server.login(EMAIL_CONFIG['sender_email'], EMAIL_CONFIG['sender_password'])
-            server.sendmail(EMAIL_CONFIG['sender_email'], to_email, msg.as_string())
-
-        print(f"✅ Reset code email sent to {to_email}")
-        return True
-
-    except Exception as e:
-        print(f"❌ Failed to send email: {e}")
-        # Fall back to console output for development
-        print(f"📧 [FALLBACK] Reset code for {username}: {code}")
-        return True  # Return True so reset flow continues
+    # Send asynchronously to avoid blocking
+    return send_email_async(to_email, subject, text, html)
 
 def generate_reset_code():
     """Generate a 6-digit reset code"""
@@ -126,14 +162,9 @@ def send_verification_code_email(to_email, username, code):
         print(f"📧 [DEV MODE] Verification code for {username}: {code}")
         return True
 
-    try:
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = '🎮 Chess Master - Verify Your Email'
-        msg['From'] = EMAIL_CONFIG['sender_email']
-        msg['To'] = to_email
+    subject = 'Chess Master - Verify Your Email'
 
-        # Plain text version
-        text = f"""
+    text = f"""
 Chess Master - Email Verification
 
 Hi {username},
@@ -147,45 +178,29 @@ This code will expire in 15 minutes.
 If you didn't create this account, please ignore this email.
 
 - Chess Master Team
-        """
+    """
 
-        # HTML version
-        html = f"""
-        <html>
-        <body style="font-family: Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px;">
-            <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 20px; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
-                <h1 style="text-align: center; color: #667eea;">♔ Chess Master ♚</h1>
-                <h2 style="text-align: center; color: #333;">Welcome, {username}!</h2>
-                <p style="color: #666;">Please verify your email to complete your registration.</p>
-                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0;">
-                    <p style="color: white; margin: 0; font-size: 14px;">Your verification code is:</p>
-                    <h1 style="color: white; margin: 10px 0; letter-spacing: 8px; font-size: 32px;">{code}</h1>
-                </div>
-                <p style="color: #999; font-size: 12px; text-align: center;">This code will expire in 15 minutes.</p>
-                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                <p style="color: #999; font-size: 11px; text-align: center;">If you didn't create this account, please ignore this email.</p>
+    html = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px;">
+        <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 20px; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+            <h1 style="text-align: center; color: #667eea;">Chess Master</h1>
+            <h2 style="text-align: center; color: #333;">Welcome, {username}!</h2>
+            <p style="color: #666;">Please verify your email to complete your registration.</p>
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0;">
+                <p style="color: white; margin: 0; font-size: 14px;">Your verification code is:</p>
+                <h1 style="color: white; margin: 10px 0; letter-spacing: 8px; font-size: 32px;">{code}</h1>
             </div>
-        </body>
-        </html>
-        """
+            <p style="color: #999; font-size: 12px; text-align: center;">This code will expire in 15 minutes.</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+            <p style="color: #999; font-size: 11px; text-align: center;">If you didn't create this account, please ignore this email.</p>
+        </div>
+    </body>
+    </html>
+    """
 
-        msg.attach(MIMEText(text, 'plain'))
-        msg.attach(MIMEText(html, 'html'))
-
-        # Send email
-        with smtplib.SMTP(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port']) as server:
-            server.starttls()
-            server.login(EMAIL_CONFIG['sender_email'], EMAIL_CONFIG['sender_password'])
-            server.sendmail(EMAIL_CONFIG['sender_email'], to_email, msg.as_string())
-
-        print(f"✅ Verification code email sent to {to_email}")
-        return True
-
-    except Exception as e:
-        print(f"❌ Failed to send email: {e}")
-        # Fall back to console output for development
-        print(f"📧 [FALLBACK] Verification code for {username}: {code}")
-        return True  # Return True so registration flow continues
+    # Send asynchronously to avoid blocking
+    return send_email_async(to_email, subject, text, html)
 
 # ===== AUTHENTICATION HELPERS =====
 def hash_password(password):
