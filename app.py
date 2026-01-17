@@ -7,7 +7,7 @@ import random
 import secrets
 import threading
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import shutil
 import hashlib
 import hmac
@@ -18,10 +18,17 @@ from database import (
     init_db_pool, get_db_conn, release_db_conn,
     increment_visitor_count, get_total_visitor_count,
     get_leaderboard_data, save_game_record,
-    get_user_by_id, get_user_by_username, create_user,
-    update_last_login, get_user_profile, get_user_games,
-    get_game_replay
+    get_user_by_id, get_user_by_username, get_user_by_email, create_user,
+    update_last_login, update_user_password, get_user_profile, get_user_games,
+    get_game_replay, create_reset_code, verify_reset_code, mark_reset_code_used,
+    create_verification_code, verify_email_code, mark_email_verified,
+    check_username_exists, check_email_exists
 )
+
+# Email imports
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # ===== FLASK APP =====
 app = Flask(__name__)
@@ -30,6 +37,155 @@ app.config["SESSION_COOKIE_SECURE"] = False  # Set to True in production with HT
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+
+# ===== EMAIL CONFIGURATION =====
+# Gmail SMTP with App Password
+EMAIL_CONFIG = {
+    'smtp_server': 'smtp.gmail.com',
+    'smtp_port': 587,
+    'sender_email': 'ssswapnil250@gmail.com',
+    'sender_password': 'ezsg fmaq opio spdh',
+    'enabled': True
+}
+
+def send_reset_code_email(to_email, username, code):
+    """Send password reset code via email"""
+    if not EMAIL_CONFIG['enabled']:
+        print(f"📧 [DEV MODE] Reset code for {username}: {code}")
+        return True
+
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = '🔑 Chess Master - Password Reset Code'
+        msg['From'] = EMAIL_CONFIG['sender_email']
+        msg['To'] = to_email
+
+        # Plain text version
+        text = f"""
+Chess Master - Password Reset
+
+Hi {username},
+
+You requested a password reset for your Chess Master account.
+
+Your reset code is: {code}
+
+This code will expire in 15 minutes.
+
+If you didn't request this, please ignore this email.
+
+- Chess Master Team
+        """
+
+        # HTML version
+        html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px;">
+            <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 20px; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+                <h1 style="text-align: center; color: #667eea;">♔ Chess Master ♚</h1>
+                <h2 style="text-align: center; color: #333;">Password Reset</h2>
+                <p style="color: #666;">Hi <strong>{username}</strong>,</p>
+                <p style="color: #666;">You requested a password reset for your Chess Master account.</p>
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0;">
+                    <p style="color: white; margin: 0; font-size: 14px;">Your reset code is:</p>
+                    <h1 style="color: white; margin: 10px 0; letter-spacing: 8px; font-size: 32px;">{code}</h1>
+                </div>
+                <p style="color: #999; font-size: 12px; text-align: center;">This code will expire in 15 minutes.</p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="color: #999; font-size: 11px; text-align: center;">If you didn't request this, please ignore this email.</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        msg.attach(MIMEText(text, 'plain'))
+        msg.attach(MIMEText(html, 'html'))
+
+        # Send email
+        with smtplib.SMTP(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port']) as server:
+            server.starttls()
+            server.login(EMAIL_CONFIG['sender_email'], EMAIL_CONFIG['sender_password'])
+            server.sendmail(EMAIL_CONFIG['sender_email'], to_email, msg.as_string())
+
+        print(f"✅ Reset code email sent to {to_email}")
+        return True
+
+    except Exception as e:
+        print(f"❌ Failed to send email: {e}")
+        # Fall back to console output for development
+        print(f"📧 [FALLBACK] Reset code for {username}: {code}")
+        return True  # Return True so reset flow continues
+
+def generate_reset_code():
+    """Generate a 6-digit reset code"""
+    return ''.join([str(random.randint(0, 9)) for _ in range(6)])
+
+def send_verification_code_email(to_email, username, code):
+    """Send email verification code for registration"""
+    if not EMAIL_CONFIG['enabled']:
+        print(f"📧 [DEV MODE] Verification code for {username}: {code}")
+        return True
+
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = '🎮 Chess Master - Verify Your Email'
+        msg['From'] = EMAIL_CONFIG['sender_email']
+        msg['To'] = to_email
+
+        # Plain text version
+        text = f"""
+Chess Master - Email Verification
+
+Hi {username},
+
+Welcome to Chess Master! Please verify your email to complete registration.
+
+Your verification code is: {code}
+
+This code will expire in 15 minutes.
+
+If you didn't create this account, please ignore this email.
+
+- Chess Master Team
+        """
+
+        # HTML version
+        html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px;">
+            <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 20px; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+                <h1 style="text-align: center; color: #667eea;">♔ Chess Master ♚</h1>
+                <h2 style="text-align: center; color: #333;">Welcome, {username}!</h2>
+                <p style="color: #666;">Please verify your email to complete your registration.</p>
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0;">
+                    <p style="color: white; margin: 0; font-size: 14px;">Your verification code is:</p>
+                    <h1 style="color: white; margin: 10px 0; letter-spacing: 8px; font-size: 32px;">{code}</h1>
+                </div>
+                <p style="color: #999; font-size: 12px; text-align: center;">This code will expire in 15 minutes.</p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="color: #999; font-size: 11px; text-align: center;">If you didn't create this account, please ignore this email.</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        msg.attach(MIMEText(text, 'plain'))
+        msg.attach(MIMEText(html, 'html'))
+
+        # Send email
+        with smtplib.SMTP(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port']) as server:
+            server.starttls()
+            server.login(EMAIL_CONFIG['sender_email'], EMAIL_CONFIG['sender_password'])
+            server.sendmail(EMAIL_CONFIG['sender_email'], to_email, msg.as_string())
+
+        print(f"✅ Verification code email sent to {to_email}")
+        return True
+
+    except Exception as e:
+        print(f"❌ Failed to send email: {e}")
+        # Fall back to console output for development
+        print(f"📧 [FALLBACK] Verification code for {username}: {code}")
+        return True  # Return True so registration flow continues
 
 # ===== AUTHENTICATION HELPERS =====
 def hash_password(password):
@@ -130,42 +286,124 @@ def active_games_api():
 
 @app.route('/api/auth/register', methods=['POST'])
 def register():
-    """Register a new user"""
+    """Step 1: Send verification code to email"""
     data = request.get_json()
     username = data.get('username', '').strip()
     email = data.get('email', '').strip().lower()
     password = data.get('password', '')
     display_name = data.get('displayName', username).strip()
-    
+
     if not username or not email or not password:
         return jsonify({'error': 'Missing required fields'}), 400
-    
+
     if len(username) < 3 or len(username) > 50:
         return jsonify({'error': 'Username must be 3-50 characters'}), 400
-    
+
     if len(password) < 6:
         return jsonify({'error': 'Password must be at least 6 characters'}), 400
-    
-    # Check if user exists
-    existing_user = get_user_by_username(username)
-    if existing_user:
-        return jsonify({'error': 'Username or email already exists'}), 409
-    
-    # Create user
+
+    # Check if username already exists
+    if check_username_exists(username):
+        return jsonify({'error': 'Username already exists'}), 409
+
+    # Check if email already exists
+    if check_email_exists(email):
+        return jsonify({'error': 'Email already registered'}), 409
+
+    # Generate verification code
+    code = generate_reset_code()
+    expires_at = (datetime.utcnow() + timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S')
+
+    # Store registration data with verification code
     password_hash = hash_password(password)
-    user_id = create_user(username, email, password_hash, display_name)
-    
+    if not create_verification_code(email, username, password_hash, display_name, code, expires_at):
+        return jsonify({'error': 'Failed to create verification code'}), 500
+
+    # Send verification email
+    send_verification_code_email(email, username, code)
+
+    return jsonify({
+        'message': 'Verification code sent to your email',
+        'email': email
+    }), 200
+
+@app.route('/api/auth/verify-registration', methods=['POST'])
+def verify_registration():
+    """Step 2: Verify code and create account"""
+    data = request.get_json()
+    email = data.get('email', '').strip().lower()
+    code = data.get('code', '').strip()
+
+    if not email or not code:
+        return jsonify({'error': 'Email and code are required'}), 400
+
+    # Verify code and get registration data
+    reg_data = verify_email_code(email, code)
+
+    if not reg_data:
+        return jsonify({'error': 'Invalid or expired code'}), 400
+
+    # Check again if username/email was taken in the meantime
+    if check_username_exists(reg_data['username']):
+        return jsonify({'error': 'Username already taken'}), 409
+
+    if check_email_exists(email):
+        return jsonify({'error': 'Email already registered'}), 409
+
+    # Create user
+    user_id = create_user(
+        reg_data['username'],
+        email,
+        reg_data['password_hash'],
+        reg_data['display_name']
+    )
+
     if not user_id:
         return jsonify({'error': 'Registration failed'}), 500
-    
+
+    # Mark verification code as used
+    mark_email_verified(email, code)
+
     # Log user in
     session['user_id'] = user_id
-    session['username'] = username
-    
+    session['username'] = reg_data['username']
+
     return jsonify({
         'message': 'Registration successful',
-        'user': {'id': user_id, 'username': username, 'displayName': display_name}
+        'user': {
+            'id': user_id,
+            'username': reg_data['username'],
+            'displayName': reg_data['display_name']
+        }
     }), 201
+
+@app.route('/api/auth/resend-verification', methods=['POST'])
+def resend_verification():
+    """Resend verification code"""
+    data = request.get_json()
+    email = data.get('email', '').strip().lower()
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+    display_name = data.get('displayName', username).strip()
+
+    if not email or not username or not password:
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    # Generate new code
+    code = generate_reset_code()
+    expires_at = (datetime.utcnow() + timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S')
+
+    # Store new verification code
+    password_hash = hash_password(password)
+    if not create_verification_code(email, username, password_hash, display_name, code, expires_at):
+        return jsonify({'error': 'Failed to create verification code'}), 500
+
+    # Send verification email
+    send_verification_code_email(email, username, code)
+
+    return jsonify({
+        'message': 'Verification code resent'
+    }), 200
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
@@ -217,6 +455,83 @@ def get_me():
     if not user:
         return jsonify({'error': 'Not authenticated'}), 401
     return jsonify({'user': user}), 200
+
+@app.route('/api/auth/forgot-username', methods=['POST'])
+def forgot_username():
+    """Find username by email and send reset code"""
+    data = request.get_json()
+    email = data.get('email', '').strip().lower()
+
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+
+    user = get_user_by_email(email)
+
+    if not user:
+        return jsonify({'error': 'No account found with this email'}), 404
+
+    # Generate and store reset code
+    code = generate_reset_code()
+    expires_at = (datetime.utcnow() + timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S')
+
+    if not create_reset_code(user['id'], email, code, expires_at):
+        return jsonify({'error': 'Failed to generate reset code'}), 500
+
+    # Send email with code
+    send_reset_code_email(email, user['username'], code)
+
+    return jsonify({
+        'message': 'Reset code sent to your email',
+        'username': user['username']
+    }), 200
+
+@app.route('/api/auth/verify-reset-code', methods=['POST'])
+def verify_code():
+    """Verify the reset code entered by user"""
+    data = request.get_json()
+    email = data.get('email', '').strip().lower()
+    code = data.get('code', '').strip()
+
+    if not email or not code:
+        return jsonify({'error': 'Email and code are required'}), 400
+
+    user_id = verify_reset_code(email, code)
+
+    if not user_id:
+        return jsonify({'error': 'Invalid or expired code'}), 400
+
+    return jsonify({'message': 'Code verified successfully'}), 200
+
+@app.route('/api/auth/reset-password', methods=['POST'])
+def reset_password():
+    """Reset password after code verification"""
+    data = request.get_json()
+    email = data.get('email', '').strip().lower()
+    code = data.get('code', '').strip()
+    new_password = data.get('newPassword', '')
+
+    if not email or not code or not new_password:
+        return jsonify({'error': 'Email, code, and new password are required'}), 400
+
+    if len(new_password) < 6:
+        return jsonify({'error': 'Password must be at least 6 characters'}), 400
+
+    # Verify code again
+    user_id = verify_reset_code(email, code)
+
+    if not user_id:
+        return jsonify({'error': 'Invalid or expired code'}), 400
+
+    # Update password
+    new_password_hash = hash_password(new_password)
+    success = update_user_password(user_id, new_password_hash)
+
+    if success:
+        # Mark code as used
+        mark_reset_code_used(email, code)
+        return jsonify({'message': 'Password reset successful'}), 200
+    else:
+        return jsonify({'error': 'Failed to reset password'}), 500
 
 @app.route('/api/user/<username>')
 def get_user_profile_api(username):
