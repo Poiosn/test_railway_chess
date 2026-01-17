@@ -27,6 +27,7 @@ from database import (
 
 # Email imports
 import smtplib
+import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -40,18 +41,21 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 # ===== EMAIL CONFIGURATION =====
 # Gmail SMTP with App Password - Using SSL (port 465) for better cloud compatibility
+# Uses environment variables if available (recommended for production)
 EMAIL_CONFIG = {
-    'smtp_server': 'smtp.gmail.com',
-    'smtp_port': 465,  # SSL port (more reliable on cloud platforms like Railway)
-    'smtp_port_tls': 587,  # TLS port (fallback)
-    'sender_email': 'ssswapnil250@gmail.com',
-    'sender_password': 'ezsg fmaq opio spdh',
-    'enabled': True,
-    'timeout': 10  # 10 second timeout
+    'smtp_server': os.environ.get('SMTP_SERVER', 'smtp.gmail.com'),
+    'smtp_port': int(os.environ.get('SMTP_PORT', 465)),  # SSL port (more reliable on cloud platforms like Railway)
+    'smtp_port_tls': int(os.environ.get('SMTP_PORT_TLS', 587)),  # TLS port (fallback)
+    'sender_email': os.environ.get('SENDER_EMAIL', 'ssswapnil250@gmail.com'),
+    'sender_password': os.environ.get('SENDER_PASSWORD', 'ezsg fmaq opio spdh'),
+    'enabled': os.environ.get('EMAIL_ENABLED', 'true').lower() == 'true',
+    'timeout': int(os.environ.get('EMAIL_TIMEOUT', 30))  # Increased to 30 seconds for Railway
 }
 
 def _send_email_worker(to_email, subject, text_content, html_content):
     """Background worker to send email - prevents blocking the main thread"""
+    print(f"📧 Starting email send to {to_email}...")
+
     try:
         msg = MIMEMultipart('alternative')
         msg['Subject'] = subject
@@ -63,7 +67,7 @@ def _send_email_worker(to_email, subject, text_content, html_content):
 
         # Try SSL first (port 465) - more reliable on cloud platforms
         try:
-            import ssl
+            print(f"📧 Attempting SSL connection to {EMAIL_CONFIG['smtp_server']}:{EMAIL_CONFIG['smtp_port']}...")
             context = ssl.create_default_context()
             with smtplib.SMTP_SSL(
                 EMAIL_CONFIG['smtp_server'],
@@ -71,27 +75,39 @@ def _send_email_worker(to_email, subject, text_content, html_content):
                 context=context,
                 timeout=EMAIL_CONFIG['timeout']
             ) as server:
+                print(f"📧 SSL connected, logging in...")
                 server.login(EMAIL_CONFIG['sender_email'], EMAIL_CONFIG['sender_password'])
+                print(f"📧 Logged in, sending email...")
                 server.sendmail(EMAIL_CONFIG['sender_email'], to_email, msg.as_string())
             print(f"✅ Email sent to {to_email} (SSL)")
             return True
         except Exception as ssl_error:
-            print(f"⚠️ SSL failed: {ssl_error}, trying TLS...")
+            print(f"⚠️ SSL failed: {type(ssl_error).__name__}: {ssl_error}")
+            print(f"📧 Trying TLS on port {EMAIL_CONFIG['smtp_port_tls']}...")
 
             # Fallback to TLS (port 587)
-            with smtplib.SMTP(
-                EMAIL_CONFIG['smtp_server'],
-                EMAIL_CONFIG['smtp_port_tls'],
-                timeout=EMAIL_CONFIG['timeout']
-            ) as server:
-                server.starttls()
-                server.login(EMAIL_CONFIG['sender_email'], EMAIL_CONFIG['sender_password'])
-                server.sendmail(EMAIL_CONFIG['sender_email'], to_email, msg.as_string())
-            print(f"✅ Email sent to {to_email} (TLS)")
-            return True
+            try:
+                with smtplib.SMTP(
+                    EMAIL_CONFIG['smtp_server'],
+                    EMAIL_CONFIG['smtp_port_tls'],
+                    timeout=EMAIL_CONFIG['timeout']
+                ) as server:
+                    print(f"📧 TLS connected, starting TLS...")
+                    server.starttls()
+                    print(f"📧 TLS started, logging in...")
+                    server.login(EMAIL_CONFIG['sender_email'], EMAIL_CONFIG['sender_password'])
+                    print(f"📧 Logged in, sending email...")
+                    server.sendmail(EMAIL_CONFIG['sender_email'], to_email, msg.as_string())
+                print(f"✅ Email sent to {to_email} (TLS)")
+                return True
+            except Exception as tls_error:
+                print(f"❌ TLS also failed: {type(tls_error).__name__}: {tls_error}")
+                raise tls_error
 
     except Exception as e:
-        print(f"❌ Failed to send email to {to_email}: {e}")
+        print(f"❌ Failed to send email to {to_email}: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def send_email_async(to_email, subject, text_content, html_content):
