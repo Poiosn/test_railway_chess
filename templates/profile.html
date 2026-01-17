@@ -578,6 +578,75 @@
       <p style="text-align:center; margin-top:20px;">
         Don't have an account? <a href="#" onclick="showSection('register'); return false;">Register</a>
       </p>
+      <p style="text-align:center; margin-top:10px;">
+        <a href="#" onclick="showSection('forgot'); return false;">Forgot Username or Password?</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- Forgot Password Section -->
+  <div id="forgotSection" class="section">
+    <div class="auth-container">
+      <h2 style="text-align:center; margin-bottom:20px;">🔑 Account Recovery</h2>
+      <div id="forgotError" class="error-message"></div>
+      <div id="forgotSuccess" class="success-message"></div>
+
+      <!-- Step 1: Enter Email -->
+      <div id="forgotStep1">
+        <p style="text-align:center; color:#666; margin-bottom:20px;">Enter your email to receive a reset code</p>
+        <form onsubmit="handleForgotUsername(event)">
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" id="forgotEmail" required />
+          </div>
+          <button type="submit" class="btn-primary" id="sendCodeBtn">📧 Send Reset Code</button>
+        </form>
+      </div>
+
+      <!-- Step 2: Enter Verification Code -->
+      <div id="forgotStep2" style="display:none;">
+        <p style="text-align:center; color:#666; margin-bottom:10px;">
+          Your username is: <strong id="foundUsername" style="color:#667eea;"></strong>
+        </p>
+        <p style="text-align:center; color:#666; margin-bottom:20px;">
+          📧 A 6-digit code has been sent to your email.<br>
+          <span style="font-size:12px; color:#999;">Code expires in 15 minutes</span>
+        </p>
+        <form onsubmit="handleVerifyCode(event)">
+          <div class="form-group">
+            <label>Enter 6-Digit Code</label>
+            <input type="text" id="resetCode" required maxlength="6" pattern="[0-9]{6}"
+                   style="text-align:center; font-size:24px; letter-spacing:8px; font-weight:bold;"
+                   placeholder="000000" />
+          </div>
+          <button type="submit" class="btn-primary">✓ Verify Code</button>
+        </form>
+        <p style="text-align:center; margin-top:15px;">
+          <a href="#" onclick="resendCode(); return false;" style="font-size:13px;">📤 Resend Code</a>
+        </p>
+      </div>
+
+      <!-- Step 3: Reset Password -->
+      <div id="forgotStep3" style="display:none;">
+        <p style="text-align:center; color:#22c55e; margin-bottom:20px;">
+          ✅ Code verified! Enter your new password.
+        </p>
+        <form onsubmit="handleResetPassword(event)">
+          <div class="form-group">
+            <label>New Password</label>
+            <input type="password" id="newPassword" required minlength="6" />
+          </div>
+          <div class="form-group">
+            <label>Confirm New Password</label>
+            <input type="password" id="confirmPassword" required minlength="6" />
+          </div>
+          <button type="submit" class="btn-primary">🔐 Reset Password</button>
+        </form>
+      </div>
+
+      <p style="text-align:center; margin-top:20px;">
+        Remember your password? <a href="#" onclick="showSection('login'); return false;">Back to Login</a>
+      </p>
     </div>
   </div>
 
@@ -587,25 +656,54 @@
       <h2 style="text-align:center; margin-bottom:20px;">Create Account</h2>
       <div id="registerError" class="error-message"></div>
       <div id="registerSuccess" class="success-message"></div>
-      <form onsubmit="handleRegister(event)">
-        <div class="form-group">
-          <label>Username</label>
-          <input type="text" id="regUsername" required minlength="3" maxlength="50" />
-        </div>
-        <div class="form-group">
-          <label>Email</label>
-          <input type="email" id="regEmail" required />
-        </div>
-        <div class="form-group">
-          <label>Display Name (optional)</label>
-          <input type="text" id="regDisplayName" maxlength="100" />
-        </div>
-        <div class="form-group">
-          <label>Password</label>
-          <input type="password" id="regPassword" required minlength="6" />
-        </div>
-        <button type="submit" class="btn-primary">Create Account</button>
-      </form>
+
+      <!-- Step 1: Enter Registration Details -->
+      <div id="registerStep1">
+        <form onsubmit="handleRegister(event)">
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="regUsername" required minlength="3" maxlength="50" />
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="regEmail" required />
+          </div>
+          <div class="form-group">
+            <label>Display Name (optional)</label>
+            <input type="text" id="regDisplayName" maxlength="100" />
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="regPassword" required minlength="6" />
+          </div>
+          <button type="submit" class="btn-primary" id="registerSubmitBtn">📧 Send Verification Code</button>
+        </form>
+      </div>
+
+      <!-- Step 2: Enter Verification Code -->
+      <div id="registerStep2" style="display:none;">
+        <p style="text-align:center; color:#666; margin-bottom:10px;">
+          📧 A 6-digit code has been sent to: <strong id="regEmailDisplay" style="color:#667eea;"></strong>
+        </p>
+        <p style="text-align:center; color:#999; font-size:12px; margin-bottom:20px;">
+          Code expires in 15 minutes
+        </p>
+        <form onsubmit="handleVerifyRegistration(event)">
+          <div class="form-group">
+            <label>Enter 6-Digit Code</label>
+            <input type="text" id="regVerifyCode" required maxlength="6" pattern="[0-9]{6}"
+                   style="text-align:center; font-size:24px; letter-spacing:8px; font-weight:bold;"
+                   placeholder="000000" />
+          </div>
+          <button type="submit" class="btn-primary">✓ Verify & Create Account</button>
+        </form>
+        <p style="text-align:center; margin-top:15px;">
+          <a href="#" onclick="resendVerificationCode(); return false;" style="font-size:13px;">📤 Resend Code</a>
+          &nbsp;|&nbsp;
+          <a href="#" onclick="resetRegisterForm(); return false;" style="font-size:13px;">← Change Details</a>
+        </p>
+      </div>
+
       <p style="text-align:center; margin-top:20px;">
         Already have an account? <a href="#" onclick="showSection('login'); return false;">Login</a>
       </p>
@@ -748,6 +846,14 @@ async function handleLogin(event) {
   }
 }
 
+// Store registration data for verification flow
+let regData = {
+  username: '',
+  email: '',
+  displayName: '',
+  password: ''
+};
+
 async function handleRegister(event) {
   event.preventDefault();
   const username = document.getElementById('regUsername').value;
@@ -756,9 +862,12 @@ async function handleRegister(event) {
   const password = document.getElementById('regPassword').value;
   const errorEl = document.getElementById('registerError');
   const successEl = document.getElementById('registerSuccess');
+  const submitBtn = document.getElementById('registerSubmitBtn');
 
   errorEl.style.display = 'none';
   successEl.style.display = 'none';
+  submitBtn.disabled = true;
+  submitBtn.textContent = '⏳ Sending...';
 
   try {
     const response = await fetch('/api/auth/register', {
@@ -770,13 +879,16 @@ async function handleRegister(event) {
     const data = await response.json();
 
     if (response.ok) {
-      currentUser = data.user;
-      successEl.textContent = 'Account created successfully! Redirecting...';
+      // Store registration data for verification step
+      regData = { username, email, displayName, password };
+
+      // Show verification step
+      document.getElementById('regEmailDisplay').textContent = email;
+      document.getElementById('registerStep1').style.display = 'none';
+      document.getElementById('registerStep2').style.display = 'block';
+
+      successEl.textContent = '📧 Verification code sent to your email!';
       successEl.style.display = 'block';
-      setTimeout(() => {
-        updateUIForLoggedInUser();
-        loadUserProfile();
-      }, 1500);
     } else {
       errorEl.textContent = data.error || 'Registration failed';
       errorEl.style.display = 'block';
@@ -784,7 +896,100 @@ async function handleRegister(event) {
   } catch (error) {
     errorEl.textContent = 'Network error. Please try again.';
     errorEl.style.display = 'block';
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = '📧 Send Verification Code';
   }
+}
+
+async function handleVerifyRegistration(event) {
+  event.preventDefault();
+  const code = document.getElementById('regVerifyCode').value;
+  const errorEl = document.getElementById('registerError');
+  const successEl = document.getElementById('registerSuccess');
+
+  errorEl.style.display = 'none';
+  successEl.style.display = 'none';
+
+  if (code.length !== 6 || !/^\d{6}$/.test(code)) {
+    errorEl.textContent = 'Please enter a valid 6-digit code';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/auth/verify-registration', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: regData.email, code })
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      currentUser = data.user;
+      successEl.textContent = '✅ Account created successfully! Redirecting...';
+      successEl.style.display = 'block';
+
+      // Reset the form
+      resetRegisterForm();
+
+      setTimeout(() => {
+        updateUIForLoggedInUser();
+        loadUserProfile();
+      }, 1500);
+    } else {
+      errorEl.textContent = data.error || 'Invalid or expired code';
+      errorEl.style.display = 'block';
+    }
+  } catch (error) {
+    errorEl.textContent = 'Network error. Please try again.';
+    errorEl.style.display = 'block';
+  }
+}
+
+async function resendVerificationCode() {
+  const errorEl = document.getElementById('registerError');
+  const successEl = document.getElementById('registerSuccess');
+
+  errorEl.style.display = 'none';
+  successEl.textContent = '⏳ Resending code...';
+  successEl.style.display = 'block';
+
+  try {
+    const response = await fetch('/api/auth/resend-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: regData.email,
+        username: regData.username,
+        password: regData.password,
+        displayName: regData.displayName
+      })
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      successEl.textContent = '📧 New code sent to your email!';
+    } else {
+      errorEl.textContent = data.error || 'Failed to resend code';
+      errorEl.style.display = 'block';
+      successEl.style.display = 'none';
+    }
+  } catch (error) {
+    errorEl.textContent = 'Network error. Please try again.';
+    errorEl.style.display = 'block';
+    successEl.style.display = 'none';
+  }
+}
+
+function resetRegisterForm() {
+  document.getElementById('registerStep1').style.display = 'block';
+  document.getElementById('registerStep2').style.display = 'none';
+  document.getElementById('regVerifyCode').value = '';
+  document.getElementById('registerError').style.display = 'none';
+  document.getElementById('registerSuccess').style.display = 'none';
 }
 
 async function logout() {
@@ -794,6 +999,187 @@ async function logout() {
     updateUIForGuest();
   } catch (error) {
     console.error('Logout failed:', error);
+  }
+}
+
+// Store data for password reset flow
+let forgotEmail = '';
+let forgotUsername = '';
+let resetCode = '';
+
+async function handleForgotUsername(event) {
+  event.preventDefault();
+  const email = document.getElementById('forgotEmail').value;
+  const errorEl = document.getElementById('forgotError');
+  const successEl = document.getElementById('forgotSuccess');
+  const sendBtn = document.getElementById('sendCodeBtn');
+
+  errorEl.style.display = 'none';
+  successEl.style.display = 'none';
+  sendBtn.disabled = true;
+  sendBtn.textContent = '⏳ Sending...';
+
+  try {
+    const response = await fetch('/api/auth/forgot-username', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      forgotEmail = email;
+      forgotUsername = data.username;
+      document.getElementById('foundUsername').textContent = data.username;
+      document.getElementById('forgotStep1').style.display = 'none';
+      document.getElementById('forgotStep2').style.display = 'block';
+      successEl.textContent = '📧 Reset code sent to your email!';
+      successEl.style.display = 'block';
+    } else {
+      errorEl.textContent = data.error || 'No account found with this email';
+      errorEl.style.display = 'block';
+    }
+  } catch (error) {
+    errorEl.textContent = 'Network error. Please try again.';
+    errorEl.style.display = 'block';
+  } finally {
+    sendBtn.disabled = false;
+    sendBtn.textContent = '📧 Send Reset Code';
+  }
+}
+
+async function handleVerifyCode(event) {
+  event.preventDefault();
+  const code = document.getElementById('resetCode').value;
+  const errorEl = document.getElementById('forgotError');
+  const successEl = document.getElementById('forgotSuccess');
+
+  errorEl.style.display = 'none';
+  successEl.style.display = 'none';
+
+  if (code.length !== 6 || !/^\d{6}$/.test(code)) {
+    errorEl.textContent = 'Please enter a valid 6-digit code';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/auth/verify-reset-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: forgotEmail, code })
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      resetCode = code;
+      document.getElementById('forgotStep2').style.display = 'none';
+      document.getElementById('forgotStep3').style.display = 'block';
+      successEl.style.display = 'none';
+    } else {
+      errorEl.textContent = data.error || 'Invalid or expired code';
+      errorEl.style.display = 'block';
+    }
+  } catch (error) {
+    errorEl.textContent = 'Network error. Please try again.';
+    errorEl.style.display = 'block';
+  }
+}
+
+async function resendCode() {
+  const errorEl = document.getElementById('forgotError');
+  const successEl = document.getElementById('forgotSuccess');
+
+  errorEl.style.display = 'none';
+  successEl.textContent = '⏳ Resending code...';
+  successEl.style.display = 'block';
+
+  try {
+    const response = await fetch('/api/auth/forgot-username', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: forgotEmail })
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      successEl.textContent = '📧 New code sent to your email!';
+    } else {
+      errorEl.textContent = data.error || 'Failed to resend code';
+      errorEl.style.display = 'block';
+      successEl.style.display = 'none';
+    }
+  } catch (error) {
+    errorEl.textContent = 'Network error. Please try again.';
+    errorEl.style.display = 'block';
+    successEl.style.display = 'none';
+  }
+}
+
+async function handleResetPassword(event) {
+  event.preventDefault();
+  const newPassword = document.getElementById('newPassword').value;
+  const confirmPassword = document.getElementById('confirmPassword').value;
+  const errorEl = document.getElementById('forgotError');
+  const successEl = document.getElementById('forgotSuccess');
+
+  errorEl.style.display = 'none';
+  successEl.style.display = 'none';
+
+  if (newPassword !== confirmPassword) {
+    errorEl.textContent = 'Passwords do not match';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  if (newPassword.length < 6) {
+    errorEl.textContent = 'Password must be at least 6 characters';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: forgotEmail,
+        code: resetCode,
+        newPassword
+      })
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      successEl.textContent = '✅ Password reset successful! Redirecting to login...';
+      successEl.style.display = 'block';
+
+      // Reset the form state
+      document.getElementById('forgotStep1').style.display = 'block';
+      document.getElementById('forgotStep2').style.display = 'none';
+      document.getElementById('forgotStep3').style.display = 'none';
+      document.getElementById('forgotEmail').value = '';
+      document.getElementById('resetCode').value = '';
+      document.getElementById('newPassword').value = '';
+      document.getElementById('confirmPassword').value = '';
+      forgotEmail = '';
+      forgotUsername = '';
+      resetCode = '';
+
+      setTimeout(() => {
+        showSection('login');
+      }, 2000);
+    } else {
+      errorEl.textContent = data.error || 'Failed to reset password';
+      errorEl.style.display = 'block';
+    }
+  } catch (error) {
+    errorEl.textContent = 'Network error. Please try again.';
+    errorEl.style.display = 'block';
   }
 }
 
@@ -1057,9 +1443,35 @@ function updateReplayPosition() {
 function showSection(section) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.getElementById(section + 'Section').classList.add('active');
-  
+
   if (section === 'games') {
     loadUserGames();
+  }
+
+  // Reset forgot password form when navigating away
+  if (section !== 'forgot') {
+    document.getElementById('forgotStep1').style.display = 'block';
+    document.getElementById('forgotStep2').style.display = 'none';
+    document.getElementById('forgotStep3').style.display = 'none';
+    document.getElementById('forgotError').style.display = 'none';
+    document.getElementById('forgotSuccess').style.display = 'none';
+    document.getElementById('forgotEmail').value = '';
+    document.getElementById('resetCode').value = '';
+    document.getElementById('newPassword').value = '';
+    document.getElementById('confirmPassword').value = '';
+    forgotEmail = '';
+    forgotUsername = '';
+    resetCode = '';
+  }
+
+  // Reset registration form when navigating away
+  if (section !== 'register') {
+    document.getElementById('registerStep1').style.display = 'block';
+    document.getElementById('registerStep2').style.display = 'none';
+    document.getElementById('registerError').style.display = 'none';
+    document.getElementById('registerSuccess').style.display = 'none';
+    document.getElementById('regVerifyCode').value = '';
+    regData = { username: '', email: '', displayName: '', password: '' };
   }
 }
 
