@@ -31,9 +31,27 @@ DB_PATH = os.path.join(os.path.dirname(__file__), 'chess_master.db')
 def get_db_conn():
     """Get a database connection"""
     if USE_POSTGRES:
-        if not hasattr(thread_local, 'pg_connection') or thread_local.pg_connection.closed:
+        # Always create a fresh connection for PostgreSQL to avoid stale connection issues
+        try:
+            if hasattr(thread_local, 'pg_connection') and thread_local.pg_connection and not thread_local.pg_connection.closed:
+                # Test if connection is still alive
+                try:
+                    thread_local.pg_connection.cursor().execute("SELECT 1")
+                    return thread_local.pg_connection
+                except:
+                    # Connection is dead, close and create new one
+                    try:
+                        thread_local.pg_connection.close()
+                    except:
+                        pass
+
+            # Create new connection
             thread_local.pg_connection = psycopg2.connect(DATABASE_URL)
-        return thread_local.pg_connection
+            thread_local.pg_connection.autocommit = False
+            return thread_local.pg_connection
+        except Exception as e:
+            print(f"❌ PostgreSQL connection error: {e}")
+            raise
     else:
         if not hasattr(thread_local, 'connection'):
             thread_local.connection = sqlite3.connect(DB_PATH, check_same_thread=False)
@@ -380,6 +398,7 @@ def create_user(username, email, password_hash, display_name=None):
     """Create a new user"""
     conn = get_db_conn()
     try:
+        print(f"📝 Creating user: {username}, email: {email}")
         if USE_POSTGRES:
             cur = conn.cursor()
             cur.execute("""
@@ -387,7 +406,9 @@ def create_user(username, email, password_hash, display_name=None):
                 VALUES (%s, %s, %s, %s)
                 RETURNING id
             """, (username, email, password_hash, display_name or username))
-            user_id = cur.fetchone()[0]
+            result = cur.fetchone()
+            user_id = result[0] if result else None
+            print(f"✅ PostgreSQL INSERT returned user_id: {user_id}")
         else:
             cur = conn.cursor()
             cur.execute("""
@@ -397,9 +418,12 @@ def create_user(username, email, password_hash, display_name=None):
             user_id = cur.lastrowid
 
         conn.commit()
+        print(f"✅ User created successfully with ID: {user_id}")
         return user_id
     except Exception as e:
-        print(f"Error creating user: {e}")
+        print(f"❌ Error creating user: {e}")
+        import traceback
+        traceback.print_exc()
         conn.rollback()
         return None
 
@@ -655,6 +679,8 @@ def check_email_exists(email):
 
 def save_game_record(room, game_data, start_time, end_time, win_reason):
     """Save a completed game to database"""
+    print(f"🎮 Saving game record for room: {room}")
+    print(f"   Game data keys: {list(game_data.keys())}")
     conn = get_db_conn()
     try:
         cur = conn.cursor()
@@ -669,6 +695,10 @@ def save_game_record(room, game_data, start_time, end_time, win_reason):
         game_mode = game_data.get('game_mode', 'friend')
         time_control = int(game_data.get('whiteTime', 300))
         move_history = game_data.get('move_history', [])
+
+        print(f"   White: {white_player} (user_id: {white_user_id})")
+        print(f"   Black: {black_player} (user_id: {black_user_id})")
+        print(f"   Winner: {winner}, Reason: {win_reason}")
 
         # Insert game record
         if USE_POSTGRES:
@@ -741,6 +771,8 @@ def save_game_record(room, game_data, start_time, end_time, win_reason):
 
     except Exception as e:
         print(f"❌ Error saving game: {e}")
+        import traceback
+        traceback.print_exc()
         conn.rollback()
         return False
 
@@ -775,7 +807,7 @@ def update_user_stats(cur, user_id, winner, player_color):
                 WHERE id = {placeholder}
             """, (user_id,))
         else:
-            # SQLite doesn't have GREATEST, use MAX with CASE
+            # SQLite doesn't have GREATEST, use MAX
             cur.execute(f"""
                 UPDATE users
                 SET games_played = games_played + 1,
