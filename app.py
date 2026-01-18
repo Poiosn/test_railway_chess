@@ -38,57 +38,62 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 # ===== EMAIL CONFIGURATION =====
-# Using Resend API (HTTP-based) - works reliably on Railway
-# Get your API key from https://resend.com (free tier: 3000 emails/month)
+# Using Brevo (Sendinblue) API - works on Railway, no domain verification required
+# Get your API key from https://app.brevo.com/settings/keys/api (free tier: 300 emails/day)
 EMAIL_CONFIG = {
-    'resend_api_key': os.environ.get('RESEND_API_KEY', ''),  # Required: your Resend API key
-    'sender_email': os.environ.get('SENDER_EMAIL', 'Chess Master <onboarding@resend.dev>'),  # Use resend.dev for testing, or your verified domain
+    'brevo_api_key': os.environ.get('BREVO_API_KEY', ''),  # Required: your Brevo API key
+    'sender_email': os.environ.get('SENDER_EMAIL', 'ssswapnil250@gmail.com'),  # Your email (must match Brevo account)
+    'sender_name': os.environ.get('SENDER_NAME', 'Chess Master'),
     'enabled': os.environ.get('EMAIL_ENABLED', 'true').lower() == 'true'
 }
 
 def _send_email_worker(to_email, subject, text_content, html_content):
-    """Background worker to send email via Resend API"""
+    """Background worker to send email via Brevo API"""
     print(f"📧 Starting email send to {to_email}...")
 
-    api_key = EMAIL_CONFIG['resend_api_key']
+    api_key = EMAIL_CONFIG['brevo_api_key']
 
     if not api_key:
-        print(f"⚠️ RESEND_API_KEY not set. Email not sent.")
+        print(f"⚠️ BREVO_API_KEY not set. Email not sent.")
         print(f"📧 [DEV MODE] Would send to {to_email}: {subject}")
         return False
 
     try:
-        # Prepare request data
+        # Prepare request data for Brevo API
         data = json.dumps({
-            "from": EMAIL_CONFIG['sender_email'],
-            "to": [to_email],
+            "sender": {
+                "name": EMAIL_CONFIG['sender_name'],
+                "email": EMAIL_CONFIG['sender_email']
+            },
+            "to": [{"email": to_email}],
             "subject": subject,
-            "html": html_content,
-            "text": text_content
+            "htmlContent": html_content,
+            "textContent": text_content
         }).encode('utf-8')
 
         # Create request
         req = urllib.request.Request(
-            'https://api.resend.com/emails',
+            'https://api.brevo.com/v3/smtp/email',
             data=data,
             headers={
-                'Authorization': f'Bearer {api_key}',
-                'Content-Type': 'application/json'
+                'api-key': api_key,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
             },
             method='POST'
         )
 
-        print(f"📧 Sending via Resend API...")
+        print(f"📧 Sending via Brevo API...")
 
         # Send request
         with urllib.request.urlopen(req, timeout=30) as response:
             result = json.loads(response.read().decode('utf-8'))
-            print(f"✅ Email sent to {to_email} via Resend (ID: {result.get('id', 'unknown')})")
+            print(f"✅ Email sent to {to_email} via Brevo (ID: {result.get('messageId', 'unknown')})")
             return True
 
     except urllib.error.HTTPError as e:
         error_body = e.read().decode('utf-8') if e.fp else 'No details'
-        print(f"❌ Resend API error ({e.code}): {error_body}")
+        print(f"❌ Brevo API error ({e.code}): {error_body}")
         return False
     except urllib.error.URLError as e:
         print(f"❌ Network error: {e.reason}")
