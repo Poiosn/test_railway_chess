@@ -1,140 +1,294 @@
 """
-SQLite Database module for Chess Master application (Local Development)
-Simpler alternative to PostgreSQL for local testing
+Database module for Chess Master application
+Supports PostgreSQL (Railway/Production) and SQLite (Local Development)
 """
 
-import sqlite3
 import os
 from datetime import datetime
 import threading
 
+# Check if PostgreSQL is available (Railway sets DATABASE_URL)
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
+if DATABASE_URL:
+    # Use PostgreSQL
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+    USE_POSTGRES = True
+    print("🐘 Using PostgreSQL database")
+else:
+    # Use SQLite for local development
+    import sqlite3
+    USE_POSTGRES = False
+    print("📦 Using SQLite database for local development")
+
 # Thread-local storage for database connections
 thread_local = threading.local()
 
+# SQLite database path (only used when PostgreSQL is not available)
 DB_PATH = os.path.join(os.path.dirname(__file__), 'chess_master.db')
 
 def get_db_conn():
-    """Get a thread-local database connection"""
-    if not hasattr(thread_local, 'connection'):
-        thread_local.connection = sqlite3.connect(DB_PATH, check_same_thread=False)
-        thread_local.connection.row_factory = sqlite3.Row
-    return thread_local.connection
+    """Get a database connection"""
+    if USE_POSTGRES:
+        if not hasattr(thread_local, 'pg_connection') or thread_local.pg_connection.closed:
+            thread_local.pg_connection = psycopg2.connect(DATABASE_URL)
+        return thread_local.pg_connection
+    else:
+        if not hasattr(thread_local, 'connection'):
+            thread_local.connection = sqlite3.connect(DB_PATH, check_same_thread=False)
+            thread_local.connection.row_factory = sqlite3.Row
+        return thread_local.connection
 
 def release_db_conn(conn):
-    """No-op for SQLite (connections are thread-local)"""
+    """Release database connection (no-op for thread-local connections)"""
     pass
 
-def init_db_pool():
-    """Initialize SQLite database and create tables"""
-    print("📦 Using SQLite database for local development")
-    print(f"📂 Database file: {DB_PATH}")
-
+def execute_query(query, params=(), fetch=False, fetchone=False, commit=False):
+    """Execute a query with proper parameter handling for both databases"""
     conn = get_db_conn()
+    try:
+        if USE_POSTGRES:
+            # PostgreSQL uses %s for placeholders
+            query = query.replace('?', '%s')
+            # Handle SQLite-specific syntax
+            query = query.replace('INTEGER PRIMARY KEY AUTOINCREMENT', 'SERIAL PRIMARY KEY')
+            query = query.replace('INSERT OR IGNORE', 'INSERT')
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            cur = conn.cursor()
+
+        cur.execute(query, params)
+
+        if commit:
+            conn.commit()
+
+        if fetchone:
+            row = cur.fetchone()
+            if row and not USE_POSTGRES:
+                return dict(row)
+            return dict(row) if row else None
+        elif fetch:
+            rows = cur.fetchall()
+            if not USE_POSTGRES:
+                return [dict(row) for row in rows]
+            return [dict(row) for row in rows]
+
+        if USE_POSTGRES and not fetch and not fetchone:
+            # For INSERT statements, get the last inserted ID
+            if 'INSERT' in query.upper() and 'RETURNING' not in query.upper():
+                return cur.lastrowid if hasattr(cur, 'lastrowid') else None
+
+        return cur.lastrowid if hasattr(cur, 'lastrowid') else None
+
+    except Exception as e:
+        print(f"Database error: {e}")
+        conn.rollback()
+        raise
+
+def init_db_pool():
+    """Initialize database and create tables"""
+    if USE_POSTGRES:
+        print(f"🐘 Connected to PostgreSQL")
+    else:
+        print(f"📂 Database file: {DB_PATH}")
+
     create_tables()
-    print("✅ SQLite database initialized successfully")
+    print("✅ Database initialized successfully")
 
 def create_tables():
     """Create necessary database tables if they don't exist"""
     conn = get_db_conn()
-    cur = conn.cursor()
+
+    if USE_POSTGRES:
+        cur = conn.cursor()
+    else:
+        cur = conn.cursor()
 
     try:
-        # Users table
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                email TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                display_name TEXT,
-                elo_rating INTEGER DEFAULT 1200,
-                games_played INTEGER DEFAULT 0,
-                games_won INTEGER DEFAULT 0,
-                games_drawn INTEGER DEFAULT 0,
-                games_lost INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_login TIMESTAMP
-            )
-        """)
+        if USE_POSTGRES:
+            # PostgreSQL table definitions
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    username VARCHAR(50) UNIQUE NOT NULL,
+                    email VARCHAR(255) UNIQUE NOT NULL,
+                    password_hash VARCHAR(255) NOT NULL,
+                    display_name VARCHAR(100),
+                    elo_rating INTEGER DEFAULT 1200,
+                    games_played INTEGER DEFAULT 0,
+                    games_won INTEGER DEFAULT 0,
+                    games_drawn INTEGER DEFAULT 0,
+                    games_lost INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_login TIMESTAMP
+                )
+            """)
 
-        # Games table
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS games (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                room_code TEXT NOT NULL,
-                white_player TEXT,
-                black_player TEXT,
-                white_user_id INTEGER,
-                black_user_id INTEGER,
-                winner TEXT,
-                win_reason TEXT,
-                game_mode TEXT,
-                time_control INTEGER,
-                start_time TIMESTAMP,
-                end_time TIMESTAMP,
-                move_count INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (white_user_id) REFERENCES users(id),
-                FOREIGN KEY (black_user_id) REFERENCES users(id)
-            )
-        """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS games (
+                    id SERIAL PRIMARY KEY,
+                    room_code VARCHAR(100) NOT NULL,
+                    white_player VARCHAR(100),
+                    black_player VARCHAR(100),
+                    white_user_id INTEGER REFERENCES users(id),
+                    black_user_id INTEGER REFERENCES users(id),
+                    winner VARCHAR(20),
+                    win_reason VARCHAR(50),
+                    game_mode VARCHAR(20),
+                    time_control INTEGER,
+                    start_time TIMESTAMP,
+                    end_time TIMESTAMP,
+                    move_count INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
 
-        # Game moves table (for replay)
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS game_moves (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                game_id INTEGER NOT NULL,
-                move_number INTEGER NOT NULL,
-                move_notation TEXT NOT NULL,
-                from_square TEXT,
-                to_square TEXT,
-                position_fen TEXT,
-                white_time_remaining REAL,
-                black_time_remaining REAL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
-            )
-        """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS game_moves (
+                    id SERIAL PRIMARY KEY,
+                    game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+                    move_number INTEGER NOT NULL,
+                    move_notation VARCHAR(20) NOT NULL,
+                    from_square VARCHAR(10),
+                    to_square VARCHAR(10),
+                    position_fen TEXT,
+                    white_time_remaining REAL,
+                    black_time_remaining REAL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
 
-        # Visitor counter table
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS visitor_count (
-                id INTEGER PRIMARY KEY CHECK (id = 1),
-                count INTEGER DEFAULT 0
-            )
-        """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS visitor_count (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    count INTEGER DEFAULT 0
+                )
+            """)
 
-        # Insert initial visitor count if not exists
-        cur.execute("INSERT OR IGNORE INTO visitor_count (id, count) VALUES (1, 0)")
+            # Insert initial visitor count if not exists
+            cur.execute("""
+                INSERT INTO visitor_count (id, count) VALUES (1, 0)
+                ON CONFLICT (id) DO NOTHING
+            """)
 
-        # Password reset codes table
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS password_reset_codes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                email TEXT NOT NULL,
-                code TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                expires_at TIMESTAMP NOT NULL,
-                used INTEGER DEFAULT 0,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-        """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS password_reset_codes (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id),
+                    email VARCHAR(255) NOT NULL,
+                    code VARCHAR(10) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    expires_at TIMESTAMP NOT NULL,
+                    used INTEGER DEFAULT 0
+                )
+            """)
 
-        # Email verification codes table (for registration)
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS email_verification_codes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT NOT NULL,
-                username TEXT NOT NULL,
-                password_hash TEXT NOT NULL,
-                display_name TEXT,
-                code TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                expires_at TIMESTAMP NOT NULL,
-                verified INTEGER DEFAULT 0
-            )
-        """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS email_verification_codes (
+                    id SERIAL PRIMARY KEY,
+                    email VARCHAR(255) NOT NULL,
+                    username VARCHAR(50) NOT NULL,
+                    password_hash VARCHAR(255) NOT NULL,
+                    display_name VARCHAR(100),
+                    code VARCHAR(10) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    expires_at TIMESTAMP NOT NULL,
+                    verified INTEGER DEFAULT 0
+                )
+            """)
+
+        else:
+            # SQLite table definitions
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    email TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    display_name TEXT,
+                    elo_rating INTEGER DEFAULT 1200,
+                    games_played INTEGER DEFAULT 0,
+                    games_won INTEGER DEFAULT 0,
+                    games_drawn INTEGER DEFAULT 0,
+                    games_lost INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_login TIMESTAMP
+                )
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS games (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    room_code TEXT NOT NULL,
+                    white_player TEXT,
+                    black_player TEXT,
+                    white_user_id INTEGER,
+                    black_user_id INTEGER,
+                    winner TEXT,
+                    win_reason TEXT,
+                    game_mode TEXT,
+                    time_control INTEGER,
+                    start_time TIMESTAMP,
+                    end_time TIMESTAMP,
+                    move_count INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (white_user_id) REFERENCES users(id),
+                    FOREIGN KEY (black_user_id) REFERENCES users(id)
+                )
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS game_moves (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    game_id INTEGER NOT NULL,
+                    move_number INTEGER NOT NULL,
+                    move_notation TEXT NOT NULL,
+                    from_square TEXT,
+                    to_square TEXT,
+                    position_fen TEXT,
+                    white_time_remaining REAL,
+                    black_time_remaining REAL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
+                )
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS visitor_count (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    count INTEGER DEFAULT 0
+                )
+            """)
+
+            cur.execute("INSERT OR IGNORE INTO visitor_count (id, count) VALUES (1, 0)")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS password_reset_codes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    email TEXT NOT NULL,
+                    code TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    expires_at TIMESTAMP NOT NULL,
+                    used INTEGER DEFAULT 0,
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                )
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS email_verification_codes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT NOT NULL,
+                    username TEXT NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    display_name TEXT,
+                    code TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    expires_at TIMESTAMP NOT NULL,
+                    verified INTEGER DEFAULT 0
+                )
+            """)
 
         conn.commit()
         print("✅ Database tables created/verified")
@@ -163,7 +317,9 @@ def get_total_visitor_count():
         cur = conn.cursor()
         cur.execute("SELECT count FROM visitor_count WHERE id = 1")
         result = cur.fetchone()
-        return result[0] if result else 0
+        if result:
+            return result[0] if not USE_POSTGRES else result['count']
+        return 0
     except Exception as e:
         print(f"Error getting visitor count: {e}")
         return 0
@@ -174,12 +330,17 @@ def get_user_by_id(user_id):
     """Get user by ID"""
     conn = get_db_conn()
     try:
-        cur = conn.cursor()
-        cur.execute("""
+        if USE_POSTGRES:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            cur = conn.cursor()
+
+        placeholder = '%s' if USE_POSTGRES else '?'
+        cur.execute(f"""
             SELECT id, username, email, password_hash, display_name,
                    elo_rating, games_played, games_won, games_drawn, games_lost,
                    created_at, last_login
-            FROM users WHERE id = ?
+            FROM users WHERE id = {placeholder}
         """, (user_id,))
 
         row = cur.fetchone()
@@ -194,12 +355,17 @@ def get_user_by_username(username):
     """Get user by username"""
     conn = get_db_conn()
     try:
-        cur = conn.cursor()
-        cur.execute("""
+        if USE_POSTGRES:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            cur = conn.cursor()
+
+        placeholder = '%s' if USE_POSTGRES else '?'
+        cur.execute(f"""
             SELECT id, username, email, password_hash, display_name,
                    elo_rating, games_played, games_won, games_drawn, games_lost,
                    created_at, last_login
-            FROM users WHERE username = ?
+            FROM users WHERE username = {placeholder}
         """, (username,))
 
         row = cur.fetchone()
@@ -214,13 +380,22 @@ def create_user(username, email, password_hash, display_name=None):
     """Create a new user"""
     conn = get_db_conn()
     try:
-        cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO users (username, email, password_hash, display_name)
-            VALUES (?, ?, ?, ?)
-        """, (username, email, password_hash, display_name or username))
+        if USE_POSTGRES:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO users (username, email, password_hash, display_name)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+            """, (username, email, password_hash, display_name or username))
+            user_id = cur.fetchone()[0]
+        else:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO users (username, email, password_hash, display_name)
+                VALUES (?, ?, ?, ?)
+            """, (username, email, password_hash, display_name or username))
+            user_id = cur.lastrowid
 
-        user_id = cur.lastrowid
         conn.commit()
         return user_id
     except Exception as e:
@@ -233,9 +408,10 @@ def update_last_login(user_id):
     conn = get_db_conn()
     try:
         cur = conn.cursor()
-        cur.execute("""
+        placeholder = '%s' if USE_POSTGRES else '?'
+        cur.execute(f"""
             UPDATE users SET last_login = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {placeholder}
         """, (user_id,))
         conn.commit()
     except Exception as e:
@@ -250,12 +426,17 @@ def get_user_by_email(email):
     """Get user by email address"""
     conn = get_db_conn()
     try:
-        cur = conn.cursor()
-        cur.execute("""
+        if USE_POSTGRES:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            cur = conn.cursor()
+
+        placeholder = '%s' if USE_POSTGRES else '?'
+        cur.execute(f"""
             SELECT id, username, email, password_hash, display_name,
                    elo_rating, games_played, games_won, games_drawn, games_lost,
                    created_at, last_login
-            FROM users WHERE email = ?
+            FROM users WHERE email = {placeholder}
         """, (email.lower(),))
 
         row = cur.fetchone()
@@ -271,9 +452,10 @@ def update_user_password(user_id, new_password_hash):
     conn = get_db_conn()
     try:
         cur = conn.cursor()
-        cur.execute("""
-            UPDATE users SET password_hash = ?
-            WHERE id = ?
+        placeholder = '%s' if USE_POSTGRES else '?'
+        cur.execute(f"""
+            UPDATE users SET password_hash = {placeholder}
+            WHERE id = {placeholder}
         """, (new_password_hash, user_id))
         conn.commit()
         return True
@@ -287,16 +469,18 @@ def create_reset_code(user_id, email, code, expires_at):
     conn = get_db_conn()
     try:
         cur = conn.cursor()
+        placeholder = '%s' if USE_POSTGRES else '?'
+
         # Invalidate any existing unused codes for this user
-        cur.execute("""
+        cur.execute(f"""
             UPDATE password_reset_codes SET used = 1
-            WHERE user_id = ? AND used = 0
+            WHERE user_id = {placeholder} AND used = 0
         """, (user_id,))
 
         # Create new code
-        cur.execute("""
+        cur.execute(f"""
             INSERT INTO password_reset_codes (user_id, email, code, expires_at)
-            VALUES (?, ?, ?, ?)
+            VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder})
         """, (user_id, email.lower(), code, expires_at))
         conn.commit()
         return True
@@ -309,10 +493,15 @@ def verify_reset_code(email, code):
     """Verify a password reset code and return user_id if valid"""
     conn = get_db_conn()
     try:
-        cur = conn.cursor()
-        cur.execute("""
+        if USE_POSTGRES:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            cur = conn.cursor()
+
+        placeholder = '%s' if USE_POSTGRES else '?'
+        cur.execute(f"""
             SELECT user_id, expires_at FROM password_reset_codes
-            WHERE email = ? AND code = ? AND used = 0
+            WHERE email = {placeholder} AND code = {placeholder} AND used = 0
             ORDER BY created_at DESC
             LIMIT 1
         """, (email.lower(), code))
@@ -321,12 +510,17 @@ def verify_reset_code(email, code):
         if not row:
             return None
 
+        row_dict = dict(row) if not USE_POSTGRES else row
+
         # Check if code has expired
-        expires_at = datetime.strptime(row['expires_at'], '%Y-%m-%d %H:%M:%S')
+        expires_at = row_dict['expires_at']
+        if isinstance(expires_at, str):
+            expires_at = datetime.strptime(expires_at, '%Y-%m-%d %H:%M:%S')
+
         if datetime.utcnow() > expires_at:
             return None
 
-        return row['user_id']
+        return row_dict['user_id']
     except Exception as e:
         print(f"Error verifying reset code: {e}")
         return None
@@ -336,9 +530,10 @@ def mark_reset_code_used(email, code):
     conn = get_db_conn()
     try:
         cur = conn.cursor()
-        cur.execute("""
+        placeholder = '%s' if USE_POSTGRES else '?'
+        cur.execute(f"""
             UPDATE password_reset_codes SET used = 1
-            WHERE email = ? AND code = ?
+            WHERE email = {placeholder} AND code = {placeholder}
         """, (email.lower(), code))
         conn.commit()
         return True
@@ -354,16 +549,18 @@ def create_verification_code(email, username, password_hash, display_name, code,
     conn = get_db_conn()
     try:
         cur = conn.cursor()
+        placeholder = '%s' if USE_POSTGRES else '?'
+
         # Remove any existing unverified codes for this email
-        cur.execute("""
+        cur.execute(f"""
             DELETE FROM email_verification_codes
-            WHERE email = ? AND verified = 0
+            WHERE email = {placeholder} AND verified = 0
         """, (email.lower(),))
 
         # Create new verification code
-        cur.execute("""
+        cur.execute(f"""
             INSERT INTO email_verification_codes (email, username, password_hash, display_name, code, expires_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
         """, (email.lower(), username, password_hash, display_name, code, expires_at))
         conn.commit()
         return True
@@ -376,11 +573,16 @@ def verify_email_code(email, code):
     """Verify email code and return registration data if valid"""
     conn = get_db_conn()
     try:
-        cur = conn.cursor()
-        cur.execute("""
+        if USE_POSTGRES:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            cur = conn.cursor()
+
+        placeholder = '%s' if USE_POSTGRES else '?'
+        cur.execute(f"""
             SELECT username, password_hash, display_name, expires_at
             FROM email_verification_codes
-            WHERE email = ? AND code = ? AND verified = 0
+            WHERE email = {placeholder} AND code = {placeholder} AND verified = 0
             ORDER BY created_at DESC
             LIMIT 1
         """, (email.lower(), code))
@@ -389,15 +591,20 @@ def verify_email_code(email, code):
         if not row:
             return None
 
+        row_dict = dict(row) if not USE_POSTGRES else row
+
         # Check if code has expired
-        expires_at = datetime.strptime(row['expires_at'], '%Y-%m-%d %H:%M:%S')
+        expires_at = row_dict['expires_at']
+        if isinstance(expires_at, str):
+            expires_at = datetime.strptime(expires_at, '%Y-%m-%d %H:%M:%S')
+
         if datetime.utcnow() > expires_at:
             return None
 
         return {
-            'username': row['username'],
-            'password_hash': row['password_hash'],
-            'display_name': row['display_name']
+            'username': row_dict['username'],
+            'password_hash': row_dict['password_hash'],
+            'display_name': row_dict['display_name']
         }
     except Exception as e:
         print(f"Error verifying email code: {e}")
@@ -408,9 +615,10 @@ def mark_email_verified(email, code):
     conn = get_db_conn()
     try:
         cur = conn.cursor()
-        cur.execute("""
+        placeholder = '%s' if USE_POSTGRES else '?'
+        cur.execute(f"""
             UPDATE email_verification_codes SET verified = 1
-            WHERE email = ? AND code = ?
+            WHERE email = {placeholder} AND code = {placeholder}
         """, (email.lower(), code))
         conn.commit()
         return True
@@ -424,7 +632,8 @@ def check_username_exists(username):
     conn = get_db_conn()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id FROM users WHERE username = ?", (username,))
+        placeholder = '%s' if USE_POSTGRES else '?'
+        cur.execute(f"SELECT id FROM users WHERE username = {placeholder}", (username,))
         return cur.fetchone() is not None
     except Exception as e:
         print(f"Error checking username: {e}")
@@ -435,7 +644,8 @@ def check_email_exists(email):
     conn = get_db_conn()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id FROM users WHERE email = ?", (email.lower(),))
+        placeholder = '%s' if USE_POSTGRES else '?'
+        cur.execute(f"SELECT id FROM users WHERE email = {placeholder}", (email.lower(),))
         return cur.fetchone() is not None
     except Exception as e:
         print(f"Error checking email: {e}")
@@ -448,6 +658,7 @@ def save_game_record(room, game_data, start_time, end_time, win_reason):
     conn = get_db_conn()
     try:
         cur = conn.cursor()
+        placeholder = '%s' if USE_POSTGRES else '?'
 
         # Extract game data
         white_player = game_data.get('white_player', 'Unknown')
@@ -460,33 +671,60 @@ def save_game_record(room, game_data, start_time, end_time, win_reason):
         move_history = game_data.get('move_history', [])
 
         # Insert game record
-        cur.execute("""
-            INSERT INTO games (
-                room_code, white_player, black_player,
+        if USE_POSTGRES:
+            cur.execute("""
+                INSERT INTO games (
+                    room_code, white_player, black_player,
+                    white_user_id, black_user_id, winner, win_reason,
+                    game_mode, time_control, start_time, end_time, move_count
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (
+                room, white_player, black_player,
                 white_user_id, black_user_id, winner, win_reason,
-                game_mode, time_control, start_time, end_time, move_count
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            room, white_player, black_player,
-            white_user_id, black_user_id, winner, win_reason,
-            game_mode, time_control, start_time, end_time, len(move_history)
-        ))
-
-        game_id = cur.lastrowid
+                game_mode, time_control, start_time, end_time, len(move_history)
+            ))
+            game_id = cur.fetchone()[0]
+        else:
+            cur.execute("""
+                INSERT INTO games (
+                    room_code, white_player, black_player,
+                    white_user_id, black_user_id, winner, win_reason,
+                    game_mode, time_control, start_time, end_time, move_count
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                room, white_player, black_player,
+                white_user_id, black_user_id, winner, win_reason,
+                game_mode, time_control, start_time, end_time, len(move_history)
+            ))
+            game_id = cur.lastrowid
 
         # Save move history for replay
         for i, move in enumerate(move_history):
-            cur.execute("""
-                INSERT INTO game_moves (
-                    game_id, move_number, move_notation, from_square, to_square,
-                    position_fen, white_time_remaining, black_time_remaining
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                game_id, i + 1, move.get('notation', ''),
-                move.get('from_square', ''), move.get('to_square', ''),
-                move.get('fen', ''),
-                move.get('white_time', 0), move.get('black_time', 0)
-            ))
+            if USE_POSTGRES:
+                cur.execute("""
+                    INSERT INTO game_moves (
+                        game_id, move_number, move_notation, from_square, to_square,
+                        position_fen, white_time_remaining, black_time_remaining
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    game_id, i + 1, move.get('notation', ''),
+                    move.get('from_square', ''), move.get('to_square', ''),
+                    move.get('fen', ''),
+                    move.get('white_time', 0), move.get('black_time', 0)
+                ))
+            else:
+                cur.execute("""
+                    INSERT INTO game_moves (
+                        game_id, move_number, move_notation, from_square, to_square,
+                        position_fen, white_time_remaining, black_time_remaining
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    game_id, i + 1, move.get('notation', ''),
+                    move.get('from_square', ''), move.get('to_square', ''),
+                    move.get('fen', ''),
+                    move.get('white_time', 0), move.get('black_time', 0)
+                ))
 
         # Update user statistics
         if white_user_id:
@@ -505,37 +743,42 @@ def save_game_record(room, game_data, start_time, end_time, win_reason):
 
 def update_user_stats(cur, user_id, winner, player_color):
     """Update user statistics after game"""
+    placeholder = '%s' if USE_POSTGRES else '?'
+
     if winner == 'draw':
-        cur.execute("""
+        cur.execute(f"""
             UPDATE users
             SET games_played = games_played + 1,
                 games_drawn = games_drawn + 1
-            WHERE id = ?
+            WHERE id = {placeholder}
         """, (user_id,))
     elif winner == player_color:
         # Player won
-        cur.execute("""
+        cur.execute(f"""
             UPDATE users
             SET games_played = games_played + 1,
                 games_won = games_won + 1,
                 elo_rating = elo_rating + 20
-            WHERE id = ?
+            WHERE id = {placeholder}
         """, (user_id,))
     else:
         # Player lost
-        cur.execute("""
+        cur.execute(f"""
             UPDATE users
             SET games_played = games_played + 1,
                 games_lost = games_lost + 1,
-                elo_rating = MAX(elo_rating - 15, 800)
-            WHERE id = ?
+                elo_rating = GREATEST(elo_rating - 15, 800)
+            WHERE id = {placeholder}
         """, (user_id,))
 
 def get_user_games(username):
     """Get game history for a user"""
     conn = get_db_conn()
     try:
-        cur = conn.cursor()
+        if USE_POSTGRES:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            cur = conn.cursor()
 
         # Get user ID
         user = get_user_by_username(username)
@@ -543,15 +786,16 @@ def get_user_games(username):
             return None
 
         user_id = user['id']
+        placeholder = '%s' if USE_POSTGRES else '?'
 
         # Get games
-        cur.execute("""
+        cur.execute(f"""
             SELECT id, room_code, white_player, black_player,
                    winner, win_reason, game_mode, time_control,
                    start_time, end_time, move_count,
                    white_user_id, black_user_id
             FROM games
-            WHERE white_user_id = ? OR black_user_id = ?
+            WHERE white_user_id = {placeholder} OR black_user_id = {placeholder}
             ORDER BY end_time DESC
             LIMIT 50
         """, (user_id, user_id))
@@ -585,13 +829,18 @@ def get_game_replay(game_id):
     """Get game replay data including all moves"""
     conn = get_db_conn()
     try:
-        cur = conn.cursor()
+        if USE_POSTGRES:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            cur = conn.cursor()
+
+        placeholder = '%s' if USE_POSTGRES else '?'
 
         # Get game info
-        cur.execute("""
+        cur.execute(f"""
             SELECT room_code, white_player, black_player, winner, win_reason,
                    game_mode, time_control, start_time, end_time
-            FROM games WHERE id = ?
+            FROM games WHERE id = {placeholder}
         """, (game_id,))
 
         game_row = cur.fetchone()
@@ -601,11 +850,11 @@ def get_game_replay(game_id):
         game_dict = dict(game_row)
 
         # Get moves
-        cur.execute("""
+        cur.execute(f"""
             SELECT move_number, move_notation, from_square, to_square,
                    position_fen, white_time_remaining, black_time_remaining
             FROM game_moves
-            WHERE game_id = ?
+            WHERE game_id = {placeholder}
             ORDER BY move_number
         """, (game_id,))
 
@@ -646,14 +895,19 @@ def get_leaderboard_data(limit=10):
     """Get top players by ELO rating"""
     conn = get_db_conn()
     try:
-        cur = conn.cursor()
-        cur.execute("""
+        if USE_POSTGRES:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            cur = conn.cursor()
+
+        placeholder = '%s' if USE_POSTGRES else '?'
+        cur.execute(f"""
             SELECT username, display_name, elo_rating,
                    games_played, games_won, games_drawn, games_lost
             FROM users
             WHERE games_played > 0
             ORDER BY elo_rating DESC
-            LIMIT ?
+            LIMIT {placeholder}
         """, (limit,))
 
         leaderboard = []
