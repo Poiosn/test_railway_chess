@@ -1021,6 +1021,10 @@ def request_rematch(data):
         player_name = g.get("white_player") if requester_color == "white" else g.get("black_player")
         bot_difficulty = g.get("bot_difficulty", "medium")  # Preserve difficulty from previous game
 
+        # Get user ID if authenticated
+        user = get_current_user()
+        white_user_id = user['id'] if user else None
+
         # Create new bot game
         games[new_room] = {
             "board": chess.Board(),
@@ -1037,6 +1041,8 @@ def request_rematch(data):
             "black_player": f"Bot ({bot_difficulty.capitalize()})",
             "white_sid": requester_sid,
             "black_sid": None,
+            "white_user_id": white_user_id,
+            "black_user_id": None,  # Bot has no user ID
             "white_disconnect_timer": None,
             "black_disconnect_timer": None,
             "clients": {requester_sid},
@@ -1069,7 +1075,10 @@ def request_rematch(data):
             black_sid = g.get("black_sid")
             white_player = g.get("white_player")
             black_player = g.get("black_player")
-            
+            # Preserve user IDs from previous game
+            white_user_id = g.get("white_user_id")
+            black_user_id = g.get("black_user_id")
+
             games[new_room] = {
                 "board": chess.Board(),
                 "whiteTime": float(time_control),
@@ -1084,10 +1093,13 @@ def request_rematch(data):
                 "black_player": black_player,
                 "white_sid": white_sid,
                 "black_sid": black_sid,
+                "white_user_id": white_user_id,
+                "black_user_id": black_user_id,
                 "white_disconnect_timer": None,
                 "black_disconnect_timer": None,
                 "clients": {white_sid, black_sid},
-                "game_mode": g.get("game_mode", "friend")
+                "game_mode": g.get("game_mode", "friend"),
+                "move_history": []
             }
             
             sid_to_room[white_sid] = new_room
