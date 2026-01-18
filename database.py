@@ -727,10 +727,13 @@ def save_game_record(room, game_data, start_time, end_time, win_reason):
                 ))
 
         # Update user statistics
+        print(f"📊 Updating stats - White user: {white_user_id}, Black user: {black_user_id}, Winner: {winner}")
         if white_user_id:
             update_user_stats(cur, white_user_id, winner, 'white')
+            print(f"   ✓ Updated stats for white player (user_id: {white_user_id})")
         if black_user_id:
             update_user_stats(cur, black_user_id, winner, 'black')
+            print(f"   ✓ Updated stats for black player (user_id: {black_user_id})")
 
         conn.commit()
         print(f"✅ Game {room} saved to database (ID: {game_id})")
@@ -763,13 +766,23 @@ def update_user_stats(cur, user_id, winner, player_color):
         """, (user_id,))
     else:
         # Player lost
-        cur.execute(f"""
-            UPDATE users
-            SET games_played = games_played + 1,
-                games_lost = games_lost + 1,
-                elo_rating = GREATEST(elo_rating - 15, 800)
-            WHERE id = {placeholder}
-        """, (user_id,))
+        if USE_POSTGRES:
+            cur.execute(f"""
+                UPDATE users
+                SET games_played = games_played + 1,
+                    games_lost = games_lost + 1,
+                    elo_rating = GREATEST(elo_rating - 15, 800)
+                WHERE id = {placeholder}
+            """, (user_id,))
+        else:
+            # SQLite doesn't have GREATEST, use MAX with CASE
+            cur.execute(f"""
+                UPDATE users
+                SET games_played = games_played + 1,
+                    games_lost = games_lost + 1,
+                    elo_rating = MAX(elo_rating - 15, 800)
+                WHERE id = {placeholder}
+            """, (user_id,))
 
 def get_user_games(username):
     """Get game history for a user"""
