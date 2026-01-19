@@ -771,8 +771,6 @@ def save_game_record(room, game_data, start_time, end_time, win_reason):
 
     except Exception as e:
         print(f"❌ Error saving game: {e}")
-        import traceback
-        traceback.print_exc()
         conn.rollback()
         return False
 
@@ -807,7 +805,7 @@ def update_user_stats(cur, user_id, winner, player_color):
                 WHERE id = {placeholder}
             """, (user_id,))
         else:
-            # SQLite doesn't have GREATEST, use MAX
+            # SQLite doesn't have GREATEST, use MAX with CASE
             cur.execute(f"""
                 UPDATE users
                 SET games_played = games_played + 1,
