@@ -6,6 +6,7 @@ Supports PostgreSQL (Railway/Production) and SQLite (Local Development)
 import os
 from datetime import datetime
 import threading
+import traceback
 
 # Check if PostgreSQL is available (Railway sets DATABASE_URL)
 DATABASE_URL = os.environ.get('DATABASE_URL')
@@ -31,26 +32,32 @@ DB_PATH = os.path.join(os.path.dirname(__file__), 'chess_master.db')
 def get_db_conn():
     """Get a database connection"""
     if USE_POSTGRES:
-        # Always create a fresh connection for PostgreSQL to avoid stale connection issues
         try:
-            if hasattr(thread_local, 'pg_connection') and thread_local.pg_connection and not thread_local.pg_connection.closed:
-                # Test if connection is still alive
+            # Check if we have an existing connection that's still alive
+            if hasattr(thread_local, 'pg_connection') and thread_local.pg_connection:
                 try:
-                    thread_local.pg_connection.cursor().execute("SELECT 1")
-                    return thread_local.pg_connection
-                except:
-                    # Connection is dead, close and create new one
+                    if not thread_local.pg_connection.closed:
+                        # Test connection with a simple query
+                        cur = thread_local.pg_connection.cursor()
+                        cur.execute("SELECT 1")
+                        cur.fetchone()
+                        cur.close()
+                        return thread_local.pg_connection
+                except Exception:
+                    # Connection is dead, close it
                     try:
                         thread_local.pg_connection.close()
-                    except:
+                    except Exception:
                         pass
 
             # Create new connection
+            print("🔄 Creating new PostgreSQL connection...")
             thread_local.pg_connection = psycopg2.connect(DATABASE_URL)
             thread_local.pg_connection.autocommit = False
             return thread_local.pg_connection
         except Exception as e:
             print(f"❌ PostgreSQL connection error: {e}")
+            traceback.print_exc()
             raise
     else:
         if not hasattr(thread_local, 'connection'):
@@ -61,48 +68,6 @@ def get_db_conn():
 def release_db_conn(conn):
     """Release database connection (no-op for thread-local connections)"""
     pass
-
-def execute_query(query, params=(), fetch=False, fetchone=False, commit=False):
-    """Execute a query with proper parameter handling for both databases"""
-    conn = get_db_conn()
-    try:
-        if USE_POSTGRES:
-            # PostgreSQL uses %s for placeholders
-            query = query.replace('?', '%s')
-            # Handle SQLite-specific syntax
-            query = query.replace('INTEGER PRIMARY KEY AUTOINCREMENT', 'SERIAL PRIMARY KEY')
-            query = query.replace('INSERT OR IGNORE', 'INSERT')
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-        else:
-            cur = conn.cursor()
-
-        cur.execute(query, params)
-
-        if commit:
-            conn.commit()
-
-        if fetchone:
-            row = cur.fetchone()
-            if row and not USE_POSTGRES:
-                return dict(row)
-            return dict(row) if row else None
-        elif fetch:
-            rows = cur.fetchall()
-            if not USE_POSTGRES:
-                return [dict(row) for row in rows]
-            return [dict(row) for row in rows]
-
-        if USE_POSTGRES and not fetch and not fetchone:
-            # For INSERT statements, get the last inserted ID
-            if 'INSERT' in query.upper() and 'RETURNING' not in query.upper():
-                return cur.lastrowid if hasattr(cur, 'lastrowid') else None
-
-        return cur.lastrowid if hasattr(cur, 'lastrowid') else None
-
-    except Exception as e:
-        print(f"Database error: {e}")
-        conn.rollback()
-        raise
 
 def init_db_pool():
     """Initialize database and create tables"""
@@ -117,11 +82,7 @@ def init_db_pool():
 def create_tables():
     """Create necessary database tables if they don't exist"""
     conn = get_db_conn()
-
-    if USE_POSTGRES:
-        cur = conn.cursor()
-    else:
-        cur = conn.cursor()
+    cur = conn.cursor()
 
     try:
         if USE_POSTGRES:
@@ -313,6 +274,7 @@ def create_tables():
 
     except Exception as e:
         print(f"❌ Error creating tables: {e}")
+        traceback.print_exc()
         conn.rollback()
 
 # ===== VISITOR COUNT FUNCTIONS =====
@@ -324,8 +286,10 @@ def increment_visitor_count():
         cur = conn.cursor()
         cur.execute("UPDATE visitor_count SET count = count + 1 WHERE id = 1")
         conn.commit()
+        print("👁️ Visitor count incremented")
     except Exception as e:
-        print(f"Error incrementing visitor count: {e}")
+        print(f"❌ Error incrementing visitor count: {e}")
+        traceback.print_exc()
         conn.rollback()
 
 def get_total_visitor_count():
@@ -336,10 +300,13 @@ def get_total_visitor_count():
         cur.execute("SELECT count FROM visitor_count WHERE id = 1")
         result = cur.fetchone()
         if result:
-            return result[0] if not USE_POSTGRES else result['count']
+            # For both PostgreSQL and SQLite, result is a tuple when using regular cursor
+            count = result[0] if isinstance(result, tuple) else result['count']
+            return count
         return 0
     except Exception as e:
-        print(f"Error getting visitor count: {e}")
+        print(f"❌ Error getting visitor count: {e}")
+        traceback.print_exc()
         return 0
 
 # ===== USER FUNCTIONS =====
@@ -366,7 +333,8 @@ def get_user_by_id(user_id):
             return dict(row)
         return None
     except Exception as e:
-        print(f"Error getting user by id: {e}")
+        print(f"❌ Error getting user by id: {e}")
+        traceback.print_exc()
         return None
 
 def get_user_by_username(username):
@@ -391,7 +359,8 @@ def get_user_by_username(username):
             return dict(row)
         return None
     except Exception as e:
-        print(f"Error getting user by username: {e}")
+        print(f"❌ Error getting user by username: {e}")
+        traceback.print_exc()
         return None
 
 def create_user(username, email, password_hash, display_name=None):
@@ -422,7 +391,6 @@ def create_user(username, email, password_hash, display_name=None):
         return user_id
     except Exception as e:
         print(f"❌ Error creating user: {e}")
-        import traceback
         traceback.print_exc()
         conn.rollback()
         return None
@@ -439,7 +407,8 @@ def update_last_login(user_id):
         """, (user_id,))
         conn.commit()
     except Exception as e:
-        print(f"Error updating last login: {e}")
+        print(f"❌ Error updating last login: {e}")
+        traceback.print_exc()
         conn.rollback()
 
 def get_user_profile(username):
@@ -468,7 +437,8 @@ def get_user_by_email(email):
             return dict(row)
         return None
     except Exception as e:
-        print(f"Error getting user by email: {e}")
+        print(f"❌ Error getting user by email: {e}")
+        traceback.print_exc()
         return None
 
 def update_user_password(user_id, new_password_hash):
@@ -484,7 +454,8 @@ def update_user_password(user_id, new_password_hash):
         conn.commit()
         return True
     except Exception as e:
-        print(f"Error updating password: {e}")
+        print(f"❌ Error updating password: {e}")
+        traceback.print_exc()
         conn.rollback()
         return False
 
@@ -507,9 +478,11 @@ def create_reset_code(user_id, email, code, expires_at):
             VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder})
         """, (user_id, email.lower(), code, expires_at))
         conn.commit()
+        print(f"✅ Reset code created for user {user_id}")
         return True
     except Exception as e:
-        print(f"Error creating reset code: {e}")
+        print(f"❌ Error creating reset code: {e}")
+        traceback.print_exc()
         conn.rollback()
         return False
 
@@ -534,7 +507,11 @@ def verify_reset_code(email, code):
         if not row:
             return None
 
-        row_dict = dict(row) if not USE_POSTGRES else row
+        # Convert to dict properly
+        if USE_POSTGRES:
+            row_dict = dict(row)  # RealDictCursor already returns dict-like
+        else:
+            row_dict = dict(row)  # SQLite Row can be converted to dict
 
         # Check if code has expired
         expires_at = row_dict['expires_at']
@@ -542,11 +519,13 @@ def verify_reset_code(email, code):
             expires_at = datetime.strptime(expires_at, '%Y-%m-%d %H:%M:%S')
 
         if datetime.utcnow() > expires_at:
+            print(f"⚠️ Reset code expired for {email}")
             return None
 
         return row_dict['user_id']
     except Exception as e:
-        print(f"Error verifying reset code: {e}")
+        print(f"❌ Error verifying reset code: {e}")
+        traceback.print_exc()
         return None
 
 def mark_reset_code_used(email, code):
@@ -562,7 +541,8 @@ def mark_reset_code_used(email, code):
         conn.commit()
         return True
     except Exception as e:
-        print(f"Error marking reset code as used: {e}")
+        print(f"❌ Error marking reset code as used: {e}")
+        traceback.print_exc()
         conn.rollback()
         return False
 
@@ -587,9 +567,11 @@ def create_verification_code(email, username, password_hash, display_name, code,
             VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
         """, (email.lower(), username, password_hash, display_name, code, expires_at))
         conn.commit()
+        print(f"✅ Verification code created for {email}")
         return True
     except Exception as e:
-        print(f"Error creating verification code: {e}")
+        print(f"❌ Error creating verification code: {e}")
+        traceback.print_exc()
         conn.rollback()
         return False
 
@@ -613,9 +595,14 @@ def verify_email_code(email, code):
 
         row = cur.fetchone()
         if not row:
+            print(f"⚠️ No verification code found for {email} with code {code}")
             return None
 
-        row_dict = dict(row) if not USE_POSTGRES else row
+        # Convert to dict properly
+        if USE_POSTGRES:
+            row_dict = dict(row)
+        else:
+            row_dict = dict(row)
 
         # Check if code has expired
         expires_at = row_dict['expires_at']
@@ -623,6 +610,7 @@ def verify_email_code(email, code):
             expires_at = datetime.strptime(expires_at, '%Y-%m-%d %H:%M:%S')
 
         if datetime.utcnow() > expires_at:
+            print(f"⚠️ Verification code expired for {email}")
             return None
 
         return {
@@ -631,7 +619,8 @@ def verify_email_code(email, code):
             'display_name': row_dict['display_name']
         }
     except Exception as e:
-        print(f"Error verifying email code: {e}")
+        print(f"❌ Error verifying email code: {e}")
+        traceback.print_exc()
         return None
 
 def mark_email_verified(email, code):
@@ -647,7 +636,8 @@ def mark_email_verified(email, code):
         conn.commit()
         return True
     except Exception as e:
-        print(f"Error marking email as verified: {e}")
+        print(f"❌ Error marking email as verified: {e}")
+        traceback.print_exc()
         conn.rollback()
         return False
 
@@ -660,7 +650,8 @@ def check_username_exists(username):
         cur.execute(f"SELECT id FROM users WHERE username = {placeholder}", (username,))
         return cur.fetchone() is not None
     except Exception as e:
-        print(f"Error checking username: {e}")
+        print(f"❌ Error checking username: {e}")
+        traceback.print_exc()
         return False
 
 def check_email_exists(email):
@@ -672,7 +663,8 @@ def check_email_exists(email):
         cur.execute(f"SELECT id FROM users WHERE email = {placeholder}", (email.lower(),))
         return cur.fetchone() is not None
     except Exception as e:
-        print(f"Error checking email: {e}")
+        print(f"❌ Error checking email: {e}")
+        traceback.print_exc()
         return False
 
 # ===== GAME FUNCTIONS =====
@@ -684,7 +676,6 @@ def save_game_record(room, game_data, start_time, end_time, win_reason):
     conn = get_db_conn()
     try:
         cur = conn.cursor()
-        placeholder = '%s' if USE_POSTGRES else '?'
 
         # Extract game data
         white_player = game_data.get('white_player', 'Unknown')
@@ -699,6 +690,7 @@ def save_game_record(room, game_data, start_time, end_time, win_reason):
         print(f"   White: {white_player} (user_id: {white_user_id})")
         print(f"   Black: {black_player} (user_id: {black_user_id})")
         print(f"   Winner: {winner}, Reason: {win_reason}")
+        print(f"   Move count: {len(move_history)}")
 
         # Insert game record
         if USE_POSTGRES:
@@ -714,7 +706,8 @@ def save_game_record(room, game_data, start_time, end_time, win_reason):
                 white_user_id, black_user_id, winner, win_reason,
                 game_mode, time_control, start_time, end_time, len(move_history)
             ))
-            game_id = cur.fetchone()[0]
+            result = cur.fetchone()
+            game_id = result[0] if result else None
         else:
             cur.execute("""
                 INSERT INTO games (
@@ -728,6 +721,8 @@ def save_game_record(room, game_data, start_time, end_time, win_reason):
                 game_mode, time_control, start_time, end_time, len(move_history)
             ))
             game_id = cur.lastrowid
+
+        print(f"   Game ID: {game_id}")
 
         # Save move history for replay
         for i, move in enumerate(move_history):
@@ -761,9 +756,13 @@ def save_game_record(room, game_data, start_time, end_time, win_reason):
         if white_user_id:
             update_user_stats(cur, white_user_id, winner, 'white')
             print(f"   ✓ Updated stats for white player (user_id: {white_user_id})")
+        else:
+            print(f"   ⚠️ No white_user_id - stats not updated")
         if black_user_id:
             update_user_stats(cur, black_user_id, winner, 'black')
             print(f"   ✓ Updated stats for black player (user_id: {black_user_id})")
+        else:
+            print(f"   ⚠️ No black_user_id - stats not updated (bot game or guest)")
 
         conn.commit()
         print(f"✅ Game {room} saved to database (ID: {game_id})")
@@ -771,6 +770,7 @@ def save_game_record(room, game_data, start_time, end_time, win_reason):
 
     except Exception as e:
         print(f"❌ Error saving game: {e}")
+        traceback.print_exc()
         conn.rollback()
         return False
 
@@ -778,41 +778,49 @@ def update_user_stats(cur, user_id, winner, player_color):
     """Update user statistics after game"""
     placeholder = '%s' if USE_POSTGRES else '?'
 
-    if winner == 'draw':
-        cur.execute(f"""
-            UPDATE users
-            SET games_played = games_played + 1,
-                games_drawn = games_drawn + 1
-            WHERE id = {placeholder}
-        """, (user_id,))
-    elif winner == player_color:
-        # Player won
-        cur.execute(f"""
-            UPDATE users
-            SET games_played = games_played + 1,
-                games_won = games_won + 1,
-                elo_rating = elo_rating + 20
-            WHERE id = {placeholder}
-        """, (user_id,))
-    else:
-        # Player lost
-        if USE_POSTGRES:
+    try:
+        if winner == 'draw':
             cur.execute(f"""
                 UPDATE users
                 SET games_played = games_played + 1,
-                    games_lost = games_lost + 1,
-                    elo_rating = GREATEST(elo_rating - 15, 800)
+                    games_drawn = games_drawn + 1
                 WHERE id = {placeholder}
             """, (user_id,))
+            print(f"      → Draw recorded for user {user_id}")
+        elif winner == player_color:
+            # Player won
+            cur.execute(f"""
+                UPDATE users
+                SET games_played = games_played + 1,
+                    games_won = games_won + 1,
+                    elo_rating = elo_rating + 20
+                WHERE id = {placeholder}
+            """, (user_id,))
+            print(f"      → Win recorded for user {user_id} (+20 ELO)")
         else:
-            # SQLite doesn't have GREATEST, use MAX with CASE
-            cur.execute(f"""
-                UPDATE users
-                SET games_played = games_played + 1,
-                    games_lost = games_lost + 1,
-                    elo_rating = MAX(elo_rating - 15, 800)
-                WHERE id = {placeholder}
-            """, (user_id,))
+            # Player lost
+            if USE_POSTGRES:
+                cur.execute(f"""
+                    UPDATE users
+                    SET games_played = games_played + 1,
+                        games_lost = games_lost + 1,
+                        elo_rating = GREATEST(elo_rating - 15, 800)
+                    WHERE id = {placeholder}
+                """, (user_id,))
+            else:
+                # SQLite doesn't have GREATEST, use MAX
+                cur.execute(f"""
+                    UPDATE users
+                    SET games_played = games_played + 1,
+                        games_lost = games_lost + 1,
+                        elo_rating = MAX(elo_rating - 15, 800)
+                    WHERE id = {placeholder}
+                """, (user_id,))
+            print(f"      → Loss recorded for user {user_id} (-15 ELO)")
+    except Exception as e:
+        print(f"❌ Error in update_user_stats: {e}")
+        traceback.print_exc()
+        raise
 
 def get_user_games(username):
     """Get game history for a user"""
@@ -865,7 +873,8 @@ def get_user_games(username):
         return games
 
     except Exception as e:
-        print(f"Error getting user games: {e}")
+        print(f"❌ Error getting user games: {e}")
+        traceback.print_exc()
         return []
 
 def get_game_replay(game_id):
@@ -931,7 +940,8 @@ def get_game_replay(game_id):
         }
 
     except Exception as e:
-        print(f"Error getting game replay: {e}")
+        print(f"❌ Error getting game replay: {e}")
+        traceback.print_exc()
         return None
 
 def get_leaderboard_data(limit=10):
@@ -969,5 +979,6 @@ def get_leaderboard_data(limit=10):
         return leaderboard
 
     except Exception as e:
-        print(f"Error getting leaderboard: {e}")
+        print(f"❌ Error getting leaderboard: {e}")
+        traceback.print_exc()
         return []
