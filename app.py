@@ -807,6 +807,7 @@ def create(data):
     is_bot = data.get("bot", False)
     player_name = data.get("playerName", "White")
     bot_difficulty = data.get("difficulty", "medium")  # Get difficulty from client
+    client_user_id = data.get("user_id")  # User ID passed directly from client
 
     creator_color = random.choice(["white", "black"]) if not is_bot else "white"
 
@@ -822,8 +823,16 @@ def create(data):
     if is_bot:
         black_player = f"Bot ({bot_difficulty.capitalize()})"
 
-    # Get user ID if authenticated - use get_socketio_user for SocketIO context
+    # Get user ID - try client-provided user_id first, then cache, then session
     user = get_socketio_user()
+    if not user and client_user_id:
+        # Client provided user_id directly, verify and cache it
+        db_user = get_user_by_id(client_user_id)
+        if db_user:
+            sid_to_user[request.sid] = {'id': db_user['id'], 'username': db_user['username']}
+            user = sid_to_user[request.sid]
+            print(f"✅ Cached user from client-provided user_id in create_room: {user}")
+
     white_user_id = user['id'] if user and creator_color == "white" else None
     black_user_id = user['id'] if user and creator_color == "black" else None
     print(f"🎮 Creating room {room} - user: {user['username'] if user else 'guest'}, white_user_id: {white_user_id}, black_user_id: {black_user_id}")
@@ -865,21 +874,29 @@ def join(data):
     room = data["room"]
     player_name = data.get("playerName", "Black")
     spectate = data.get("spectate", False)  # NEW: Check if joining as spectator
+    client_user_id = data.get("user_id")  # User ID passed directly from client
 
-    if room not in games: 
+    if room not in games:
         emit("error", {"message": "Room not found"})
         return
-        
+
+    # Cache user from client-provided user_id if not already cached
+    if client_user_id and request.sid not in sid_to_user:
+        db_user = get_user_by_id(client_user_id)
+        if db_user:
+            sid_to_user[request.sid] = {'id': db_user['id'], 'username': db_user['username']}
+            print(f"✅ Cached user from client-provided user_id in join_room: {sid_to_user[request.sid]}")
+
     g = games[room]
-    
+
     reconnected = False
-    
+
     # Check for player reconnection
     if request.sid == g.get("white_sid"):
         reconnected = True
         cancel_timer(g, "white")
         socketio.emit("player_reconnected", {"color": "white"}, room=room)
-        
+
     elif request.sid == g.get("black_sid"):
         reconnected = True
         cancel_timer(g, "black")
