@@ -889,17 +889,20 @@ function showNameModal(actionType, actionData = {}) {
 function executeGameAction(type, data, playerName) {
   console.log("executeGameAction called:", type, data, playerName);
 
+  // Build user_id param if logged in
+  const userParam = currentUser && currentUser.id ? `&user_id=${currentUser.id}` : '';
+
   if (type === "create") {
-    window.location.href = `/game?mode=create&room=${encodeURIComponent(data.room)}&name=${encodeURIComponent(playerName)}&time=${data.timeControl}`;
+    window.location.href = `/game?mode=create&room=${encodeURIComponent(data.room)}&name=${encodeURIComponent(playerName)}&time=${data.timeControl}${userParam}`;
   } else if (type === "join") {
-    window.location.href = `/game?mode=join&room=${encodeURIComponent(data.room)}&name=${encodeURIComponent(playerName)}`;
+    window.location.href = `/game?mode=join&room=${encodeURIComponent(data.room)}&name=${encodeURIComponent(playerName)}${userParam}`;
   } else if (type === "bot") {
     const difficulty = data.difficulty || "medium";
-    const url = `/game?mode=bot&room=${encodeURIComponent(data.room)}&name=${encodeURIComponent(playerName)}&time=${data.timeControl}&difficulty=${difficulty}`;
+    const url = `/game?mode=bot&room=${encodeURIComponent(data.room)}&name=${encodeURIComponent(playerName)}&time=${data.timeControl}&difficulty=${difficulty}${userParam}`;
     console.log("Navigating to:", url);
     window.location.href = url;
   } else if (type === "global") {
-    socket.emit("join_matchmaking", { playerName, timeControl: data.timeControl });
+    socket.emit("join_matchmaking", { playerName, timeControl: data.timeControl, user_id: currentUser?.id || null });
     startMatchmakingUI();
   }
 }
@@ -1093,16 +1096,19 @@ socket.on("matchmaking_found", (data) => {
     clearInterval(matchmakingTimer);
     matchmakingTimer = null;
   }
-  
+
   const statusDiv = document.getElementById("matchmakingStatus");
   statusDiv.classList.remove("active");
-  
-  // Navigate to game with the assigned player name
+
+  // Navigate to game with the assigned player name and user_id if logged in
   const params = new URLSearchParams({
     room: data.room,
     name: data.playerName,  // Use the assigned name from server
     mode: "global"
   });
+  if (currentUser && currentUser.id) {
+    params.set('user_id', currentUser.id);
+  }
   window.location.href = `/game?${params.toString()}`;
 });
 
