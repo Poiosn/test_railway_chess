@@ -222,7 +222,7 @@ def verify_password(password, password_hash):
     return hmac.compare_digest(hash_password(password), password_hash)
 
 def get_current_user():
-    """Get current logged in user from session"""
+    """Get current logged in user from session (for HTTP routes only)"""
     try:
         user_id = session.get('user_id')
         print(f"🔍 get_current_user() - session user_id: {user_id}")
@@ -234,6 +234,33 @@ def get_current_user():
     except Exception as e:
         print(f"⚠️ get_current_user() error: {e}")
         return None
+
+def get_socketio_user(sid=None):
+    """Get user for a SocketIO session - use this in SocketIO event handlers"""
+    if sid is None:
+        sid = request.sid
+
+    # First try from our sid_to_user cache
+    if sid in sid_to_user:
+        user_info = sid_to_user[sid]
+        print(f"🔍 get_socketio_user({sid}) - from cache: {user_info}")
+        return user_info
+
+    # Fall back to Flask session (may work in some cases)
+    try:
+        user_id = session.get('user_id')
+        if user_id:
+            user = get_user_by_id(user_id)
+            if user:
+                # Cache it for future use
+                sid_to_user[sid] = {'id': user['id'], 'username': user['username']}
+                print(f"🔍 get_socketio_user({sid}) - from session: {user['username']}")
+                return sid_to_user[sid]
+    except Exception as e:
+        print(f"⚠️ get_socketio_user() session fallback error: {e}")
+
+    print(f"🔍 get_socketio_user({sid}) - no user found")
+    return None
 
 # Initialize database on startup
 init_db_pool()
@@ -268,7 +295,8 @@ else:
 
 games = {}
 sid_to_room = {}
-DISCONNECT_TIMEOUT = 15.0 
+sid_to_user = {}  # Maps socket ID to user info for SocketIO contexts
+DISCONNECT_TIMEOUT = 15.0
 
 # ===== GLOBAL MATCHMAKING QUEUE =====
 matchmaking_queue = []
@@ -589,6 +617,59 @@ def get_game_replay_api(game_id):
         return jsonify({'error': 'Game not found'}), 404
     return jsonify(replay_data), 200
 
+# --- SOCKETIO CONNECTION HANDLERS ---
+@socketio.on("connect")
+def on_connect():
+    """Store user info when SocketIO connection is established"""
+    sid = request.sid
+    try:
+        user_id = session.get('user_id')
+        if user_id:
+            user = get_user_by_id(user_id)
+            if user:
+                sid_to_user[sid] = {'id': user['id'], 'username': user['username']}
+                print(f"🔗 SocketIO connected: {sid} -> user: {user['username']} (id: {user['id']})")
+            else:
+                print(f"🔗 SocketIO connected: {sid} -> user_id {user_id} not found in DB")
+        else:
+            print(f"🔗 SocketIO connected: {sid} -> guest (no session)")
+    except Exception as e:
+        print(f"⚠️ on_connect error: {e}")
+
+@socketio.on("authenticate")
+def on_authenticate(data):
+    """Explicit authentication event - client sends user_id after connecting"""
+    sid = request.sid
+    user_id = data.get('user_id')
+    if user_id:
+        # Convert to int if string
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            print(f"❌ Invalid user_id format: {user_id}")
+            emit("authenticated", {"success": False})
+            return
+
+        user = get_user_by_id(user_id)
+        if user:
+            sid_to_user[sid] = {'id': user['id'], 'username': user['username']}
+            print(f"✅ SocketIO authenticated: {sid} -> user: {user['username']} (id: {user['id']})")
+            emit("authenticated", {"success": True, "username": user['username']})
+
+            # If already in a game, update the user_id linkage
+            room = sid_to_room.get(sid)
+            if room and room in games:
+                g = games[room]
+                if sid == g.get("white_sid") and not g.get("white_user_id"):
+                    g["white_user_id"] = user['id']
+                    print(f"🔗 Late-linked white player to user_id: {user['id']}")
+                elif sid == g.get("black_sid") and not g.get("black_user_id"):
+                    g["black_user_id"] = user['id']
+                    print(f"🔗 Late-linked black player to user_id: {user['id']}")
+            return
+    print(f"❌ SocketIO authentication failed for {sid}")
+    emit("authenticated", {"success": False})
+
 # --- CHESS LOGIC ---
 def format_seconds(sec):
     total = int(max(0, round(sec)))
@@ -741,11 +822,11 @@ def create(data):
     if is_bot:
         black_player = f"Bot ({bot_difficulty.capitalize()})"
 
-    # Get user ID if authenticated
-    user = get_current_user()
+    # Get user ID if authenticated - use get_socketio_user for SocketIO context
+    user = get_socketio_user()
     white_user_id = user['id'] if user and creator_color == "white" else None
     black_user_id = user['id'] if user and creator_color == "black" else None
-    print(f"🎮 Creating room {room} - user: {user['username'] if user else None}, white_user_id: {white_user_id}, black_user_id: {black_user_id}")
+    print(f"🎮 Creating room {room} - user: {user['username'] if user else 'guest'}, white_user_id: {white_user_id}, black_user_id: {black_user_id}")
 
     games[room] = {
         "board": chess.Board(),
@@ -808,10 +889,11 @@ def join(data):
         g["white_sid"] = request.sid
         cancel_timer(g, "white")
         reconnected = True
-        # Link user if authenticated
-        user = get_current_user()
+        # Link user if authenticated - use get_socketio_user for SocketIO context
+        user = get_socketio_user()
         if user:
             g["white_user_id"] = user['id']
+            print(f"🔗 Linked white player to user_id: {user['id']} ({user['username']})")
         # Check if both players are now connected (for global matchmaking)
         if g.get("black_sid") is not None:
             g["isActive"] = True
@@ -822,10 +904,11 @@ def join(data):
         g["black_sid"] = request.sid
         cancel_timer(g, "black")
         reconnected = True
-        # Link user if authenticated
-        user = get_current_user()
+        # Link user if authenticated - use get_socketio_user for SocketIO context
+        user = get_socketio_user()
         if user:
             g["black_user_id"] = user['id']
+            print(f"🔗 Linked black player to user_id: {user['id']} ({user['username']})")
         # Check if both players are now connected (for global matchmaking)
         if g.get("white_sid") is not None:
             g["isActive"] = True
@@ -864,19 +947,21 @@ def join(data):
         g["white_sid"] = request.sid
         g["isActive"] = True
         g["lastUpdate"] = time.time()
-        # Link user if authenticated
-        user = get_current_user()
+        # Link user if authenticated - use get_socketio_user for SocketIO context
+        user = get_socketio_user()
         if user:
             g["white_user_id"] = user['id']
+            print(f"🔗 Linked white player to user_id: {user['id']} ({user['username']})")
     elif not g["black_player"]:
         g["black_player"] = player_name
         g["black_sid"] = request.sid
         g["isActive"] = True
         g["lastUpdate"] = time.time()
-        # Link user if authenticated
-        user = get_current_user()
+        # Link user if authenticated - use get_socketio_user for SocketIO context
+        user = get_socketio_user()
         if user:
             g["black_user_id"] = user['id']
+            print(f"🔗 Linked black player to user_id: {user['id']} ({user['username']})")
     else:
         if not reconnected:
             emit("error", {"message": "Room is full"})
@@ -907,8 +992,19 @@ def join(data):
 def join_matchmaking(data):
     player_name = data.get("playerName", "Player")
     time_control = data.get("timeControl", 300)
+    client_user_id = data.get("user_id")  # User ID passed from client
     sid = request.sid
-    
+
+    # Get user from our cache or client-provided ID
+    user = get_socketio_user(sid)
+    if not user and client_user_id:
+        # Client provided user_id directly, verify and cache it
+        db_user = get_user_by_id(client_user_id)
+        if db_user:
+            sid_to_user[sid] = {'id': db_user['id'], 'username': db_user['username']}
+            user = sid_to_user[sid]
+            print(f"✅ Cached user from client-provided user_id: {user}")
+
     with matchmaking_lock:
         # Check if already in queue
         if any(p["sid"] == sid for p in matchmaking_queue):
@@ -1034,9 +1130,10 @@ def request_rematch(data):
         player_name = g.get("white_player") if requester_color == "white" else g.get("black_player")
         bot_difficulty = g.get("bot_difficulty", "medium")  # Preserve difficulty from previous game
 
-        # Get user ID if authenticated
-        user = get_current_user()
+        # Get user ID if authenticated - use get_socketio_user for SocketIO context
+        user = get_socketio_user()
         white_user_id = user['id'] if user else None
+        print(f"🔄 Bot rematch - user: {user['username'] if user else 'guest'}, white_user_id: {white_user_id}")
 
         # Create new bot game
         games[new_room] = {
@@ -1173,7 +1270,14 @@ def decline_rematch(data):
 def on_disconnect():
     sid = request.sid
     room = sid_to_room.pop(sid, None)
-    
+
+    # Clean up user mapping
+    if sid in sid_to_user:
+        user_info = sid_to_user.pop(sid)
+        print(f"🔌 SocketIO disconnected: {sid} -> user: {user_info.get('username', 'unknown')}")
+    else:
+        print(f"🔌 SocketIO disconnected: {sid} -> guest")
+
     # Remove from matchmaking queue
     with matchmaking_lock:
         for i, player in enumerate(matchmaking_queue):
