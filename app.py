@@ -223,10 +223,17 @@ def verify_password(password, password_hash):
 
 def get_current_user():
     """Get current logged in user from session"""
-    user_id = session.get('user_id')
-    if not user_id:
+    try:
+        user_id = session.get('user_id')
+        print(f"🔍 get_current_user() - session user_id: {user_id}")
+        if not user_id:
+            return None
+        user = get_user_by_id(user_id)
+        print(f"🔍 get_current_user() - found user: {user['username'] if user else None}")
+        return user
+    except Exception as e:
+        print(f"⚠️ get_current_user() error: {e}")
         return None
-    return get_user_by_id(user_id)
 
 # Initialize database on startup
 init_db_pool()
@@ -654,16 +661,21 @@ def update_time(g):
 
 def save_game(room, g):
     """Save game using database.py function"""
-    if g.get("saved"): 
+    if g.get("saved"):
         return
-    
+
     end_time = datetime.utcnow()
     start_time = g.get("start_timestamp", end_time)
     win_reason = g.get("reason", "unknown")
-    
+
+    print(f"💾 save_game() called for room: {room}")
+    print(f"   white_user_id: {g.get('white_user_id')}, black_user_id: {g.get('black_user_id')}")
+    print(f"   winner: {g.get('winner')}, reason: {win_reason}")
+
     success = save_game_record(room, g, start_time, end_time, win_reason)
     if success:
         g["saved"] = True
+        print(f"✅ Game {room} saved successfully")
 
 def timeout_watcher():
     while True:
@@ -733,6 +745,7 @@ def create(data):
     user = get_current_user()
     white_user_id = user['id'] if user and creator_color == "white" else None
     black_user_id = user['id'] if user and creator_color == "black" else None
+    print(f"🎮 Creating room {room} - user: {user['username'] if user else None}, white_user_id: {white_user_id}, black_user_id: {black_user_id}")
 
     games[room] = {
         "board": chess.Board(),
