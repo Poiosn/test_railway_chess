@@ -1817,10 +1817,17 @@ const URL_NAME = params.get('name');
 const URL_MODE = params.get('mode');
 const URL_TIME = params.get('time');
 const URL_DIFFICULTY = params.get('difficulty') || 'medium';
+const URL_USER_ID = params.get('user_id');
 
 if (!URL_ROOM || !URL_NAME) {
     alert("Invalid game parameters. Redirecting to home.");
     window.location.href = "/";
+}
+
+// Authenticate with server if user_id is available
+if (URL_USER_ID) {
+    socket.emit("authenticate", { user_id: parseInt(URL_USER_ID) });
+    console.log("🔐 Sent authentication with user_id:", URL_USER_ID);
 }
 
 let currentRoom = URL_ROOM;
