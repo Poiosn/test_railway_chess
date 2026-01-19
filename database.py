@@ -52,7 +52,8 @@ def get_db_conn():
 
             # Create new connection
             print("🔄 Creating new PostgreSQL connection...")
-            thread_local.pg_connection = psycopg2.connect(DATABASE_URL)
+            thread_local.pg_connection = psycopg2.connect( DATABASE_URL, sslmode="require")
+
             thread_local.pg_connection.autocommit = False
             return thread_local.pg_connection
         except Exception as e:
