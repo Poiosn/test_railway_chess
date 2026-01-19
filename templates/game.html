@@ -1824,11 +1824,7 @@ if (!URL_ROOM || !URL_NAME) {
     window.location.href = "/";
 }
 
-// Authenticate with server if user_id is available
-if (URL_USER_ID) {
-    socket.emit("authenticate", { user_id: parseInt(URL_USER_ID) });
-    console.log("🔐 Sent authentication with user_id:", URL_USER_ID);
-}
+// Authentication will be handled in the connect event handler
 
 let currentRoom = URL_ROOM;
 let playerColor = null;
@@ -2190,18 +2186,33 @@ function updatePlayerNames(state) {
 }
 
 socket.on("connect",()=>{
-  if (URL_MODE === 'create') {
-    socket.emit("create_room", { room: URL_ROOM, timeControl: URL_TIME, playerName: URL_NAME, bot: false });
-  } else if (URL_MODE === 'join') {
-    socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME });
-  } else if (URL_MODE === 'bot') {
-    socket.emit("create_room", { room: URL_ROOM, timeControl: URL_TIME, playerName: URL_NAME, bot: true, difficulty: URL_DIFFICULTY });
-  } else if (URL_MODE === 'global') {
-    // For global matchmaking, room already exists with players assigned
-    // Just join the room - backend will recognize and assign color
-    socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME });
-  } else if (URL_MODE === 'spectate') {
-    socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME, spectate: true });
+  console.log("🔗 Socket connected");
+
+  // Helper function to create/join room after authentication
+  function proceedWithGame() {
+    if (URL_MODE === 'create') {
+      socket.emit("create_room", { room: URL_ROOM, timeControl: URL_TIME, playerName: URL_NAME, bot: false, user_id: URL_USER_ID ? parseInt(URL_USER_ID) : null });
+    } else if (URL_MODE === 'join') {
+      socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME, user_id: URL_USER_ID ? parseInt(URL_USER_ID) : null });
+    } else if (URL_MODE === 'bot') {
+      socket.emit("create_room", { room: URL_ROOM, timeControl: URL_TIME, playerName: URL_NAME, bot: true, difficulty: URL_DIFFICULTY, user_id: URL_USER_ID ? parseInt(URL_USER_ID) : null });
+    } else if (URL_MODE === 'global') {
+      // For global matchmaking, room already exists with players assigned
+      socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME, user_id: URL_USER_ID ? parseInt(URL_USER_ID) : null });
+    } else if (URL_MODE === 'spectate') {
+      socket.emit("join_room", { room: URL_ROOM, playerName: URL_NAME, spectate: true });
+    }
+  }
+
+  // Authenticate first if user_id is available, then proceed
+  if (URL_USER_ID) {
+    console.log("🔐 Authenticating with user_id:", URL_USER_ID);
+    socket.emit("authenticate", { user_id: parseInt(URL_USER_ID) });
+    // Give a small delay to ensure authentication is processed before room creation
+    setTimeout(proceedWithGame, 100);
+  } else {
+    // No authentication needed, proceed immediately
+    proceedWithGame();
   }
 });
 
