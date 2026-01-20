@@ -12,68 +12,75 @@ import traceback
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 if DATABASE_URL:
-    # Use PostgreSQL
+    # Use PostgreSQL with connection pool
     import psycopg2
     from psycopg2.extras import RealDictCursor
+    from psycopg2 import pool
     USE_POSTGRES = True
     print("🐘 Using PostgreSQL database")
+
+    # Create a connection pool for PostgreSQL
+    try:
+        # Use ThreadedConnectionPool for thread-safe connections
+        db_pool = pool.ThreadedConnectionPool(
+            minconn=1,
+            maxconn=10,
+            dsn=DATABASE_URL,
+            sslmode="require"
+        )
+        print("✅ PostgreSQL connection pool created")
+    except Exception as e:
+        print(f"❌ Failed to create PostgreSQL connection pool: {e}")
+        traceback.print_exc()
+        db_pool = None
 else:
     # Use SQLite for local development
     import sqlite3
     USE_POSTGRES = False
+    db_pool = None
     print("📦 Using SQLite database for local development")
 
-# Thread-local storage for database connections
+# Thread-local storage for SQLite connections
 thread_local = threading.local()
 
 # SQLite database path (only used when PostgreSQL is not available)
 DB_PATH = os.path.join(os.path.dirname(__file__), 'chess_master.db')
 
 def get_db_conn():
-    """Get a database connection"""
+    """Get a database connection from pool (PostgreSQL) or thread-local (SQLite)"""
     if USE_POSTGRES:
+        if db_pool is None:
+            raise Exception("PostgreSQL connection pool not initialized")
         try:
-            # Check if we have an existing connection that's still alive
-            if hasattr(thread_local, 'pg_connection') and thread_local.pg_connection:
-                try:
-                    if not thread_local.pg_connection.closed:
-                        # Test connection with a simple query
-                        cur = thread_local.pg_connection.cursor()
-                        cur.execute("SELECT 1")
-                        cur.fetchone()
-                        cur.close()
-                        return thread_local.pg_connection
-                except Exception:
-                    # Connection is dead, close it
-                    try:
-                        thread_local.pg_connection.close()
-                    except Exception:
-                        pass
-
-            # Create new connection
-            print("🔄 Creating new PostgreSQL connection...")
-            thread_local.pg_connection = psycopg2.connect( DATABASE_URL, sslmode="require")
-
-            thread_local.pg_connection.autocommit = False
-            return thread_local.pg_connection
+            conn = db_pool.getconn()
+            if conn.closed:
+                print("⚠️ Got closed connection from pool, reconnecting...")
+                db_pool.putconn(conn, close=True)
+                conn = db_pool.getconn()
+            return conn
         except Exception as e:
-            print(f"❌ PostgreSQL connection error: {e}")
+            print(f"❌ Error getting connection from pool: {e}")
             traceback.print_exc()
             raise
     else:
-        if not hasattr(thread_local, 'connection'):
+        # SQLite - use thread-local connection
+        if not hasattr(thread_local, 'connection') or thread_local.connection is None:
             thread_local.connection = sqlite3.connect(DB_PATH, check_same_thread=False)
             thread_local.connection.row_factory = sqlite3.Row
         return thread_local.connection
 
 def release_db_conn(conn):
-    """Release database connection (no-op for thread-local connections)"""
-    pass
+    """Release database connection back to pool"""
+    if USE_POSTGRES and db_pool is not None and conn is not None:
+        try:
+            db_pool.putconn(conn)
+        except Exception as e:
+            print(f"⚠️ Error returning connection to pool: {e}")
 
 def init_db_pool():
     """Initialize database and create tables"""
     if USE_POSTGRES:
-        print(f"🐘 Connected to PostgreSQL")
+        print(f"🐘 Connected to PostgreSQL via connection pool")
     else:
         print(f"📂 Database file: {DB_PATH}")
 
@@ -277,6 +284,9 @@ def create_tables():
         print(f"❌ Error creating tables: {e}")
         traceback.print_exc()
         conn.rollback()
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
 
 # ===== VISITOR COUNT FUNCTIONS =====
 
@@ -292,6 +302,9 @@ def increment_visitor_count():
         print(f"❌ Error incrementing visitor count: {e}")
         traceback.print_exc()
         conn.rollback()
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
 
 def get_total_visitor_count():
     """Get total visitor count"""
@@ -309,6 +322,9 @@ def get_total_visitor_count():
         print(f"❌ Error getting visitor count: {e}")
         traceback.print_exc()
         return 0
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
 
 # ===== USER FUNCTIONS =====
 
@@ -337,6 +353,9 @@ def get_user_by_id(user_id):
         print(f"❌ Error getting user by id: {e}")
         traceback.print_exc()
         return None
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
 
 def get_user_by_username(username):
     """Get user by username"""
@@ -363,6 +382,9 @@ def get_user_by_username(username):
         print(f"❌ Error getting user by username: {e}")
         traceback.print_exc()
         return None
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
 
 def create_user(username, email, password_hash, display_name=None):
     """Create a new user"""
@@ -395,6 +417,9 @@ def create_user(username, email, password_hash, display_name=None):
         traceback.print_exc()
         conn.rollback()
         return None
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
 
 def update_last_login(user_id):
     """Update user's last login time"""
@@ -411,6 +436,9 @@ def update_last_login(user_id):
         print(f"❌ Error updating last login: {e}")
         traceback.print_exc()
         conn.rollback()
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
 
 def get_user_profile(username):
     """Get user profile information"""
@@ -441,6 +469,9 @@ def get_user_by_email(email):
         print(f"❌ Error getting user by email: {e}")
         traceback.print_exc()
         return None
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
 
 def update_user_password(user_id, new_password_hash):
     """Update user's password"""
@@ -459,6 +490,9 @@ def update_user_password(user_id, new_password_hash):
         traceback.print_exc()
         conn.rollback()
         return False
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
 
 def create_reset_code(user_id, email, code, expires_at):
     """Create a password reset code"""
@@ -486,6 +520,9 @@ def create_reset_code(user_id, email, code, expires_at):
         traceback.print_exc()
         conn.rollback()
         return False
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
 
 def verify_reset_code(email, code):
     """Verify a password reset code and return user_id if valid"""
@@ -509,10 +546,7 @@ def verify_reset_code(email, code):
             return None
 
         # Convert to dict properly
-        if USE_POSTGRES:
-            row_dict = dict(row)  # RealDictCursor already returns dict-like
-        else:
-            row_dict = dict(row)  # SQLite Row can be converted to dict
+        row_dict = dict(row)
 
         # Check if code has expired
         expires_at = row_dict['expires_at']
@@ -528,6 +562,9 @@ def verify_reset_code(email, code):
         print(f"❌ Error verifying reset code: {e}")
         traceback.print_exc()
         return None
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
 
 def mark_reset_code_used(email, code):
     """Mark a reset code as used"""
@@ -546,6 +583,9 @@ def mark_reset_code_used(email, code):
         traceback.print_exc()
         conn.rollback()
         return False
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
 
 # ===== EMAIL VERIFICATION FUNCTIONS =====
 
@@ -575,6 +615,9 @@ def create_verification_code(email, username, password_hash, display_name, code,
         traceback.print_exc()
         conn.rollback()
         return False
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
 
 def verify_email_code(email, code):
     """Verify email code and return registration data if valid"""
@@ -600,10 +643,7 @@ def verify_email_code(email, code):
             return None
 
         # Convert to dict properly
-        if USE_POSTGRES:
-            row_dict = dict(row)
-        else:
-            row_dict = dict(row)
+        row_dict = dict(row)
 
         # Check if code has expired
         expires_at = row_dict['expires_at']
@@ -623,6 +663,9 @@ def verify_email_code(email, code):
         print(f"❌ Error verifying email code: {e}")
         traceback.print_exc()
         return None
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
 
 def mark_email_verified(email, code):
     """Mark email verification code as verified"""
@@ -641,6 +684,9 @@ def mark_email_verified(email, code):
         traceback.print_exc()
         conn.rollback()
         return False
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
 
 def check_username_exists(username):
     """Check if username already exists"""
@@ -654,6 +700,9 @@ def check_username_exists(username):
         print(f"❌ Error checking username: {e}")
         traceback.print_exc()
         return False
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
 
 def check_email_exists(email):
     """Check if email already exists"""
@@ -667,6 +716,9 @@ def check_email_exists(email):
         print(f"❌ Error checking email: {e}")
         traceback.print_exc()
         return False
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
 
 # ===== GAME FUNCTIONS =====
 
@@ -774,6 +826,9 @@ def save_game_record(room, game_data, start_time, end_time, win_reason):
         traceback.print_exc()
         conn.rollback()
         return False
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
 
 def update_user_stats(cur, user_id, winner, player_color):
     """Update user statistics after game"""
@@ -852,10 +907,10 @@ def get_user_games(username):
             LIMIT 50
         """, (user_id, user_id))
 
-        games = []
+        games_list = []
         for row in cur.fetchall():
             row_dict = dict(row)
-            games.append({
+            games_list.append({
                 'id': row_dict['id'],
                 'room_code': row_dict['room_code'],
                 'white_player': row_dict['white_player'],
@@ -871,12 +926,15 @@ def get_user_games(username):
                 'black_username': username if row_dict['black_user_id'] == user_id else 'Opponent'
             })
 
-        return games
+        return games_list
 
     except Exception as e:
         print(f"❌ Error getting user games: {e}")
         traceback.print_exc()
         return []
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
 
 def get_game_replay(game_id):
     """Get game replay data including all moves"""
@@ -944,6 +1002,9 @@ def get_game_replay(game_id):
         print(f"❌ Error getting game replay: {e}")
         traceback.print_exc()
         return None
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
 
 def get_leaderboard_data(limit=10):
     """Get top players by ELO rating"""
@@ -983,3 +1044,6 @@ def get_leaderboard_data(limit=10):
         print(f"❌ Error getting leaderboard: {e}")
         traceback.print_exc()
         return []
+    finally:
+        if USE_POSTGRES:
+            release_db_conn(conn)
