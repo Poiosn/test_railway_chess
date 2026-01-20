@@ -686,6 +686,69 @@ def debug_active_rooms():
         })
     return jsonify({'active_rooms': active_rooms, 'count': len(active_rooms)}), 200
 
+@app.route('/api/debug/migrate-games-table')
+def debug_migrate_games_table():
+    """Migrate games table to add missing columns - run this once on Railway"""
+    if not os.environ.get('DATABASE_URL'):
+        return jsonify({'error': 'This endpoint is only for PostgreSQL'}), 400
+
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor()
+        migrations = []
+
+        # Check and add missing columns to games table
+        columns_to_add = [
+            ("room_code", "VARCHAR(100)"),
+            ("white_player", "VARCHAR(100)"),
+            ("black_player", "VARCHAR(100)"),
+            ("white_user_id", "INTEGER REFERENCES users(id)"),
+            ("black_user_id", "INTEGER REFERENCES users(id)"),
+            ("winner", "VARCHAR(20)"),
+            ("win_reason", "VARCHAR(50)"),
+            ("game_mode", "VARCHAR(20)"),
+            ("time_control", "INTEGER"),
+            ("start_time", "TIMESTAMP"),
+            ("end_time", "TIMESTAMP"),
+            ("move_count", "INTEGER DEFAULT 0"),
+            ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+        ]
+
+        for col_name, col_type in columns_to_add:
+            try:
+                cur.execute(f"""
+                    ALTER TABLE games ADD COLUMN IF NOT EXISTS {col_name} {col_type}
+                """)
+                migrations.append(f"Added/verified column: {col_name}")
+            except Exception as e:
+                migrations.append(f"Column {col_name}: {str(e)}")
+
+        conn.commit()
+
+        # Also verify the table structure
+        cur.execute("""
+            SELECT column_name, data_type
+            FROM information_schema.columns
+            WHERE table_name = 'games'
+            ORDER BY ordinal_position
+        """)
+        columns = [{'name': row[0], 'type': row[1]} for row in cur.fetchall()]
+
+        return jsonify({
+            'success': True,
+            'migrations': migrations,
+            'current_columns': columns
+        }), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if os.environ.get('DATABASE_URL'):
+            from database import release_db_conn
+            release_db_conn(conn)
+
 @app.route('/api/user/<username>')
 def get_user_profile_api(username):
     """Get user profile by username"""
