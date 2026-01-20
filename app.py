@@ -593,6 +593,99 @@ def reset_password():
     else:
         return jsonify({'error': 'Failed to reset password'}), 500
 
+@app.route('/api/debug/recent-games')
+def debug_recent_games():
+    """Debug endpoint to see recent games and user_ids"""
+    conn = get_db_conn()
+    try:
+        if os.environ.get('DATABASE_URL'):
+            from psycopg2.extras import RealDictCursor
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            cur = conn.cursor()
+
+        cur.execute("""
+            SELECT id, room_code, white_player, black_player,
+                   white_user_id, black_user_id, winner, win_reason,
+                   game_mode, created_at
+            FROM games
+            ORDER BY created_at DESC
+            LIMIT 10
+        """)
+        rows = cur.fetchall()
+        recent_games = [dict(row) for row in rows]
+
+        # Convert datetime to string for JSON serialization
+        for game in recent_games:
+            if game.get('created_at'):
+                game['created_at'] = str(game['created_at'])
+
+        return jsonify({'recent_games': recent_games, 'count': len(recent_games)}), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/debug/test-db-write')
+def debug_test_db_write():
+    """Test if we can write to the database"""
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor()
+
+        # Try to insert a test game record
+        if os.environ.get('DATABASE_URL'):
+            cur.execute("""
+                INSERT INTO games (
+                    room_code, white_player, black_player,
+                    winner, win_reason, game_mode, time_control, move_count
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, ('test-debug-room', 'TestWhite', 'TestBlack', 'white', 'test', 'debug', 300, 0))
+            result = cur.fetchone()
+            game_id = result[0] if result else None
+        else:
+            cur.execute("""
+                INSERT INTO games (
+                    room_code, white_player, black_player,
+                    winner, win_reason, game_mode, time_control, move_count
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, ('test-debug-room', 'TestWhite', 'TestBlack', 'white', 'test', 'debug', 300, 0))
+            game_id = cur.lastrowid
+
+        conn.commit()
+        print(f"✅ Debug test: Successfully inserted game with ID: {game_id}")
+
+        return jsonify({
+            'success': True,
+            'message': f'Test game inserted with ID: {game_id}',
+            'game_id': game_id
+        }), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/debug/active-rooms')
+def debug_active_rooms():
+    """Show all active game rooms and their state"""
+    active_rooms = []
+    for room, g in games.items():
+        active_rooms.append({
+            'room': room,
+            'white_player': g.get('white_player'),
+            'black_player': g.get('black_player'),
+            'white_user_id': g.get('white_user_id'),
+            'black_user_id': g.get('black_user_id'),
+            'winner': g.get('winner'),
+            'saved': g.get('saved', False),
+            'isActive': g.get('isActive'),
+            'game_mode': g.get('game_mode'),
+            'move_count': len(g.get('move_history', []))
+        })
+    return jsonify({'active_rooms': active_rooms, 'count': len(active_rooms)}), 200
+
 @app.route('/api/user/<username>')
 def get_user_profile_api(username):
     """Get user profile by username"""
@@ -743,6 +836,7 @@ def update_time(g):
 def save_game(room, g):
     """Save game using database.py function"""
     if g.get("saved"):
+        print(f"⏭️ Game {room} already saved, skipping")
         return
 
     end_time = datetime.utcnow()
@@ -752,11 +846,19 @@ def save_game(room, g):
     print(f"💾 save_game() called for room: {room}")
     print(f"   white_user_id: {g.get('white_user_id')}, black_user_id: {g.get('black_user_id')}")
     print(f"   winner: {g.get('winner')}, reason: {win_reason}")
+    print(f"   game_mode: {g.get('game_mode')}, move_count: {len(g.get('move_history', []))}")
 
-    success = save_game_record(room, g, start_time, end_time, win_reason)
-    if success:
-        g["saved"] = True
-        print(f"✅ Game {room} saved successfully")
+    try:
+        success = save_game_record(room, g, start_time, end_time, win_reason)
+        if success:
+            g["saved"] = True
+            print(f"✅ Game {room} saved successfully")
+        else:
+            print(f"❌ save_game_record returned False for room {room}")
+    except Exception as e:
+        print(f"❌ Exception in save_game for room {room}: {e}")
+        import traceback
+        traceback.print_exc()
 
 def timeout_watcher():
     while True:
