@@ -85,7 +85,67 @@ def init_db_pool():
         print(f"📂 Database file: {DB_PATH}")
 
     create_tables()
+
+    # Auto-migrate games table if needed (for existing databases)
+    if USE_POSTGRES:
+        migrate_games_table()
+
     print("✅ Database initialized successfully")
+
+def migrate_games_table():
+    """Auto-migrate games table to add any missing columns"""
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor()
+
+        # Check if games table exists and has room_code column
+        cur.execute("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name = 'games'
+        """)
+        existing_columns = {row[0] for row in cur.fetchall()}
+
+        if not existing_columns:
+            print("📝 Games table doesn't exist yet, will be created")
+            return
+
+        # Columns that should exist
+        columns_to_add = [
+            ("room_code", "VARCHAR(100)"),
+            ("white_player", "VARCHAR(100)"),
+            ("black_player", "VARCHAR(100)"),
+            ("white_user_id", "INTEGER"),
+            ("black_user_id", "INTEGER"),
+            ("winner", "VARCHAR(20)"),
+            ("win_reason", "VARCHAR(50)"),
+            ("game_mode", "VARCHAR(20)"),
+            ("time_control", "INTEGER"),
+            ("start_time", "TIMESTAMP"),
+            ("end_time", "TIMESTAMP"),
+            ("move_count", "INTEGER DEFAULT 0"),
+            ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+        ]
+
+        added_columns = []
+        for col_name, col_type in columns_to_add:
+            if col_name not in existing_columns:
+                try:
+                    cur.execute(f"ALTER TABLE games ADD COLUMN {col_name} {col_type}")
+                    added_columns.append(col_name)
+                except Exception as e:
+                    print(f"⚠️ Could not add column {col_name}: {e}")
+
+        if added_columns:
+            conn.commit()
+            print(f"✅ Auto-migrated games table, added columns: {', '.join(added_columns)}")
+        else:
+            print("✅ Games table schema is up to date")
+
+    except Exception as e:
+        print(f"⚠️ Auto-migration check failed: {e}")
+        conn.rollback()
+    finally:
+        release_db_conn(conn)
 
 def create_tables():
     """Create necessary database tables if they don't exist"""
