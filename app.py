@@ -852,6 +852,31 @@ def get_legal_moves_map(board):
         moves[key].append({"row": r_to, "col": c_to})
     return moves
 
+def check_game_over(board):
+    """
+    Check if the game is over and return (winner, reason) tuple.
+    Returns (None, None) if game is not over.
+    """
+    if board.is_checkmate():
+        winner = "white" if not board.turn else "black"
+        return (winner, "checkmate")
+
+    if board.is_stalemate():
+        return ("draw", "stalemate")
+
+    if board.is_insufficient_material():
+        return ("draw", "insufficient")
+
+    # Threefold repetition - automatic draw
+    if board.is_repetition(3):
+        return ("draw", "repetition")
+
+    # Fifty-move rule
+    if board.is_fifty_moves():
+        return ("draw", "fifty_moves")
+
+    return (None, None)
+
 def export_state(room, current_sid=None):
     g = games[room]
     state = {
@@ -1539,10 +1564,10 @@ def move(data):
                 "fen": board.fen()
             })
             
-            if board.is_game_over():
-                g["winner"] = "white" if not board.turn else "black"
-                if board.is_stalemate(): g["winner"] = "draw"
-                else: g["reason"] = "checkmate"
+            winner, reason = check_game_over(board)
+            if winner:
+                g["winner"] = winner
+                g["reason"] = reason
                 save_game(room, g)
             
             for sid in g.get("clients", set()):
@@ -1611,9 +1636,10 @@ def bot_play(room):
                 "fen": board.fen()
             })
 
-            if board.is_game_over():
-                g["winner"] = "black"
-                g["reason"] = "checkmate"
+            winner, reason = check_game_over(board)
+            if winner:
+                g["winner"] = winner
+                g["reason"] = reason
                 save_game(room, g)
 
             for sid in g.get("clients", set()):
